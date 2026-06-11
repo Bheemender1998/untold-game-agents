@@ -8,6 +8,13 @@ INPUT=$(cat)
 CMD=$(printf '%s' "$INPUT" | python3 -c \
   "import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null)
 
+# SELF-GUARD: only act on an actual `gh pr create` (the hook `if` filter isn't reliable —
+# it fires on every Bash command). Everything else passes through untouched.
+case "$CMD" in
+  *"gh pr create"*) ;;
+  *) exit 0 ;;
+esac
+
 DIR="${CLAUDE_PROJECT_DIR:-/Users/bheemendergurram/untold_game_agents}"
 cd "$DIR" 2>/dev/null || exit 0
 

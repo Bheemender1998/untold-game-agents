@@ -7,7 +7,7 @@
           {
             "type": "command",
             "if": "Bash(git push *)",
-            "command": "branch=$(git -C \"${CLAUDE_PROJECT_DIR:-/Users/bheemendergurram/untold_game_agents}\" branch --show-current 2>/dev/null); [ \"$branch\" = \"main\" ] && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"On main: never push main directly. Branch (feat/...), open a PR, then merge — that pushes main for you.\"}}' || true"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-/Users/bheemendergurram/untold_game_agents}/.claude/hooks/push-guard.sh\""
           },
           {
             "type": "command",
