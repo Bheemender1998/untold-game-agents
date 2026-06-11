@@ -117,3 +117,62 @@ def test_cmd_approve_dry_run_skips_upload(monkeypatch):
                         lambda **k: called.__setitem__("upload", True))
     run_auto.cmd_approve("x", public=False, dry_run=True)
     assert called["upload"] is False
+
+
+def test_pipeline_render_failed_skips_qc(monkeypatch):
+    idea = {"id": "x", "status": "in_production", "human_reviewed": False}
+    monkeypatch.setattr(run_auto, "_select", lambda n: [idea])
+    monkeypatch.setattr(run_auto, "_produce_one", lambda i: idea["status"])
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    monkeypatch.setattr(run_auto, "_render_one", lambda i: False)
+    called = {"qc": False}
+    monkeypatch.setattr(run_auto.qc, "qc_video",
+                        lambda i: called.__setitem__("qc", True) or {"passed": True, "checks": []})
+    run_auto.pipeline(count=1, no_render=False)
+    assert called["qc"] is False  # render_failed → never QC'd
+
+
+def test_pipeline_no_render_stops_before_render(monkeypatch):
+    idea = {"id": "x", "status": "in_production", "human_reviewed": False}
+    monkeypatch.setattr(run_auto, "_select", lambda n: [idea])
+    monkeypatch.setattr(run_auto, "_produce_one", lambda i: idea["status"])
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    called = {"render": False}
+    monkeypatch.setattr(run_auto, "_render_one",
+                        lambda i: called.__setitem__("render", True) or True)
+    run_auto.pipeline(count=1, no_render=True)
+    assert called["render"] is False
+
+
+def test_pipeline_batch_isolation_one_failure_continues(monkeypatch):
+    ideas = [{"id": "bad", "status": "in_production", "human_reviewed": False},
+             {"id": "good", "status": "in_production", "human_reviewed": False}]
+    monkeypatch.setattr(run_auto, "_select", lambda n: ideas)
+    monkeypatch.setattr(run_auto.q, "get_by_id",
+                        lambda i: {"id": i, "status": "in_production", "human_reviewed": False})
+
+    def boom(idea_id):
+        if idea_id == "bad":
+            raise RuntimeError("produce blew up")
+        return "in_production"
+
+    monkeypatch.setattr(run_auto, "_produce_one", boom)
+    monkeypatch.setattr(run_auto, "_render_one", lambda i: True)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i: {"passed": True, "checks": []})
+    seen = []
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.append((i, f.get("status"))))
+    run_auto.pipeline(count=2, no_render=False)
+    assert ("good", "awaiting_approval") in seen  # 2nd idea ran despite the 1st throwing
+
+
+def test_cmd_list_empty(monkeypatch, capsys):
+    monkeypatch.setattr(run_auto.q, "get_by_status", lambda s: [])
+    run_auto.cmd_list()
+    assert "No videos awaiting approval" in capsys.readouterr().out
+
+
+def test_cmd_reject_marks_rejected(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto.cmd_reject("x")
+    assert seen["status"] == "rejected"

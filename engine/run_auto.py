@@ -24,7 +24,11 @@ def _run(cmd: list[str], timeout: float | None = None) -> int:
     try:
         return proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        try:
+            # POSIX only (os.killpg/getpgid not available on Windows)
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # process already exited in the race window
         proc.wait()
         return 124
 
@@ -35,7 +39,8 @@ def _select(count: int) -> list[dict]:
 
 def _produce_one(idea_id: str) -> str:
     """Run produce as a subprocess; return the idea's resulting status."""
-    _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id])
+    _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id],
+         timeout=config.PRODUCE_TIMEOUT_S)
     idea = q.get_by_id(idea_id) or {}
     return idea.get("status", "unknown")
 
@@ -99,8 +104,8 @@ def cmd_list() -> None:
 def cmd_review(idea_id: str, note: str = "") -> None:
     import datetime
     stamp = datetime.date.today().isoformat()
-    q.update_idea(idea_id, human_reviewed=True,
-                  human_review_note=f"{stamp}: {note}".rstrip(": "))
+    note_line = f"{stamp}: {note}" if note else stamp
+    q.update_idea(idea_id, human_reviewed=True, human_review_note=note_line)
     print(f"✓ {idea_id} marked human_reviewed")
 
 
@@ -111,12 +116,15 @@ def cmd_reject(idea_id: str) -> None:
 
 def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
     idea = q.get_by_id(idea_id) or {}
+    if not idea:
+        sys.exit(f"No idea found for id {idea_id}")
     meta = _load_metadata(idea["metadata_path"])
     video = os.path.join(_ROOT, idea["video_path"])
     privacy = "public" if public else "unlisted"
     if dry_run:
         auth.get_credentials()  # exercise OAuth/token refresh — catches expiry
-        assert meta.get("title") and os.path.exists(video), "metadata/video invalid"
+        if not (meta.get("title") and os.path.exists(video)):
+            sys.exit(f"dry-run FAILED for {idea_id}: metadata/video invalid")
         print(f"✓ dry-run OK for {idea_id} (auth + metadata valid; not published)")
         return
     yt_id = uploader.upload(video_path=video, title=meta["title"],

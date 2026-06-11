@@ -69,3 +69,4 @@ QC_MIN_CAPTION_COVERAGE = 0.85 # captions' last word must reach ≥85% of audio 
 QC_MAX_CAPTION_GAP_S = 8.0     # no silent caption gap longer than this
 QC_DURATION_TOLERANCE = 0.10   # video vs narration-audio duration may differ by ≤10%
 RENDER_TIMEOUT_S = 5400        # 90 min hard cap on one render subprocess
+PRODUCE_TIMEOUT_S = 1800       # 30 min cap on one produce (script + sequential fact-gate)
