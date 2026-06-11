@@ -1,0 +1,33 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git push *)",
+            "command": "branch=$(git -C \"${CLAUDE_PROJECT_DIR:-/Users/bheemendergurram/untold_game_agents}\" branch --show-current 2>/dev/null); [ \"$branch\" = \"main\" ] && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"On main: never push main directly. Branch (feat/...), open a PR, then merge — that pushes main for you.\"}}' || true"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr create *)",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-/Users/bheemendergurram/untold_game_agents}/scripts/pr-review-gate.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "asyncRewake": true,
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-/Users/bheemendergurram/untold_game_agents}/.claude/hooks/engine-test.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

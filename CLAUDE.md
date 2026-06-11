@@ -52,3 +52,43 @@ python3 -m engine.run_pipeline --stats    # queue stats only
 Stage 1 (idea generation) is proven LIVE. Do **not** build Stage 2 (publishing)
 features speculatively — prove each stage's value before expanding surface. The
 publishing pipeline is justified only once real, approved ideas exist to publish.
+
+## Hard rules (inherited from ConvictionFinder, adapted)
+
+- **NEVER push `main` directly / NEVER work on `main`.** Branch (`feat/<slug>`), PR, merge —
+  the pre-push hook (`.claude/settings.json`) blocks a direct push while on main.
+- **ALWAYS `python3 -m pytest tests/ -q` after editing `engine/**.py`.** That's the contract;
+  the PostToolUse hook (`.claude/hooks/engine-test.sh`) runs it automatically and wakes you on
+  failure. Tests run under **`python3`** (main env), never `.venv-video`.
+- **Two-venv split is load-bearing** — `python3` for produce/qc/orchestration, `.venv-video`
+  for render (Kokoro/whisper/Remotion). Never import across them; shell out (see `run_auto.py`).
+- **Integrity gate** — never publish unverified specifics about real people/events, never
+  fabricate real footage (ADR-0005). This is TUG's hard gate, the analog of CF's billing guard.
+- **Smallest sufficient change** — no speculative abstraction/config; touch only the files the
+  stated success criteria require.
+
+## PR + review workflow
+
+Engine (`engine/*.py`) changes ship via the **`ship-video-change`** skill:
+
+```
+git checkout -b feat/<slug>
+python3 -m pytest tests/ -q                     # contract (hook runs it too)
+# dual adversarial review (catch different bug classes):
+codex:rescue                                    # Codex second pass
+# spawn Agent(superpowers:code-reviewer) → note agentId
+# gate: 0 Critical + 0 Important from BOTH
+gh pr create --base main --body "...
+Adversarial-Reviewed: <agentId>"                # trailer required (pr-review-gate hook enforces)
+gh pr merge --squash --delete-branch
+```
+
+For a multi-file feature, prefer the full `superpowers:subagent-driven-development` rail
+(per-task + final whole-impl review) — how Stage B was built. The **45-min render is never a
+gate**; rely on `pytest tests/` + the QC gate + the still-preview trick.
+
+**Dashboard/config/docs-only PRs:** plain `gh pr create --base main` (no trailer, no review).
+**Bypass** (docs/renames only): `Review-Skip: <reason>` in the PR body instead of the trailer.
+
+Deploy: the produce/ideate cron can run on Railway from `main`; **render is local** (launchd on
+the M2 — Railway can't do the 45-min Chromium render). Never run a render in a hook or in CI.
