@@ -99,3 +99,24 @@ def caption_coverage(props_path: str, audio_dur: float) -> dict:
     ok = coverage >= config.QC_MIN_CAPTION_COVERAGE and max_gap_s <= config.QC_MAX_CAPTION_GAP_S
     return {"name": name, "passed": ok,
             "detail": f"coverage={coverage:.0%} max_gap={max_gap_s:.1f}s"}
+
+
+def qc_video(idea_id: str) -> dict:
+    """Run all local checks on produced/<id>/video and write produced/<id>/qc.json.
+    Returns {'passed': bool, 'checks': [...]}. Never raises — missing inputs fail a check."""
+    base = os.path.join(_ROOT, "produced", idea_id)
+    vdir = os.path.join(base, "video")
+    video = os.path.join(vdir, "video.mp4")
+    audio = os.path.join(vdir, "narration.wav")
+    props = os.path.join(vdir, "props.json")
+    audio_dur = _ffprobe_duration(audio) or 0.0
+
+    checks = [
+        render_integrity(video, audio),
+        brightness_band(video),
+        caption_coverage(props, audio_dur),
+    ]
+    report = {"passed": all(c["passed"] for c in checks), "checks": checks}
+    with open(os.path.join(base, "qc.json"), "w") as f:
+        json.dump(report, f, indent=2)
+    return report

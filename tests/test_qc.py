@@ -1,4 +1,5 @@
 import json
+import os
 
 from engine.pipeline import qc
 from tests.conftest import requires_ffmpeg
@@ -54,3 +55,22 @@ def test_caption_coverage_fails_on_long_gap(tmp_path):
             {"text": "b", "startMs": 9000, "endMs": 9100}]  # >8s gap
     r = qc.caption_coverage(str(_props(tmp_path, caps)), audio_dur=9.1)
     assert r["passed"] is False
+
+
+@requires_ffmpeg
+def test_qc_video_writes_report_and_ands_checks(tmp_path, gray_video, silent_audio, monkeypatch):
+    # Build a fake produced/<id>/video layout
+    idea_id = "testid01"
+    vdir = tmp_path / "produced" / idea_id / "video"
+    vdir.mkdir(parents=True)
+    (vdir / "video.mp4").write_bytes(gray_video.read_bytes())
+    (vdir / "narration.wav").write_bytes(silent_audio.read_bytes())
+    caps = [{"text": "a", "startMs": i * 100, "endMs": i * 100 + 90} for i in range(20)]
+    (vdir / "props.json").write_text(json.dumps({"captions": caps}))
+    monkeypatch.setattr(qc, "_ROOT", str(tmp_path))
+
+    report = qc.qc_video(idea_id)
+    assert set(c["name"] for c in report["checks"]) == {
+        "render_integrity", "brightness_band", "caption_coverage"}
+    assert report["passed"] is True
+    assert os.path.exists(tmp_path / "produced" / idea_id / "qc.json")
