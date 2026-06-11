@@ -1,3 +1,5 @@
+import json
+
 from engine.pipeline import qc
 from tests.conftest import requires_ffmpeg
 
@@ -25,3 +27,30 @@ def test_brightness_fails_on_black(black_video):
     r = qc.brightness_band(str(black_video))
     assert r["passed"] is False
     assert "luma" in r["detail"]
+
+
+def _props(tmp_path, captions):
+    p = tmp_path / "props.json"
+    p.write_text(json.dumps({"captions": captions}))
+    return p
+
+
+def test_caption_coverage_passes_full(tmp_path):
+    # words span 0..1900ms over a 2.0s audio → 95% coverage, no big gaps
+    caps = [{"text": "a", "startMs": i * 100, "endMs": i * 100 + 90} for i in range(20)]
+    r = qc.caption_coverage(str(_props(tmp_path, caps)), audio_dur=2.0)
+    assert r["passed"] is True
+
+
+def test_caption_coverage_fails_when_captions_stop_early(tmp_path):
+    # words stop at 600ms of a 2.0s audio → 30% coverage
+    caps = [{"text": "a", "startMs": i * 100, "endMs": i * 100 + 90} for i in range(6)]
+    r = qc.caption_coverage(str(_props(tmp_path, caps)), audio_dur=2.0)
+    assert r["passed"] is False
+
+
+def test_caption_coverage_fails_on_long_gap(tmp_path):
+    caps = [{"text": "a", "startMs": 0, "endMs": 100},
+            {"text": "b", "startMs": 9000, "endMs": 9100}]  # >8s gap
+    r = qc.caption_coverage(str(_props(tmp_path, caps)), audio_dur=9.1)
+    assert r["passed"] is False

@@ -79,3 +79,23 @@ def brightness_band(video_path: str) -> dict:
     ok = config.QC_BRIGHTNESS_MIN <= luma <= config.QC_BRIGHTNESS_MAX
     return {"name": name, "passed": ok,
             "detail": f"mean luma={luma:.0f} band=[{config.QC_BRIGHTNESS_MIN:.0f},{config.QC_BRIGHTNESS_MAX:.0f}]"}
+
+
+def caption_coverage(props_path: str, audio_dur: float) -> dict:
+    """Pass = caption words reach ≥ QC_MIN_CAPTION_COVERAGE of the audio AND no inter-word
+    gap exceeds QC_MAX_CAPTION_GAP_S. Reads props.json['captions'] ({text,startMs,endMs})."""
+    name = "caption_coverage"
+    try:
+        caps = json.load(open(props_path)).get("captions", [])
+    except (OSError, ValueError):
+        return {"name": name, "passed": False, "detail": "props.json unreadable"}
+    if not caps or not audio_dur:
+        return {"name": name, "passed": False, "detail": "no captions or zero audio"}
+    caps = sorted(caps, key=lambda c: c["startMs"])
+    last_end_s = max(c["endMs"] for c in caps) / 1000.0
+    coverage = last_end_s / audio_dur
+    max_gap_s = max([(caps[i + 1]["startMs"] - caps[i]["endMs"]) / 1000.0
+                     for i in range(len(caps) - 1)] or [0.0])
+    ok = coverage >= config.QC_MIN_CAPTION_COVERAGE and max_gap_s <= config.QC_MAX_CAPTION_GAP_S
+    return {"name": name, "passed": ok,
+            "detail": f"coverage={coverage:.0%} max_gap={max_gap_s:.1f}s"}
