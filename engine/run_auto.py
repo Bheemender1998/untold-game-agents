@@ -9,6 +9,7 @@ import sys
 
 from engine import config
 from engine import queue_manager as q
+from engine.pipeline import qc
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VENV_PY = os.path.join(_ROOT, ".venv-video", "bin", "python")
@@ -47,3 +48,32 @@ def _render_one(idea_id: str) -> bool:
         q.update_idea(idea_id, status="render_failed", render_note=why)
         return False
     return True
+
+
+def _cleared_to_render(idea: dict) -> bool:
+    return idea.get("status") == "in_production" or idea.get("human_reviewed") is True
+
+
+def pipeline(count: int, no_render: bool) -> None:
+    """Produce → (render → QC) for the top-`count` pending ideas. One failure never
+    aborts the batch."""
+    for idea in _select(count):
+        idea_id = idea["id"]
+        try:
+            _produce_one(idea_id)
+            current = q.get_by_id(idea_id) or {}
+            if not _cleared_to_render(current):
+                print(f"· {idea_id}: not cleared ({current.get('status')}) — skipping")
+                continue
+            if no_render:
+                print(f"· {idea_id}: cleared (--no-render, stopping before render)")
+                continue
+            if not _render_one(idea_id):
+                print(f"· {idea_id}: render_failed")
+                continue
+            report = qc.qc_video(idea_id)
+            status = "awaiting_approval" if report["passed"] else "qc_failed"
+            q.update_idea(idea_id, status=status)
+            print(f"· {idea_id}: {status}")
+        except Exception as e:  # never abort the batch
+            print(f"! {idea_id}: error {e}")
