@@ -48,6 +48,15 @@ def test_lookup_never_raises_on_network_error(monkeypatch):
     assert wikipedia.lookup("anything") == ""  # degrades to empty, no exception
 
 
+def test_lookup_never_raises_on_malformed_pages(monkeypatch):
+    # a structurally-wrong-but-parseable payload (null page entry) must not raise
+    monkeypatch.setattr(wikipedia.requests, "get", _fake_get({
+        "search": {"query": {"search": [{"title": "X"}]}},
+        "extract": {"query": {"pages": {"123": None}}},
+    }))
+    assert wikipedia.lookup("anything") == ""
+
+
 def test_lookup_trims_to_sentence_budget(monkeypatch):
     long_extract = ". ".join(f"Sentence {i}" for i in range(20)) + "."
     monkeypatch.setattr(wikipedia.requests, "get", _fake_get({

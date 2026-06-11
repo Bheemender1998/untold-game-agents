@@ -36,6 +36,8 @@ def lookup(query: str, sentences: int = 6) -> str:
         # Trim to the first `sentences` sentences to keep the judge prompt tight.
         flat = " ".join(extract.split())
         trimmed = ". ".join(flat.split(". ")[:sentences]).strip()
+        if not trimmed:
+            return ""
         return f"[Wikipedia: {title}] {trimmed}"
-    except (requests.RequestException, ValueError, KeyError, TypeError):
+    except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError):
         return ""
