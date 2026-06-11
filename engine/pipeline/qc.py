@@ -53,3 +53,29 @@ def render_integrity(video_path: str, audio_path: str) -> dict:
     ok = drift <= config.QC_DURATION_TOLERANCE
     return {"name": name, "passed": ok,
             "detail": f"video={v_dur:.1f}s audio={a_dur:.1f}s drift={drift:.0%}"}
+
+
+def _mean_luma(path: str, every_n: int = 30) -> float | None:
+    """Average YAVG (0-255) over every Nth frame via ffmpeg signalstats."""
+    if not os.path.exists(path):
+        return None
+    try:
+        out = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-i", path,
+             "-vf", f"select='not(mod(n\\,{every_n}))',signalstats,metadata=print:file=-",
+             "-an", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=120)
+    except subprocess.SubprocessError:
+        return None
+    vals = [float(m) for m in re.findall(r"lavfi\.signalstats\.YAVG=([\d.]+)", out.stdout)]
+    return sum(vals) / len(vals) if vals else None
+
+
+def brightness_band(video_path: str) -> dict:
+    name = "brightness_band"
+    luma = _mean_luma(video_path)
+    if luma is None:
+        return {"name": name, "passed": False, "detail": "could not read luma"}
+    ok = config.QC_BRIGHTNESS_MIN <= luma <= config.QC_BRIGHTNESS_MAX
+    return {"name": name, "passed": ok,
+            "detail": f"mean luma={luma:.0f} band=[{config.QC_BRIGHTNESS_MIN:.0f},{config.QC_BRIGHTNESS_MAX:.0f}]"}

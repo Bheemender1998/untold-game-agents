@@ -13,3 +13,15 @@ def test_render_integrity_passes_on_good_video(gray_video, silent_audio):
 def test_render_integrity_fails_when_audio_missing(gray_video, tmp_path):
     r = qc.render_integrity(str(gray_video), str(tmp_path / "nope.wav"))
     assert r["passed"] is False
+
+
+@requires_ffmpeg
+def test_brightness_passes_on_grey(gray_video):
+    assert qc.brightness_band(str(gray_video))["passed"] is True
+
+
+@requires_ffmpeg
+def test_brightness_fails_on_black(black_video):
+    r = qc.brightness_band(str(black_video))
+    assert r["passed"] is False
+    assert "luma" in r["detail"]
