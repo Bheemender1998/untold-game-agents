@@ -39,8 +39,11 @@ def _select(count: int) -> list[dict]:
 
 def _produce_one(idea_id: str) -> str:
     """Run produce as a subprocess; return the idea's resulting status."""
-    _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id],
-         timeout=config.PRODUCE_TIMEOUT_S)
+    rc = _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id],
+              timeout=config.PRODUCE_TIMEOUT_S)
+    if rc != 0:
+        print(f"· {idea_id}: produce {'timed out' if rc == 124 else f'exit {rc}'} "
+              f"(idea may be left in 'producing')")
     idea = q.get_by_id(idea_id) or {}
     return idea.get("status", "unknown")
 
@@ -61,6 +64,17 @@ def _cleared_to_render(idea: dict) -> bool:
     return idea.get("status") == "in_production" or idea.get("human_reviewed") is True
 
 
+def _render_and_qc(idea_id: str) -> None:
+    """Render a cleared idea, QC it, and set awaiting_approval / qc_failed / render_failed."""
+    if not _render_one(idea_id):
+        print(f"· {idea_id}: render_failed")
+        return
+    report = qc.qc_video(idea_id)
+    status = "awaiting_approval" if report["passed"] else "qc_failed"
+    q.update_idea(idea_id, status=status)
+    print(f"· {idea_id}: {status}")
+
+
 def pipeline(count: int, no_render: bool) -> None:
     """Produce → (render → QC) for the top-`count` pending ideas. One failure never
     aborts the batch."""
@@ -75,13 +89,7 @@ def pipeline(count: int, no_render: bool) -> None:
             if no_render:
                 print(f"· {idea_id}: cleared (--no-render, stopping before render)")
                 continue
-            if not _render_one(idea_id):
-                print(f"· {idea_id}: render_failed")
-                continue
-            report = qc.qc_video(idea_id)
-            status = "awaiting_approval" if report["passed"] else "qc_failed"
-            q.update_idea(idea_id, status=status)
-            print(f"· {idea_id}: {status}")
+            _render_and_qc(idea_id)
         except Exception as e:  # never abort the batch
             print(f"! {idea_id}: error {e}")
 
@@ -91,6 +99,19 @@ def _load_metadata(rel_path: str) -> dict:
         return json.load(f)
 
 
+def _qc_summary(idea_id: str) -> str:
+    path = os.path.join(_ROOT, "produced", idea_id, "qc.json")
+    try:
+        with open(path) as f:
+            r = json.load(f)
+    except (OSError, ValueError):
+        return "no qc.json"
+    if r.get("passed"):
+        return "QC pass"
+    failed = [c["name"] for c in r.get("checks", []) if not c.get("passed")]
+    return "QC FAIL: " + ", ".join(failed)
+
+
 def cmd_list() -> None:
     rows = q.get_by_status("awaiting_approval")
     if not rows:
@@ -98,7 +119,7 @@ def cmd_list() -> None:
         return
     for i in rows:
         title = (i.get("title_variants") or ["?"])[0]
-        print(f"{i['id']}  {title[:60]}")
+        print(f"{i['id']}  {title[:50]}  [{_qc_summary(i['id'])}]")
 
 
 def cmd_review(idea_id: str, note: str = "") -> None:
@@ -107,6 +128,18 @@ def cmd_review(idea_id: str, note: str = "") -> None:
     note_line = f"{stamp}: {note}" if note else stamp
     q.update_idea(idea_id, human_reviewed=True, human_review_note=note_line)
     print(f"✓ {idea_id} marked human_reviewed")
+
+
+def cmd_render(idea_id: str) -> None:
+    """Render a single already-cleared idea (skips produce — preserves a hand-fixed script).
+    This is the human-review override render path: --review <id>, then --render <id>."""
+    idea = q.get_by_id(idea_id) or {}
+    if not idea:
+        sys.exit(f"No idea found for id {idea_id}")
+    if not _cleared_to_render(idea):
+        sys.exit(f"{idea_id} not cleared to render (status={idea.get('status')}, "
+                 f"human_reviewed={idea.get('human_reviewed')}). Run --review {idea_id} first.")
+    _render_and_qc(idea_id)
 
 
 def cmd_reject(idea_id: str) -> None:
@@ -118,6 +151,8 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
     idea = q.get_by_id(idea_id) or {}
     if not idea:
         sys.exit(f"No idea found for id {idea_id}")
+    if idea.get("status") != "awaiting_approval":
+        sys.exit(f"{idea_id} is '{idea.get('status')}', not awaiting_approval — refusing to publish")
     meta = _load_metadata(idea["metadata_path"])
     video = os.path.join(_ROOT, idea["video_path"])
     privacy = "public" if public else "unlisted"
@@ -147,6 +182,7 @@ def main() -> None:
     ap.add_argument("--public", action="store_true", help="--approve as public (default unlisted)")
     ap.add_argument("--dry-run", action="store_true", help="--approve: auth+metadata check, no insert")
     ap.add_argument("--reject", metavar="ID", help="mark an idea rejected")
+    ap.add_argument("--render", metavar="ID", help="render a single cleared idea (skips produce)")
     args = ap.parse_args()
 
     if args.list:
@@ -157,6 +193,8 @@ def main() -> None:
         cmd_reject(args.reject)
     elif args.approve:
         cmd_approve(args.approve, public=args.public, dry_run=args.dry_run)
+    elif args.render:
+        cmd_render(args.render)
     else:
         pipeline(count=args.count, no_render=args.no_render)
 

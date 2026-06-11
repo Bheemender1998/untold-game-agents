@@ -1,3 +1,4 @@
+import json
 import time
 
 from engine import run_auto
@@ -176,3 +177,50 @@ def test_cmd_reject_marks_rejected(monkeypatch):
     monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
     run_auto.cmd_reject("x")
     assert seen["status"] == "rejected"
+
+
+def test_cmd_render_renders_cleared_human_reviewed_idea(monkeypatch):
+    # the previously-unreachable override path: needs_review + human_reviewed → renders
+    idea = {"id": "x", "status": "needs_review", "human_reviewed": True}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    monkeypatch.setattr(run_auto, "_render_one", lambda i: True)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i: {"passed": True, "checks": []})
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    produce_called = {"v": False}
+    monkeypatch.setattr(run_auto, "_produce_one",
+                        lambda i: produce_called.__setitem__("v", True) or "x")
+    run_auto.cmd_render("x")
+    assert seen["status"] == "awaiting_approval"
+    assert produce_called["v"] is False  # crucially: did NOT regenerate the script
+
+
+def test_cmd_render_refuses_uncleared_idea(monkeypatch):
+    idea = {"id": "x", "status": "needs_review", "human_reviewed": False}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    import pytest
+    with pytest.raises(SystemExit):
+        run_auto.cmd_render("x")
+
+
+def test_cmd_approve_refuses_non_awaiting(monkeypatch):
+    idea = {"id": "x", "status": "in_production",
+            "metadata_path": "produced/x/metadata.json",
+            "video_path": "produced/x/video/video.mp4"}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    import pytest
+    with pytest.raises(SystemExit):
+        run_auto.cmd_approve("x", public=False, dry_run=False)
+
+
+def test_cmd_list_shows_qc_summary(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(run_auto, "_ROOT", str(tmp_path))
+    vdir = tmp_path / "produced" / "x"
+    vdir.mkdir(parents=True)
+    (vdir / "qc.json").write_text(json.dumps(
+        {"passed": False, "checks": [{"name": "brightness_band", "passed": False}]}))
+    monkeypatch.setattr(run_auto.q, "get_by_status",
+                        lambda s: [{"id": "x", "title_variants": ["T"]}])
+    run_auto.cmd_list()
+    out = capsys.readouterr().out
+    assert "QC FAIL" in out and "brightness_band" in out
