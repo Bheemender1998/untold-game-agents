@@ -34,6 +34,16 @@ Content pillars:
 Sports covered: NFL, NBA, Soccer/Football, Cricket, Formula 1, UFC, College Sports
 """
 
+# ── Video length target ───────────────────────────────────────────────────────
+# Channel-wide narration-length cap. Overrides each idea's `format_suggestion`
+# (the idea agents tend to propose "18-25 min", which renders ~13min+ and tests
+# viewer patience). Kokoro narrates ~220 wpm, so ~1,800 words ≈ 8-9 min.
+# Tune this single knob to make every future video shorter/longer.
+TARGET_SCRIPT_WORDS = 1800        # spoken words; primary driver of runtime
+TARGET_SCRIPT_WORDS_MIN = 1600
+TARGET_SCRIPT_WORDS_MAX = 2000
+TARGET_RUNTIME_LABEL = "8-9 minutes"
+
 # ── Viral potential scoring rubric ────────────────────────────────────────────
 VIRAL_RUBRIC = """
 Score each idea 1-10 on:

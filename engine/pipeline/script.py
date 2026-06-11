@@ -8,6 +8,7 @@ voice, with structure and [VISUAL]/[ARCHIVAL] production cues.
 from __future__ import annotations
 
 from engine.ideate.base_agent import BaseAgent
+from engine import config
 
 SCRIPT_SYSTEM = """You are the lead documentary scriptwriter for "The Untold Game",
 a YouTube channel telling forgotten sports-history stories in a cinematic, authoritative,
@@ -19,6 +20,10 @@ Craft:
   resonant closing line that recontextualises everything.
 - Write for the EAR: short sentences, concrete images, present-tense scene-setting, the
   occasional one-line paragraph for impact. No listicle voice, no "in this video".
+- BE TIGHT. This is a short, high-retention cut — every sentence must earn its place. Cut
+  throat-clearing, restated context, and victory-lap closings. Favour momentum over completeness:
+  one vivid concrete detail beats three general ones. If you're unsure a line survives a re-read,
+  cut it.
 - Every factual claim (dates, names, scores, quotes) must be accurate — use web search to
   verify. If a detail can't be confirmed, write around it rather than inventing.
 - Interleave production cues in brackets on their own lines: [VISUAL: ...], [ARCHIVAL: ...],
@@ -45,11 +50,16 @@ HOOK:     {idea['hook']}
 PILLAR:   {idea['pillar']}
 SPORT:    {idea['sport']}
 AUDIENCE: {idea['target_audience']}
-FORMAT:   {idea['format_suggestion']}
 WHY IT WORKS: {idea['why_it_works']}
 
 Use web search to verify the key facts (people, dates, results, quotes) before writing.
-Target the length implied by FORMAT (a 12-18 min video is roughly 1,800-2,600 spoken words).
+
+LENGTH — this is a HARD constraint that OVERRIDES any format suggestion on the idea:
+target about {config.TARGET_SCRIPT_WORDS} spoken words ({config.TARGET_SCRIPT_WORDS_MIN}-{config.TARGET_SCRIPT_WORDS_MAX}),
+which is roughly {config.TARGET_RUNTIME_LABEL} of narration. Do NOT write a 15-25 minute
+epic — tell this story tight. Pick the single strongest spine and cut everything that
+isn't load-bearing. Count your words; if you run long, cut, don't pad.
+
 Return ONLY the Markdown script."""
         return _trim_preamble(self._call(prompt, use_search=True))
 
