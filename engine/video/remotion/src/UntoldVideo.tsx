@@ -43,7 +43,10 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
 
       {/* kinetic word-by-word captions, synced to the voice (offset by the intro) */}
       <Sequence from={introF} name="Captions">
-        <Captions captions={props.captions} />
+        <Captions
+          captions={props.captions}
+          chapterStartsMs={props.chapters.map((c) => c.startMs)}
+        />
       </Sequence>
 
       {/* subscribe outro after the narration ends */}
