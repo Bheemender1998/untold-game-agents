@@ -4,6 +4,62 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 8 (2026-06-11) — shorter videos + Stage B shipped + CF workflow adopted
+
+Big session. **5 PRs merged (#1–#5)** through a newly-adopted PR workflow. Everything below
+references the durable artifacts — don't re-read this for detail, open them.
+
+### Shipped
+- **Shorter videos** — `config.TARGET_SCRIPT_WORDS=1800` (~8–9 min) overrides the per-idea
+  "18-25 min" format; `engine/pipeline/script.py` enforces it. (Girlfriend feedback: 13:38 too long.)
+- **Video #2 — Kolkata 2001** (idea `85a68197`): produced at ~1,650 words, **hand-fact-checked
+  against the Wikipedia scorecard** (fixed Mumbai winner / streak 15→16 / cold-open date; added
+  Harbhajan's hat-trick), **rendered** (`produced/85a68197/video/video.mp4`), **QC-clean** (luma 91,
+  captions 100%, 2% drift), status **`awaiting_approval`** + `human_reviewed=True`. **NOT published yet
+  → `python3 -m engine.run_auto --approve 85a68197 [--public]`.** (Uses the OLD single-line captions —
+  the caption upgrades below land on the NEXT render.)
+- **Stage B core loop SHIPPED** — `engine/pipeline/qc.py` (local QC gate: render_integrity /
+  brightness_band / caption_coverage, never-raises) + `engine/run_auto.py` (orchestrator:
+  produce→render→QC→`awaiting_approval`, approval CLI `--list/--approve/--review/--reject/--render`).
+  New statuses: `awaiting_approval`, `qc_failed`, `render_failed`. `human_reviewed` is an alternate
+  clear-to-render signal; `--render <id>` is the override path (skips produce). 30 tests. Spec +
+  plan: `docs/superpowers/specs/2026-06-11-stage-b-core-loop-design.md`,
+  `docs/superpowers/plans/2026-06-11-stage-b-core-loop.md`. (PR #1 was the workflow, Stage B merged pre-PR-rail.)
+- **ConvictionFinder workflow adopted** (PR #1, #5) — `.claude/settings.json` hooks + `ship-video-change`
+  + `fact-review` skills + CLAUDE.md "Hard rules" / "PR + review workflow". **HOOK GOTCHA (PR #5):**
+  the hook-level `if:` filter does NOT scope in this harness — hooks must **self-guard on the stdin
+  command** (`.claude/hooks/push-guard.sh`, `scripts/pr-review-gate.sh`, `engine-test.sh`). The
+  push-block only denies a real `git push` on `main`; work via branch+PR.
+- **Wikipedia-RAG fact-gate** (PR #3) — `engine/ideate/wikipedia.py` (MediaWiki, no key, never-raises)
+  feeds an authoritative extract to `factcheck.verify_claim` above noisy DDG (which false-flagged 8/11
+  on Kolkata). `docs/external-references.md` = the 5-repo analysis (adopt cookbooks Wikipedia-RAG;
+  skip swift-markdown/motion; defer claude-code-action).
+- **Captions glow-up** (PR #4, `engine/video/remotion/src/components/Captions.tsx`) — big centered
+  multi-line + chapter-card de-collision + **per-word spring pop-in** (frame-pure Remotion `spring`).
+  Verified via `npx remotion still`/slice previews. **Applies to the NEXT render only.**
+
+### Open / next
+1. **Publish Kolkata** (`run_auto --approve 85a68197`) — touches YouTube OAuth, user's step.
+2. **Voice ~10% slower** — Kokoro reads ~220 wpm (a touch fast); nudge the speed in
+   `engine/video/tts.py` on the next produce+render.
+3. Deferred (own builds): **launchd scheduler** (overnight renders), **Shorts/TikTok/IG**,
+   **claude-code-action** CI review (cost-gated), Claude-vision people-check in QC, Next.js dashboard
+   (where `motion` would actually fit).
+
+### Watch-outs
+- **Shared Anthropic key is cost-fragile** — hit a zero balance twice this session. Produce/fact-gate
+  cost ~$0.25/video.
+- **Render is LOCAL only** — `npx remotion render` (~45 min, Chromium), runs in the user's shell, not
+  the harness sandbox / not Railway. Stills/slices are the cheap preview (`npx remotion still … --frame=N`).
+- **Two-venv split:** `python3` (produce/qc/orchestration) vs `.venv-video` (render). Never import across.
+- **Hooks need a `/hooks` open or restart** to go live after a settings.json change in-session.
+
+### Suggested skills next session
+- `ship-video-change` (any `engine/*.py` PR), `fact-review` (verify a flagged script),
+  `run-pipeline` / `review-ideas` (ideas), `claude-api` (before any LLM/TTS wiring).
+
+---
+
 ## Session 7 (2026-06-11) — Remotion pivot + first video PUBLISHED + repo created
 
 **BIGGEST THING — this project now has its own git repo.** It was previously an
