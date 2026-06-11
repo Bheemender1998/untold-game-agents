@@ -74,7 +74,7 @@ export const Background: React.FC<{chapters: Chapter[]; introMs: number}> = ({
         return (
           <Sequence key={i} from={from} durationInFrames={dur} name={`bg ${i + 1}`}>
             <Fade durationInFrames={dur}>
-              <AbsoluteFill style={{filter: 'saturate(0.98) contrast(1.03) brightness(1.25)'}}>
+              <AbsoluteFill style={{filter: 'brightness(1.22) contrast(1.03) sepia(0.18) saturate(1.18) hue-rotate(-6deg)'}}>
                 <Loop durationInFrames={clipF}>
                   <OffthreadVideo
                     src={staticFile(c.bClip)}
@@ -93,7 +93,7 @@ export const Background: React.FC<{chapters: Chapter[]; introMs: number}> = ({
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 44%, rgba(0,0,0,0) 46%, rgba(0,0,0,0.28) 100%)',
+            'radial-gradient(circle at 50% 44%, rgba(0,0,0,0) 46%, rgba(20,11,3,0.30) 100%)',
         }}
       />
       <AbsoluteFill
