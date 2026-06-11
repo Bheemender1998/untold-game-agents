@@ -73,3 +73,47 @@ def test_pipeline_marks_qc_failed(monkeypatch):
     seen = _stub_pipeline(monkeypatch, idea, qc_pass=False)
     run_auto.pipeline(count=1, no_render=False)
     assert seen["status"] == "qc_failed"
+
+
+def test_cmd_review_sets_two_fields(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto.cmd_review("x", note="checked scorecard")
+    assert seen["human_reviewed"] is True
+    assert seen["human_review_note"].endswith("checked scorecard")
+
+
+def test_cmd_approve_uploads_and_marks_published(monkeypatch):
+    idea = {"id": "x", "status": "awaiting_approval",
+            "metadata_path": "produced/x/metadata.json",
+            "video_path": "produced/x/video/video.mp4"}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    monkeypatch.setattr(run_auto, "_load_metadata",
+                        lambda p: {"title": "T", "description": "D", "tags": ["a"]})
+    calls = {}
+    monkeypatch.setattr(run_auto.uploader, "upload",
+                        lambda **k: calls.update(k) or "yt123")
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto.cmd_approve("x", public=False, dry_run=False)
+    assert calls["privacy"] == "unlisted"
+    assert seen["status"] == "published"
+    assert "yt123" in seen["youtube_url"]
+
+
+def test_cmd_approve_dry_run_skips_upload(monkeypatch):
+    idea = {"id": "x", "status": "awaiting_approval",
+            "metadata_path": "produced/x/metadata.json",
+            "video_path": "produced/x/video/video.mp4"}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    monkeypatch.setattr(run_auto, "_load_metadata",
+                        lambda p: {"title": "T", "description": "D", "tags": ["a"]})
+    monkeypatch.setattr(run_auto.auth, "get_credentials", lambda: object())  # auth exercised
+    monkeypatch.setattr(run_auto, "_ROOT", "/")  # so os.path.exists(video) is checkable
+    import os
+    monkeypatch.setattr(os.path, "exists", lambda p: True)
+    called = {"upload": False}
+    monkeypatch.setattr(run_auto.uploader, "upload",
+                        lambda **k: called.__setitem__("upload", True))
+    run_auto.cmd_approve("x", public=False, dry_run=True)
+    assert called["upload"] is False

@@ -2,6 +2,7 @@
 human approval CLI. Runs in the user's shell (render needs npx). Shells out per stage with
 the right interpreter (the produce/render venvs can't coexist in one process)."""
 from __future__ import annotations
+import json
 import os
 import signal
 import subprocess
@@ -10,6 +11,7 @@ import sys
 from engine import config
 from engine import queue_manager as q
 from engine.pipeline import qc
+from engine.publish import uploader, auth
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VENV_PY = os.path.join(_ROOT, ".venv-video", "bin", "python")
@@ -77,3 +79,49 @@ def pipeline(count: int, no_render: bool) -> None:
             print(f"· {idea_id}: {status}")
         except Exception as e:  # never abort the batch
             print(f"! {idea_id}: error {e}")
+
+
+def _load_metadata(rel_path: str) -> dict:
+    with open(os.path.join(_ROOT, rel_path)) as f:
+        return json.load(f)
+
+
+def cmd_list() -> None:
+    rows = q.get_by_status("awaiting_approval")
+    if not rows:
+        print("No videos awaiting approval.")
+        return
+    for i in rows:
+        title = (i.get("title_variants") or ["?"])[0]
+        print(f"{i['id']}  {title[:60]}")
+
+
+def cmd_review(idea_id: str, note: str = "") -> None:
+    import datetime
+    stamp = datetime.date.today().isoformat()
+    q.update_idea(idea_id, human_reviewed=True,
+                  human_review_note=f"{stamp}: {note}".rstrip(": "))
+    print(f"✓ {idea_id} marked human_reviewed")
+
+
+def cmd_reject(idea_id: str) -> None:
+    q.update_idea(idea_id, status="rejected")
+    print(f"✓ {idea_id} rejected")
+
+
+def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
+    idea = q.get_by_id(idea_id) or {}
+    meta = _load_metadata(idea["metadata_path"])
+    video = os.path.join(_ROOT, idea["video_path"])
+    privacy = "public" if public else "unlisted"
+    if dry_run:
+        auth.get_credentials()  # exercise OAuth/token refresh — catches expiry
+        assert meta.get("title") and os.path.exists(video), "metadata/video invalid"
+        print(f"✓ dry-run OK for {idea_id} (auth + metadata valid; not published)")
+        return
+    yt_id = uploader.upload(video_path=video, title=meta["title"],
+                            description=meta.get("description", ""),
+                            tags=meta.get("tags"), privacy=privacy)
+    q.update_idea(idea_id, status="published",
+                  youtube_url=f"https://youtu.be/{yt_id}")
+    print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
