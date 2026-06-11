@@ -17,6 +17,7 @@ import json
 import anthropic
 from engine.config import MODEL
 from engine.ideate.web_search import search as web_search
+from engine.ideate import wikipedia
 
 _client = anthropic.Anthropic(max_retries=5)
 
@@ -38,13 +39,15 @@ _EXTRACT_SCHEMA = {
 
 # ── Phase 2: verify one claim against search results ─────────────────────────
 
-_VERIFY_SYSTEM = """You are a rigorous fact-checker. Given a claim and web search
-results, judge ONLY from the results:
-- supported   : results clearly confirm the claim.
-- contradicted: results say something different — give the CORRECTED fact.
-- unverified  : results don't clearly confirm or deny it.
-Be strict: a partially-wrong specific (wrong place, wrong count, wrong date) is
-'contradicted', not 'supported'. Cite the source URL you relied on."""
+_VERIFY_SYSTEM = """You are a rigorous fact-checker. Given a claim and evidence, judge ONLY
+from the evidence:
+- supported   : evidence clearly confirms the claim.
+- contradicted: evidence says something different — give the CORRECTED fact.
+- unverified  : evidence doesn't clearly confirm or deny it.
+When an AUTHORITATIVE (encyclopedic / Wikipedia) source is present and directly addresses the
+claim, weight it ABOVE web snippets — web results are noisy and frequently pull the wrong
+event/person. Be strict: a partially-wrong specific (wrong place, wrong count, wrong date) is
+'contradicted', not 'supported'. Cite the source (Wikipedia title or URL) you relied on."""
 
 _VERIFY_SCHEMA = {
     "type": "object",
@@ -76,7 +79,10 @@ def extract_claims(script_md: str, max_claims: int = 14) -> list[str]:
 
 def verify_claim(claim: str) -> dict:
     results = web_search(claim, max_results=5)
-    out = _structured(_VERIFY_SYSTEM, f"CLAIM: {claim}\n\nWEB RESULTS:\n{results}", _VERIFY_SCHEMA)
+    wiki = wikipedia.lookup(claim)   # authoritative encyclopedic context (or "" on miss/error)
+    evidence = (f"AUTHORITATIVE (encyclopedic):\n{wiki}\n\n" if wiki else "") + \
+               f"WEB RESULTS:\n{results}"
+    out = _structured(_VERIFY_SYSTEM, f"CLAIM: {claim}\n\n{evidence}", _VERIFY_SCHEMA)
     out["claim"] = claim
     return out
 
