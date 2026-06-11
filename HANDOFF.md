@@ -4,6 +4,66 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 7 (2026-06-11) — Remotion pivot + first video PUBLISHED + repo created
+
+**BIGGEST THING — this project now has its own git repo.** It was previously an
+**untracked folder inside the PatternFinding working tree** (git root was `~`, remote
+`patternfinding.git`). `git init` here + first commits + pushed PRIVATE to
+**github.com/Bheemender1998/untold-game-agents** (`origin/main`). Never commit Untold
+Game code into patternfinding. Heavy/secret paths are gitignored (`.env*`, `token.json`,
+`produced/`, `queue/`, `node_modules/`, `.venv-video/`, `engine/video/models/`, media).
+
+**Video engine pivoted HyperFrames → Remotion** (user rejected flat/colored backgrounds,
+asked for designed templates). `engine/video/remotion/` is a Remotion 4.x project (free
+for solo): `UntoldVideo` composition = graded atmospheric **Pexels b-roll per chapter** +
+**kinetic TikTok-style captions** (`@remotion/captions`, fed by our whisper word-timings) +
+chapter cards + intro/outro. `run_video.py` now defaults `--engine remotion`; HyperFrames
+kept as `--engine hyperframes`. Python bridge: `remotion_build.py` (props) + `render_remotion.py`
+(stage `public/` + `npx remotion render`). Render ~40–45 min for a 13-min video on the M2.
+
+**Full narrated pipeline is LIVE end-to-end:**
+- TTS = **Kokoro** (`tts.py`, in `.venv-video`; models in `engine/video/models/`). macOS
+  `say` is the zero-install fallback. Run renders with `.venv-video/bin/python -m engine.run_video`.
+- Captions = **faster-whisper** word timings + **proper-noun glossary** bias (`captions.proper_nouns`)
+  so names spell right (fixed "Madeleine"→"Medellín").
+- Footage = **Pexels** (`footage.py`): no-people query rules, browser User-Agent (Cloudflare
+  1010 fix), **randomized pick + cross-video dedup** (`used_clips.json`).
+- Grade = **warm-subtle** (Background.tsx), brightened so footage is never near-black.
+
+**First video PUBLISHED (unlisted): https://youtu.be/fL8XA6D8NvQ** (Escobar, bdffcdb7).
+Chapters on the live video + `metadata.json` corrected to the real 13:38 runtime (were
+authored for ~30 min). Codex caught + fixed 3 real bugs pre-render: `transcribe()` dict vs
+list, Background fade non-monotonic, Pexels UA 403.
+
+### NEXT SESSION = **B: automation infra** (user chose human-approve-before-publish, ~2/day)
+1. `run_auto.py` orchestrator — unattended `ideate → produce(fact-gate) → render → QC →
+   mark awaiting_approval`, N videos/run.
+2. `qc.py` auto-QC — brightness band, caption coverage, render integrity, **Claude-vision
+   people-check per clip** (auto-reject faces). Failures flag, never ship.
+3. Approval queue → one-tap approve → auto-publish (uploader exists).
+4. Scheduler — **launchd on the M2** (render must run locally; Railway can't do the
+   45-min Chromium render). Renders overnight.
+
+### Also queued (not blocking B)
+- **Composition pointers** — `docs/next-video-improvements.md`: more headings, bigger/
+  multi-column captions (`remotion/src/components/Captions.tsx`), newspaper-clipping stills,
+  sources+links in the YouTube description.
+- **Shorts/TikTok/IG** — vertical (1080×1920) Remotion comp + short-script condenser
+  (hook → one fact → "full story on YouTube"); per-platform posting is the heavier part.
+- **Voice graininess** on some words (Kokoro) — try alt voice/speed; cosmetic.
+
+### Suggested skills next session
+- `superpowers:brainstorming` then `writing-plans` for B (it's a multi-part build).
+- `codex:rescue` for a second pass on the orchestrator/QC.
+- `claude-api` before any Claude-vision wiring in qc.py.
+
+### Key gotchas
+- Render needs `npx` (user shell) — harness sandbox can't, but the user/launchd can.
+- Run the venv python for narrated renders or Kokoro/whisper are missing.
+- `PEXELS_API_KEY` is in `.env` (gitignored). Pexels needs the browser UA header.
+
+---
+
 ## Session 6 (2026-06-11) — produce-pipeline hardening + WRAP
 
 Six Codex stop-time findings fixed this session (all verified deterministically,
