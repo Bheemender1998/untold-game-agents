@@ -60,3 +60,13 @@ _ROOT = os.path.dirname(os.path.dirname(__file__))
 QUEUE_FILE = os.path.join(_ROOT, "queue", "idea_queue.json")
 MAX_IDEAS_PER_RUN = 5        # Ideas each agent generates per run
 MIN_VIRAL_SCORE = 6.0        # Ideas below this are filtered out
+
+# ── Stage B: QC thresholds + render timeout ───────────────────────────────────
+# qc.py gate. Mean luma is 0-255 (libx264 limited-range black ≈ 16; mid-grey ≈ 126).
+QC_BRIGHTNESS_MIN = 40.0       # below → near-black (the darkness bug)
+QC_BRIGHTNESS_MAX = 180.0      # above → blown out
+QC_MIN_CAPTION_COVERAGE = 0.85 # captions' last word must reach ≥85% of audio length
+QC_MAX_CAPTION_GAP_S = 8.0     # no silent caption gap longer than this
+QC_DURATION_TOLERANCE = 0.10   # video vs narration-audio duration may differ by ≤10%
+RENDER_TIMEOUT_S = 5400        # 90 min hard cap on one render subprocess
+PRODUCE_TIMEOUT_S = 1800       # 30 min cap on one produce (script + sequential fact-gate)
