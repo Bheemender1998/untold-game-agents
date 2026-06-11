@@ -88,6 +88,12 @@ operates on an existing idea, so the approval/publish path is testable on its ow
 - `run_auto.py --review <id> [--note "..."]` — **v1, not deferred.** Cleanly sets
   `human_reviewed: True` + a dated `human_review_note` (the override fires often — see the
   override section — so the safe one-command path ships in v1, not raw `update_idea` editing).
+- `run_auto.py --render <id>` — **render a single already-cleared idea, skipping produce.**
+  This is the override-render path: `pipeline()` only selects `pending` ideas and re-runs
+  produce (which regenerates the script), so a human-reviewed idea (status `needs_review`/
+  `in_production`, not `pending`, with a hand-fixed script) is **not** reachable through the
+  batch loop. `--render <id>` gates on `_cleared_to_render` then renders + QCs that one idea —
+  preserving the reviewed script. Refuses (exits) if the idea isn't cleared.
 - `run_auto.py --reject <id>` — mark `rejected`.
 
 Headless-safe (no interactive prompts), sequential (TPM-safe), absolute `engine.*` imports.
@@ -116,14 +122,16 @@ match and cited a Facebook post). After fixing the real errors and cross-checkin
 scorecard, the idea was cleared by setting `human_reviewed: True` while `fact_passed` stayed
 `False` (honest: the auto-gate didn't pass; a human did).
 
-**Mechanism.** A reviewer fixes the real issues, then sets two fields on the idea:
-`human_reviewed: True` and a dated `human_review_note`. `run_auto` treats `human_reviewed`
-as an alternate **clear-to-render** signal alongside `in_production`. The auto `fact_passed`
-flag is never overwritten — the two signals are kept distinct so the record stays truthful
-about which gate cleared the video. Because this override fires frequently, the clean setter
-**`run_auto.py --review <id> [--note "..."]` ships in v1** (not deferred) — raw
-`queue_manager.update_idea` editing under time pressure is exactly the kind of footgun a
-one-command helper removes.
+**Mechanism.** A reviewer fixes the real issues, then `run_auto.py --review <id> [--note ...]`
+sets `human_reviewed: True` + a dated `human_review_note`. `_cleared_to_render` treats
+`human_reviewed` as an alternate **clear-to-render** signal alongside `in_production`. The auto
+`fact_passed` flag is never overwritten — the two signals are kept distinct so the record stays
+truthful about which gate cleared the video. The reviewer then renders the idea with
+**`run_auto.py --render <id>`**, which **skips produce** (so the hand-fixed script is not
+regenerated) and renders + QCs that one idea. This `--review <id>` → `--render <id>` pair is
+the override path; the batch `pipeline()` cannot serve it, because it only selects `pending`
+ideas and always re-runs produce. Both setter and render-path ship in v1 (not deferred) —
+raw `queue_manager.update_idea` editing under time pressure is the footgun they remove.
 
 ## Error handling
 
@@ -140,9 +148,9 @@ one-command helper removes.
 does **not** auto-retry. Rationale: a render that hung once (Chromium crash, OOM) will most
 likely hang again, so auto-retry just burns another `RENDER_TIMEOUT_S`; and a QC failure
 (e.g. the darkness bug) is a defect to inspect, not transient noise. A human inspects the
-flagged idea, fixes the cause, and **re-attempts by re-running `run_auto`** on that id
-(selection picks it up again once it's back to a renderable state, or via an explicit
-re-run). An automatic-retry policy (bounded attempts, backoff) is a deferred enhancement,
+flagged idea, fixes the cause, and **re-attempts via `run_auto.py --render <id>`** (the
+single-idea render path, which skips produce and re-runs render + QC on that one cleared
+idea). An automatic-retry policy (bounded attempts, backoff) is a deferred enhancement,
 not v1.
 
 ## Testing
