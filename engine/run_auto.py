@@ -35,3 +35,15 @@ def _produce_one(idea_id: str) -> str:
     _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id])
     idea = q.get_by_id(idea_id) or {}
     return idea.get("status", "unknown")
+
+
+def _render_one(idea_id: str) -> bool:
+    """Render via the video venv under a hard timeout. On nonzero/timeout → render_failed."""
+    rc = _run([_VENV_PY, "-m", "engine.run_video", "--id", idea_id,
+               "--render", "--mode", "narrated"],
+              timeout=config.RENDER_TIMEOUT_S)
+    if rc != 0:
+        why = "render timed out" if rc == 124 else f"render exit {rc}"
+        q.update_idea(idea_id, status="render_failed", render_note=why)
+        return False
+    return True
