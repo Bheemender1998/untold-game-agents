@@ -125,3 +125,33 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
     q.update_idea(idea_id, status="published",
                   youtube_url=f"https://youtu.be/{yt_id}")
     print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
+
+
+def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser(description="The Untold Game — Stage B orchestrator")
+    ap.add_argument("--count", type=int, default=1, help="ideas to produce+render this run")
+    ap.add_argument("--no-render", action="store_true", help="stop before render (dry test)")
+    ap.add_argument("--list", action="store_true", help="list awaiting_approval videos")
+    ap.add_argument("--review", metavar="ID", help="mark an idea human_reviewed")
+    ap.add_argument("--note", default="", help="note for --review")
+    ap.add_argument("--approve", metavar="ID", help="publish an awaiting_approval video")
+    ap.add_argument("--public", action="store_true", help="--approve as public (default unlisted)")
+    ap.add_argument("--dry-run", action="store_true", help="--approve: auth+metadata check, no insert")
+    ap.add_argument("--reject", metavar="ID", help="mark an idea rejected")
+    args = ap.parse_args()
+
+    if args.list:
+        cmd_list()
+    elif args.review:
+        cmd_review(args.review, args.note)
+    elif args.reject:
+        cmd_reject(args.reject)
+    elif args.approve:
+        cmd_approve(args.approve, public=args.public, dry_run=args.dry_run)
+    else:
+        pipeline(count=args.count, no_render=args.no_render)
+
+
+if __name__ == "__main__":
+    main()
