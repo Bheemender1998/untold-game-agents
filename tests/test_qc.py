@@ -74,3 +74,21 @@ def test_qc_video_writes_report_and_ands_checks(tmp_path, gray_video, silent_aud
         "render_integrity", "brightness_band", "caption_coverage"}
     assert report["passed"] is True
     assert os.path.exists(tmp_path / "produced" / idea_id / "qc.json")
+
+
+def test_caption_coverage_survives_malformed_captions(tmp_path):
+    # a caption entry missing "endMs" must NOT raise — it degrades to a failed check
+    p = tmp_path / "props.json"
+    p.write_text(json.dumps({"captions": [{"text": "a", "startMs": 0}]}))
+    r = qc.caption_coverage(str(p), audio_dur=2.0)
+    assert r["passed"] is False  # and crucially: no exception was raised
+
+
+def test_qc_video_survives_missing_idea_dir(tmp_path, monkeypatch):
+    # produced/<id>/ does not exist — qc_video must still return a report, not raise
+    monkeypatch.setattr(qc, "_ROOT", str(tmp_path))
+    report = qc.qc_video("ghost_idea")
+    assert report["passed"] is False
+    assert isinstance(report["checks"], list)
+    import os
+    assert os.path.exists(tmp_path / "produced" / "ghost_idea" / "qc.json")

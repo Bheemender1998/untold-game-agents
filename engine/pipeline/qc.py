@@ -20,7 +20,7 @@ def _ffprobe_duration(path: str) -> float | None:
              "-of", "default=noprint_wrappers=1:nokey=1", path],
             capture_output=True, text=True, timeout=30)
         return float(out.stdout.strip())
-    except (subprocess.SubprocessError, ValueError):
+    except (OSError, subprocess.SubprocessError, ValueError):
         return None
 
 
@@ -33,7 +33,7 @@ def _ffprobe_stream_types(path: str) -> set[str]:
              "-of", "default=noprint_wrappers=1:nokey=1", path],
             capture_output=True, text=True, timeout=30)
         return {ln.strip() for ln in out.stdout.splitlines() if ln.strip()}
-    except subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return set()
 
 
@@ -57,6 +57,7 @@ def render_integrity(video_path: str, audio_path: str) -> dict:
 
 def _mean_luma(path: str, every_n: int = 30) -> float | None:
     """Average YAVG (0-255) over every Nth frame via ffmpeg signalstats."""
+    # every_n=30 → ~1 luma sample per second at 30fps (cheap, sufficient for a brightness gate)
     if not os.path.exists(path):
         return None
     try:
@@ -65,7 +66,7 @@ def _mean_luma(path: str, every_n: int = 30) -> float | None:
              "-vf", f"select='not(mod(n\\,{every_n}))',signalstats,metadata=print:file=-",
              "-an", "-f", "null", "-"],
             capture_output=True, text=True, timeout=120)
-    except subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return None
     vals = [float(m) for m in re.findall(r"lavfi\.signalstats\.YAVG=([\d.]+)", out.stdout)]
     return sum(vals) / len(vals) if vals else None
@@ -83,19 +84,22 @@ def brightness_band(video_path: str) -> dict:
 
 def caption_coverage(props_path: str, audio_dur: float) -> dict:
     """Pass = caption words reach ≥ QC_MIN_CAPTION_COVERAGE of the audio AND no inter-word
-    gap exceeds QC_MAX_CAPTION_GAP_S. Reads props.json['captions'] ({text,startMs,endMs})."""
+    gap exceeds QC_MAX_CAPTION_GAP_S. Reads props.json['captions'] ({text,startMs,endMs}).
+    'coverage' = last caption endpoint / audio_dur (reach, not density — the gap check
+    complements it by catching long un-captioned stretches)."""
     name = "caption_coverage"
     try:
-        caps = json.load(open(props_path)).get("captions", [])
-    except (OSError, ValueError):
-        return {"name": name, "passed": False, "detail": "props.json unreadable"}
-    if not caps or not audio_dur:
-        return {"name": name, "passed": False, "detail": "no captions or zero audio"}
-    caps = sorted(caps, key=lambda c: c["startMs"])
-    last_end_s = max(c["endMs"] for c in caps) / 1000.0
-    coverage = last_end_s / audio_dur
-    max_gap_s = max([(caps[i + 1]["startMs"] - caps[i]["endMs"]) / 1000.0
-                     for i in range(len(caps) - 1)] or [0.0])
+        with open(props_path) as fh:
+            caps = json.load(fh).get("captions", [])
+        if not caps or not audio_dur:
+            return {"name": name, "passed": False, "detail": "no captions or zero audio"}
+        caps = sorted(caps, key=lambda c: c["startMs"])
+        last_end_s = max(c["endMs"] for c in caps) / 1000.0
+        coverage = last_end_s / audio_dur
+        max_gap_s = max([(caps[i + 1]["startMs"] - caps[i]["endMs"]) / 1000.0
+                         for i in range(len(caps) - 1)] or [0.0])
+    except (OSError, ValueError, KeyError, TypeError):
+        return {"name": name, "passed": False, "detail": "props.json unreadable/malformed"}
     ok = coverage >= config.QC_MIN_CAPTION_COVERAGE and max_gap_s <= config.QC_MAX_CAPTION_GAP_S
     return {"name": name, "passed": ok,
             "detail": f"coverage={coverage:.0%} max_gap={max_gap_s:.1f}s"}
@@ -117,6 +121,7 @@ def qc_video(idea_id: str) -> dict:
         caption_coverage(props, audio_dur),
     ]
     report = {"passed": all(c["passed"] for c in checks), "checks": checks}
+    os.makedirs(base, exist_ok=True)
     with open(os.path.join(base, "qc.json"), "w") as f:
         json.dump(report, f, indent=2)
     return report
