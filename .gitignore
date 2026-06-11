@@ -43,3 +43,6 @@ engine/video/renderer/renders/
 engine/video/renderer/index.html
 engine/video/renderer/*.mp4
 engine/video/renderer/*.wav
+
+# Pexels cross-video dedup ledger (state)
+engine/video/used_clips.json
