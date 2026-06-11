@@ -1,0 +1,8 @@
+# 6 content pillars (kept in sync with engine/taxonomy/pillars.py)
+pillars:
+  hidden_story:                    "Buried moments mainstream media never covered"
+  moments_that_changed_everything: "Single decisions that altered a sport forever"
+  forgotten_figure:                "Overlooked players/coaches who shaped history"
+  verdict_revisited:               "Reopen settled debates with new evidence"
+  sport_vs_world:                  "When sport collided with politics, war, money"
+  what_if:                         "Counterfactual storytelling"

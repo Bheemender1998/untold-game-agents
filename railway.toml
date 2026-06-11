@@ -1,0 +1,13 @@
+[build]
+builder = "nixpacks"
+
+# Idea-generation runs as a daily cron. Free DuckDuckGo search = no per-search cost;
+# Claude tokens billed to the same key ConvictionFinder uses (ANTHROPIC_API_KEY).
+[deploy]
+startCommand = "python -m engine.run_pipeline --sequential --no-review"
+cronSchedule = "0 11 * * *"        # 11:00 UTC daily
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Watch Paths (set in Railway UI): engine/**, requirements.txt, runtime.txt, nixpacks.toml, railway.toml
+# Docs/HANDOFF/CLAUDE.md pushes must NOT restart the cron container.

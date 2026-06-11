@@ -1,0 +1,14 @@
+{
+  "name": "untold-game-renderer",
+  "private": true,
+  "description": "HyperFrames HTML→MP4 renderer for The Untold Game video pipeline",
+  "type": "module",
+  "scripts": {
+    "preview": "hyperframes preview",
+    "render": "hyperframes render"
+  },
+  "dependencies": {
+    "hyperframes": "^0.6.91"
+  },
+  "engines": { "node": ">=22" }
+}

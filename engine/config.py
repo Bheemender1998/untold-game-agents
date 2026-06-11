@@ -1,0 +1,52 @@
+"""
+The Untold Game — Stage 1 Configuration
+Central config for all agents and the idea queue.
+"""
+
+# Load ANTHROPIC_API_KEY (and anything else) from a local .env if present, so
+# you don't have to `export` it every shell. .env is gitignored — never commit it.
+import os
+try:
+    from dotenv import load_dotenv
+    # .env lives at the project root, one level up from engine/
+    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
+except ImportError:
+    pass  # python-dotenv optional; falls back to the real environment
+
+# ── Anthropic model ───────────────────────────────────────────────────────────
+MODEL = "claude-sonnet-4-6"
+MAX_TOKENS = 8192   # 5 fully-detailed ideas overflow 2048 and truncate the JSON mid-array
+
+# ── Channel identity (passed to every agent as context) ───────────────────────
+CHANNEL_CONTEXT = """
+Channel: The Untold Game
+Niche: Multi-sport history and storytelling (YouTube)
+Brand voice: Cinematic, authoritative, entertaining — like ESPN 30 for 30
+Tagline: "The stories they forgot to tell you"
+Target audience: Sports fans aged 18-45 who want depth beyond the highlights
+Content pillars:
+  1. The hidden story — buried moments mainstream media never covered
+  2. Moments that changed everything — single decisions that altered sport forever
+  3. The forgotten figure — overlooked players/coaches who shaped history
+  4. The verdict revisited — reopen settled debates with new evidence
+  5. Sport vs the world — when sport collided with politics, war, money
+  6. The what-if — counterfactual storytelling at its best
+Sports covered: NFL, NBA, Soccer/Football, Cricket, Formula 1, UFC, College Sports
+"""
+
+# ── Viral potential scoring rubric ────────────────────────────────────────────
+VIRAL_RUBRIC = """
+Score each idea 1-10 on:
+- Curiosity gap: Does the title create an itch the viewer MUST scratch?
+- Emotional trigger: Does it hit nostalgia, injustice, surprise, or triumph?
+- Search volume: Will people actively search for this?
+- Shareability: Will fans share it in group chats, Reddit, Twitter?
+- Evergreen value: Will it perform for months/years, not just days?
+"""
+
+# ── Queue settings ─────────────────────────────────────────────────────────────
+# Anchored to the project root so the queue is found regardless of CWD.
+_ROOT = os.path.dirname(os.path.dirname(__file__))
+QUEUE_FILE = os.path.join(_ROOT, "queue", "idea_queue.json")
+MAX_IDEAS_PER_RUN = 5        # Ideas each agent generates per run
+MIN_VIRAL_SCORE = 6.0        # Ideas below this are filtered out

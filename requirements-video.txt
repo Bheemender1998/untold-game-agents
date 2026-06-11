@@ -1,0 +1,17 @@
+# Video-production stack (optional, heavier than core). Install when building video.
+# Install in a venv (Homebrew Python blocks system-wide pip — PEP 668):
+#   python3 -m venv .venv-video && source .venv-video/bin/activate && pip install -r requirements-video.txt
+#
+# Narrated mode works with ZERO installs via the macOS `say` voice. These deps are
+# only for the QUALITY path (Kokoro voice + word-synced captions):
+# TTS — Kokoro (default narrated provider when installed):
+kokoro-onnx>=0.5.0         # 82M ONNX voice, CPU, runs on M2/8GB
+soundfile>=0.13.0          # write the kokoro wav  (kokoro-onnx imports it)
+numpy>=2.0.2               # concat kokoro audio chunks
+# (download kokoro-v0_19.onnx + voices.bin into engine/video/models/ — see tts.py)
+# Captions/timing:
+faster-whisper>=1.0.0      # Whisper 'small' word timings; without it, captions fall back to estimated timing
+# Research upgrade (optional, uses local Ollama models — free):
+scrapegraphai>=2.0.0
+# Note: HyperFrames is a Node package (engine/video/renderer/package.json), not pip.
+# Note: Qwen3 + Ollama are installed separately (brew install ollama; ollama pull qwen3:4b).

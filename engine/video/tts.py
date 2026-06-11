@@ -1,0 +1,138 @@
+"""
+Narration audio from script.md (TEXT-TO-SPEECH).
+
+Two providers, auto-detected (no config needed):
+
+  kokoro  — kokoro-onnx (82M, ONNX, CPU). The quality voice; runs on M2/8GB.
+            Needs `pip install kokoro-onnx` AND the two model files (see _synth_kokoro).
+  say     — macOS built-in `say` → ffmpeg to wav. Zero install, robotic-but-clear.
+            The "prove the pipeline today" provider.
+
+`synthesize()` picks kokoro if importable, else falls back to `say`. Whisper
+(captions.py) gives the word timings later — TTS only has to produce clean audio.
+"""
+from __future__ import annotations
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+
+
+def script_to_narration_text(script_md: str) -> str:
+    """Strip production cues ([VISUAL]/[ARCHIVAL]/[MUSIC]) and headers so only the
+    spoken narration is sent to TTS."""
+    lines = []
+    for ln in script_md.splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        if re.match(r"^\[[A-Z].*\]$", s):   # bracketed cue lines
+            continue
+        s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
+        lines.append(s)
+    return "\n".join(lines)
+
+
+# ── Provider selection ───────────────────────────────────────────────────────
+
+def available_provider() -> str:
+    """Which provider synthesize() would use right now: 'kokoro' if installed, else
+    'say' on macOS, else '' (none)."""
+    try:
+        import kokoro_onnx  # noqa: F401
+        return "kokoro"
+    except Exception:
+        pass
+    if shutil.which("say") and shutil.which("ffmpeg"):
+        return "say"
+    return ""
+
+
+def synthesize(text: str, out_path: str, provider: str | None = None,
+               voice: str | None = None) -> str:
+    """Render narration `text` to a wav at out_path. Returns out_path.
+
+    provider: 'kokoro' | 'say' | None (auto). Raises if the chosen provider can't run.
+    """
+    provider = provider or available_provider()
+    if provider == "kokoro":
+        return _synth_kokoro(text, out_path, voice)
+    if provider == "say":
+        return _synth_say(text, out_path, voice)
+    raise RuntimeError(
+        "No TTS provider available. Install kokoro-onnx (`pip install kokoro-onnx`) "
+        "or run on macOS (built-in `say` + ffmpeg)."
+    )
+
+
+# ── macOS `say` (zero install) ───────────────────────────────────────────────
+
+def _synth_say(text: str, out_path: str, voice: str | None) -> str:
+    """macOS `say`: text → AIFF → wav (24kHz mono) via ffmpeg. Long text is passed
+    by file so we don't hit argv limits."""
+    voice = voice or "Daniel"   # en_GB, the most documentary-ish built-in voice
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as tf:
+        tf.write(text)
+        txt_path = tf.name
+    aiff_path = out_path + ".aiff"
+    try:
+        subprocess.run(["say", "-v", voice, "-o", aiff_path, "-f", txt_path], check=True)
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", aiff_path, "-ar", "24000", "-ac", "1", out_path],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    finally:
+        for p in (txt_path, aiff_path):
+            if os.path.exists(p):
+                os.remove(p)
+    return out_path
+
+
+# ── Kokoro (quality, local) ──────────────────────────────────────────────────
+
+# Model files aren't shipped with the pip package — download once and point these
+# env vars (or drop the files in engine/video/models/) at them:
+#   kokoro-v0_19.onnx  + voices.bin
+#   https://github.com/thewh1teagle/kokoro-onnx (Releases) — see that README.
+_MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
+_KOKORO_MODEL = os.environ.get("KOKORO_MODEL", os.path.join(_MODELS_DIR, "kokoro-v0_19.onnx"))
+_KOKORO_VOICES = os.environ.get("KOKORO_VOICES", os.path.join(_MODELS_DIR, "voices.bin"))
+
+
+def _synth_kokoro(text: str, out_path: str, voice: str | None) -> str:
+    """kokoro-onnx narration. Splits long text into sentences and concatenates so we
+    don't blow the per-call length limit; writes a 24kHz wav."""
+    import numpy as np
+    import soundfile as sf
+    from kokoro_onnx import Kokoro
+
+    if not (os.path.exists(_KOKORO_MODEL) and os.path.exists(_KOKORO_VOICES)):
+        raise RuntimeError(
+            "Kokoro model files missing. Download kokoro-v0_19.onnx + voices.bin "
+            f"into {_MODELS_DIR}/ (or set KOKORO_MODEL / KOKORO_VOICES). "
+            "See https://github.com/thewh1teagle/kokoro-onnx."
+        )
+    voice = voice or "af_sarah"
+    kokoro = Kokoro(_KOKORO_MODEL, _KOKORO_VOICES)
+
+    sample_rate = 24000
+    gap = np.zeros(int(0.4 * sample_rate), dtype=np.float32)   # 0.4s pause between sentences
+    chunks: list = []
+    for sent in _split_sentences(text):
+        samples, sr = kokoro.create(sent, voice=voice, speed=1.0, lang="en-us")
+        sample_rate = sr
+        chunks.append(np.asarray(samples, dtype=np.float32))
+        chunks.append(gap)
+    audio = np.concatenate(chunks) if chunks else np.zeros(1, dtype=np.float32)
+
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    sf.write(out_path, audio, sample_rate)
+    return out_path
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Naive sentence split for chunked synthesis (keeps the terminal punctuation)."""
+    parts = re.split(r"(?<=[.!?])\s+", text.replace("\n", " "))
+    return [p.strip() for p in parts if p.strip()]

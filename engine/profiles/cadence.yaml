@@ -1,0 +1,5 @@
+# Publishing cadence — drives engine/publish/scheduler.py (Stage 2)
+cadence:
+  long_form: { per_week: 2, slots: ["Tue 16:00", "Sat 16:00"] }
+  short:     { per_week: 3, slots: ["Mon 12:00", "Wed 12:00", "Fri 12:00"] }
+timezone: "America/New_York"

@@ -1,0 +1,16 @@
+# The Untold Game — channel identity (mirrors config.CHANNEL_CONTEXT)
+channel:
+  name: "The Untold Game"
+  niche: "Multi-sport history & untold stories"
+  voice: "Cinematic, authoritative, entertaining — like ESPN 30 for 30"
+  tagline: "The stories they forgot to tell you"
+  audience: "Sports fans 18-45 who want depth beyond the highlights"
+  sports: [NFL, NBA, Soccer, Cricket, F1, UFC, College]
+api:
+  anthropic_key_env: ANTHROPIC_API_KEY        # reused from ConvictionFinder (.env)
+  youtube_oauth_client: client_secrets.json   # Stage 2 — Google Cloud OAuth
+scan:
+  model: claude-sonnet-4-6
+  min_viral_score: 6.0
+  max_ideas_per_run: 5
+  web_search: free                            # DuckDuckGo (ddgs) — no paid add-on
