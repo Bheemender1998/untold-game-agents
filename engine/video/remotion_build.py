@@ -45,7 +45,7 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
 
     # One atmospheric Pexels clip per chapter (symbolic only). Missing → gradient fallback.
     clips = _footage.fetch_clips([s.get("visual", "") for s in sections], video_dir,
-                                 portrait=portrait)
+                                 portrait=portrait, sport=idea.get("sport"))
 
     chapters, assets = [], []
     for h, clip in zip(heads, clips):

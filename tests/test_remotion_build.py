@@ -8,7 +8,8 @@ def _patch_heavy(monkeypatch):
                         lambda text, dur: [{"text": "word", "startMs": 0, "endMs": 500}])
     monkeypatch.setattr(remotion_build._compose, "build_section_headlines", lambda idea, md: [])
     monkeypatch.setattr(remotion_build._compose, "assign_headline_times", lambda s, w, d, n: [])
-    monkeypatch.setattr(remotion_build._footage, "fetch_clips", lambda queries, vd, portrait=False: [])
+    monkeypatch.setattr(remotion_build._footage, "fetch_clips",
+                        lambda queries, vd, portrait=False, sport=None: [])
 
 
 def test_build_props_adds_music_for_short(tmp_path, monkeypatch):
