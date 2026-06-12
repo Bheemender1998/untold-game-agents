@@ -46,6 +46,8 @@ def main() -> None:
                     "default) or hyperframes (legacy text-on-gradient)")
     ap.add_argument("--render", action="store_true",
                     help="also render to MP4 (Remotion or HyperFrames per --engine)")
+    ap.add_argument("--format", choices=["landscape", "short"], default="landscape",
+                    help="output format: landscape (1920×1080, default) or short (1080×1920 vertical)")
     args = ap.parse_args()
 
     idea = q.get_by_id(args.id)
@@ -97,9 +99,16 @@ def main() -> None:
     # ── Remotion path (narrated): designed b-roll + kinetic captions ──
     if args.mode == "narrated" and args.engine == "remotion":
         from engine.video import remotion_build, render_remotion
+        is_short = args.format == "short"
         print(f"{GOLD}▶ Building Remotion props [{args.id}] — {idea['title_variants'][0]}{RESET}")
-        props, assets = remotion_build.build_props(idea, script_md, video_dir, audio_ref,
-                                                   words, total_dur)
+        props, assets = remotion_build.build_props(
+            idea, script_md, video_dir, audio_ref, words, total_dur,
+            width=(1080 if is_short else 1920),
+            height=(1920 if is_short else 1080),
+            portrait=is_short,
+            intro_ms=(0 if is_short else remotion_build.INTRO_MS),
+            outro_ms=(0 if is_short else remotion_build.OUTRO_MS),
+        )
         with open(os.path.join(video_dir, "props.json"), "w") as f:
             json.dump(props, f, indent=2)
         srt_chunks = (captions.chunk_words_to_captions(words) if words
@@ -121,7 +130,8 @@ def main() -> None:
         mp4_dest = os.path.join(video_dir, "video.mp4")
         print(f"{GOLD}▶ Rendering (Remotion)…{RESET}")
         try:
-            mp4 = render_remotion.render(props, os.path.join(video_dir, audio_ref), assets, mp4_dest)
+            mp4 = render_remotion.render(props, os.path.join(video_dir, audio_ref), assets, mp4_dest,
+                                         composition_id=("UntoldShort" if is_short else "UntoldVideo"))
         except Exception as e:
             print(f"{RED}render failed: {e}{RESET}")
             print(f"{GRAY}One-time setup: cd engine/video/remotion && npm install{RESET}")

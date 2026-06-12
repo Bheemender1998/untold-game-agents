@@ -1,5 +1,5 @@
 """
-Render the Remotion `UntoldVideo` composition to MP4.
+Render the given Remotion composition to MP4.
 
 Contract: Remotion renders from the project at engine/video/remotion/ — assets must live
 in its public/ folder (referenced via staticFile) and props are passed as a JSON file.
@@ -31,7 +31,7 @@ def _stage_assets(audio_path: str, asset_paths: list[str]) -> None:
 
 
 def render(props: dict, audio_path: str, asset_paths: list[str], out_mp4: str,
-           concurrency: int = 2) -> str:
+           concurrency: int = 2, composition_id: str = "UntoldVideo") -> str:
     """Render the composition with `props` to out_mp4. Returns out_mp4."""
     if not os.path.exists(os.path.join(REMOTION_DIR, "node_modules")):
         raise RuntimeError(
@@ -46,7 +46,7 @@ def render(props: dict, audio_path: str, asset_paths: list[str], out_mp4: str,
     out_abs = os.path.abspath(out_mp4)
     os.makedirs(os.path.dirname(out_abs), exist_ok=True)
     subprocess.run(
-        ["npx", "remotion", "render", "src/index.ts", "UntoldVideo", out_abs,
+        ["npx", "remotion", "render", "src/index.ts", composition_id, out_abs,
          f"--props={props_path}", f"--concurrency={concurrency}", "--log=info"],
         cwd=REMOTION_DIR, check=True,
     )

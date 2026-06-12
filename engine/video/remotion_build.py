@@ -20,7 +20,10 @@ OUTRO_MS = 3500
 
 
 def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
-                words: list[dict] | None, total_dur: float, fps: int = 30) -> tuple[dict, list[str]]:
+                words: list[dict] | None, total_dur: float, fps: int = 30,
+                width: int = 1920, height: int = 1080,
+                portrait: bool = False,
+                intro_ms: int = INTRO_MS, outro_ms: int = OUTRO_MS) -> tuple[dict, list[str]]:
     """Build (props, asset_paths) for the Remotion render.
 
     props        → written to props.json and passed to `remotion render --props`.
@@ -40,7 +43,8 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
     heads = _compose.assign_headline_times(sections, words, total_dur, narration)
 
     # One atmospheric Pexels clip per chapter (symbolic only). Missing → gradient fallback.
-    clips = _footage.fetch_clips([s.get("visual", "") for s in sections], video_dir)
+    clips = _footage.fetch_clips([s.get("visual", "") for s in sections], video_dir,
+                                 portrait=portrait)
 
     chapters, assets = [], []
     for h, clip in zip(heads, clips):
@@ -61,10 +65,10 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
         "kicker": "THE UNTOLD GAME",
         "audioSrc": os.path.basename(audio_filename),
         "fps": fps,
-        "width": 1920,
-        "height": 1080,
-        "introMs": INTRO_MS,
-        "outroMs": OUTRO_MS,
+        "width": width,
+        "height": height,
+        "introMs": intro_ms,
+        "outroMs": outro_ms,
         "narrationMs": int(round(total_dur * 1000)),
         "captions": cap_words,
         "chapters": chapters,
