@@ -1,5 +1,5 @@
 import React, {useMemo} from 'react';
-import {AbsoluteFill, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {createTikTokStyleCaptions, type Caption} from '@remotion/captions';
 import {oswald, GOLD, CREAM} from '../fonts';
 import type {CaptionWord} from '../types';
@@ -39,6 +39,16 @@ export const Captions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: numb
   const page = pages.find((p) => nowMs >= p.startMs && nowMs < p.startMs + p.durationMs);
   if (!page || inHeadline) return null;
 
+  // Page-level fade: ease the whole block in/out instead of hard-cutting (matters most at the
+  // chapter-headline boundaries, where captions resume/suppress). Kept short so contiguous
+  // pages mid-narration only dip briefly at a natural phrase beat.
+  const intoPage = nowMs - page.startMs;
+  const leftInPage = page.startMs + page.durationMs - nowMs;
+  const pageOpacity = Math.min(
+    interpolate(intoPage, [0, 140], [0, 1], {extrapolateRight: 'clamp'}),
+    interpolate(leftInPage, [0, 120], [0, 1], {extrapolateLeft: 'clamp'}),
+  );
+
   return (
     <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', padding: '0 120px'}}>
       <div
@@ -49,6 +59,7 @@ export const Captions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: numb
           alignContent: 'center',
           gap: '10px 26px',
           maxWidth: 1500,
+          opacity: pageOpacity,
         }}
       >
         {page.tokens.map((tok, i) => {
@@ -61,6 +72,13 @@ export const Captions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: numb
             ? spring({frame: sinceF, fps, config: {damping: 13, mass: 0.5, stiffness: 170}})
             : 0; // 0 → ~1 with a slight overshoot = the "pop"
           const scale = (0.55 + enter * 0.45) * (active ? 1.06 : 1); // grows in, active lifts more
+          // Settle cues that read as "premium": the word resolves OUT of a blur and rises into
+          // place as it pops, instead of just scaling. Both are pure functions of `enter`.
+          const blur = appeared ? (1 - Math.min(enter, 1)) * 12 : 14; // px, → 0 as it lands
+          const driftY = appeared ? (1 - Math.min(enter, 1)) * 16 : 16; // rises up into place
+          const lift = active ? -8 : 0;
+          // Active word gets a warm gold glow on top of the legibility shadow.
+          const glow = active ? ', 0 0 28px rgba(217,138,61,0.55)' : '';
           return (
             <span
               key={i}
@@ -73,9 +91,10 @@ export const Captions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: numb
                 letterSpacing: '0.01em',
                 color: active ? GOLD : CREAM,
                 opacity: appeared ? 0.3 + enter * 0.7 : 0.16, // future faint → pops to full
-                transform: `translateY(${active ? -8 : 0}px) scale(${scale})`,
+                filter: `blur(${blur}px)`,
+                transform: `translateY(${lift + driftY}px) scale(${scale})`,
                 transformOrigin: 'center bottom',
-                textShadow: '0 4px 24px rgba(0,0,0,0.92)',
+                textShadow: `0 4px 24px rgba(0,0,0,0.92)${glow}`,
               }}
             >
               {tok.text.trim()}
