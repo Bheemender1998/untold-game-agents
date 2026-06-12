@@ -19,7 +19,8 @@ token.json
 queue/
 produced/
 outputs/
-logs/
+logs/*
+!logs/.gitkeep
 
 # Node / web builds
 node_modules/
