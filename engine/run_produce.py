@@ -20,7 +20,7 @@ import os
 import tempfile
 
 from engine import queue_manager as q
-from engine.pipeline.script import generate_script, generate_short_script
+from engine.pipeline.script import clean_short_body, generate_script, generate_short_script
 from engine.pipeline.metadata import generate_metadata
 
 GOLD, GREEN, RED, GRAY, RESET = "\033[93m", "\033[92m", "\033[91m", "\033[90m", "\033[0m"
@@ -134,6 +134,8 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
         if autofix and fact_result["issues"]:
             print(f"  {GRAY}auto-correcting {len(fact_result['issues'])} claim(s) + re-verifying…{RESET}")
             script = fc.correct_script(script, fact_result["issues"])
+            if short:
+                script = clean_short_body(script)  # correction model re-adds MOOD/preamble
             _atomic_write(script_file, f"# {title}\n\n{script}\n")
             fact_result = fc.factcheck(script, max_claims=max_claims)
         _atomic_write(os.path.join(out_dir, "factcheck.json"),

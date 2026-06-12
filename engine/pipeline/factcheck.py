@@ -118,7 +118,8 @@ _FIX_SYSTEM = """You revise a documentary script to remove or correct factual er
 preserving the voice and flow. For each flagged issue: if a correction is given, fix
 the line to state the correct fact; if it's unverified and can't be confirmed, cut or
 soften the specific (don't state unconfirmed specifics as fact). Change nothing else.
-Return ONLY the revised Markdown script."""
+Return ONLY the spoken narration sentences — no MOOD line, no title or heading, no
+preamble or commentary, no markdown rules or fences. Just the narration text."""
 
 
 def correct_script(script_md: str, issues: list[dict]) -> str:

@@ -20,8 +20,14 @@ def test_narration_speed_is_calmer_than_default():
 
 
 def test_resolve_voice_maps_mood():
-    assert tts.resolve_voice("tense") == "bm_lewis"
-    assert tts.resolve_voice("somber") == "bf_emma"
+    assert tts.resolve_voice("tense") == "bm_george"
+    assert tts.resolve_voice("somber") == "af_sarah"
+
+
+def test_only_sarah_and_george_in_rotation():
+    """Narration uses exactly two Kokoro voices: af_sarah and bm_george."""
+    allowed = {"af_sarah", "bm_george"}
+    assert set(config.NARRATION_VOICE_BY_MOOD.values()) | {config.NARRATION_VOICE_DEFAULT} == allowed
 
 
 def test_resolve_voice_defaults_on_unknown_or_empty():
@@ -37,9 +43,9 @@ def test_mood_for_pillar():
 
 
 def test_narration_voice_prefers_explicit_mood_then_pillar():
-    assert tts.narration_voice({"mood": "somber"}) == "bf_emma"
+    assert tts.narration_voice({"mood": "somber"}) == "af_sarah"
     assert tts.narration_voice({"pillar": "what_if"}) == "bm_george"
-    assert tts.narration_voice({"mood": "tense", "pillar": "what_if"}) == "bm_lewis"
+    assert tts.narration_voice({"mood": "tense", "pillar": "what_if"}) == "bm_george"
 
 
 def test_narration_voice_override_wins():
@@ -53,3 +59,12 @@ def test_narration_voice_none_for_non_kokoro_provider():
 
 def test_narration_voice_default_when_no_signal():
     assert tts.narration_voice({}) == config.NARRATION_VOICE_DEFAULT
+
+
+def test_script_to_narration_text_strips_mood_header_line():
+    # Defense in depth: a leaked 'MOOD: <mood>' header must never be spoken by TTS.
+    md = "# Title\n\nMOOD: somber\n\nHe made white America forget he was Black."
+    out = tts.script_to_narration_text(md)
+    assert out.startswith("He made white America")
+    assert "MOOD" not in out
+    assert "somber" not in out

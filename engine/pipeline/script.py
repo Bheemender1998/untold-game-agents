@@ -140,37 +140,68 @@ Remember: first line `MOOD: <tense|triumphant|somber|hype>`, then the narration 
         return _parse_short(self._call(prompt, use_search=True))
 
 
+def _is_noise(t: str) -> bool:
+    # blank, or a markdown rule made only of -, *, _, = (e.g. '---', '***', '===')
+    return not t or set(t) <= {"-", "*", "_", "="}
+
+
+def _mood_value(s: str) -> str | None:
+    """The mood named on a `MOOD: x` line, lowercased — or None if not a MOOD line."""
+    if s.upper().startswith("MOOD:"):
+        return s.split(":", 1)[1].strip().lower()
+    return None
+
+
 def _parse_short(raw: str) -> dict:
-    """Split a short-writer response into {'script', 'mood'}. MOOD is read from a `MOOD: x`
-    line at the top, tolerating leading blank lines and markdown rules (the model often wraps
-    its output in '---'). The FIRST real content line decides MOOD-vs-narration, so a
-    'MOOD:'-prefixed sentence deeper in the narration is never treated as a header. Unknown/
-    absent mood → '' (caller falls back to the pillar-derived mood); the MOOD line and any
-    leading rules/duplicates are stripped from the script."""
-    def _is_noise(t: str) -> bool:
-        # blank, or a markdown rule made only of -, *, _, = (e.g. '---', '***', '===')
-        return not t or set(t) <= {"-", "*", "_", "="}
+    """Split a short-writer response into {'script', 'mood'}.
+
+    The header is a `MOOD: <valid mood>` line near the top. A *valid* mood
+    (tense/triumphant/somber/hype) is what makes a line a header — so a chatty model
+    preamble that precedes it (e.g. 'All facts confirmed. Now writing the script.') is
+    dropped, while a 'MOOD:'-prefixed sentence deeper in the narration (an invalid mood
+    value) is kept as narration. Unknown/absent mood → '' (caller falls back to the
+    pillar-derived mood); the MOOD line, any preamble before it, and leading rules are
+    stripped from the spoken script."""
+    lines = raw.splitlines()
+    content = [(i, lines[i].strip()) for i in range(len(lines)) if not _is_noise(lines[i].strip())]
 
     mood = ""
-    lines = raw.splitlines()
-    body_start = 0
-    for i, ln in enumerate(lines):
-        s = ln.strip()
-        if _is_noise(s):
-            continue
-        if s.upper().startswith("MOOD:"):
-            cand = s.split(":", 1)[1].strip().lower()
-            mood = cand if cand in _SHORT_MOODS else ""
-            body_start = i + 1            # narration starts after the MOOD line
+    body_idx = len(lines)
+    if content:
+        first_i, first_s = content[0]
+        m0 = _mood_value(first_s)
+        if m0 is not None:
+            # First content line is a MOOD header (valid → use it; invalid → drop it anyway:
+            # real narration never starts a line with 'MOOD:').
+            mood = m0 if m0 in _SHORT_MOODS else ""
+            body_idx = first_i + 1
         else:
-            body_start = i               # first real content line IS the narration start
-        break  # the first real content line is the only candidate for the MOOD header
-    while body_start < len(lines) and (
-        _is_noise(lines[body_start].strip())
-        or lines[body_start].strip().upper().startswith("MOOD:")
-    ):
-        body_start += 1  # drop leading blanks / rules / duplicate MOOD before the script
-    return {"script": "\n".join(lines[body_start:]).strip(), "mood": mood}
+            # First content line is narration or a preamble. If a MOOD:<valid> header
+            # follows within the next couple of content lines, the lead lines are a model
+            # preamble → drop them; otherwise narration starts at the first content line.
+            header = next(((i, _mood_value(s)) for (i, s) in content[1:3]
+                           if _mood_value(s) in _SHORT_MOODS), None)
+            if header:
+                mood = header[1]
+                body_idx = header[0] + 1
+            else:
+                body_idx = first_i
+
+    # Drop any leading noise / duplicate valid-MOOD lines right before the narration.
+    while body_idx < len(lines):
+        s = lines[body_idx].strip()
+        if _is_noise(s) or (_mood_value(s) in _SHORT_MOODS):
+            body_idx += 1
+        else:
+            break
+    return {"script": "\n".join(lines[body_idx:]).strip(), "mood": mood}
+
+
+def clean_short_body(raw: str) -> str:
+    """Strip short-script scaffolding (MOOD header, model preamble, rules) from `raw`,
+    returning just the spoken narration. Used to re-clean fact-corrected short scripts,
+    where the correction model re-adds headers that would otherwise be narrated."""
+    return _parse_short(raw)["script"]
 
 
 def generate_short_script(idea: dict) -> dict:

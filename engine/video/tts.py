@@ -31,6 +31,8 @@ def script_to_narration_text(script_md: str) -> str:
             continue
         if re.match(r"^\[[A-Z].*\]$", s):   # bracketed cue lines
             continue
+        if re.match(r"(?i)^MOOD:\s*\w+\s*$", s):  # leaked short-script MOOD header
+            continue
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
         lines.append(s)
     return "\n".join(lines)
