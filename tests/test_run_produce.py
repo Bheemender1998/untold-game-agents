@@ -51,6 +51,14 @@ def test_short_writes_minimal_shorts_metadata(monkeypatch):
     assert "Shorts" in real_meta["tags"]
 
 
+def test_short_empty_script_raises(monkeypatch):
+    import pytest
+    _stub_common(monkeypatch)
+    monkeypatch.setattr(run_produce, "generate_short_script", lambda idea: {"script": "   ", "mood": "tense"})
+    with pytest.raises(ValueError):
+        run_produce.produce(_idea(), short=True)
+
+
 def test_long_form_still_uses_long_writer(monkeypatch):
     _stub_common(monkeypatch)
     calls = {}

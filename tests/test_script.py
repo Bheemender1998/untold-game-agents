@@ -44,3 +44,14 @@ def test_short_mood_line_with_empty_body_does_not_leak(monkeypatch):
                                         "target_audience": "fans", "why_it_works": "w"})
     assert out["mood"] == "triumphant"
     assert "MOOD" not in out["script"]       # the mood line must never leak into the spoken text
+
+
+def test_short_mid_script_mood_line_is_not_a_header(monkeypatch):
+    monkeypatch.setattr(script.ShortScriptWriter, "_call",
+                        lambda self, p, **k: "The real hook line.\nMOOD: looks like a header but is narration.")
+    out = script.generate_short_script({"title_variants": ["X"], "hook": "h",
+                                        "pillar": "what_if", "sport": "F1",
+                                        "target_audience": "fans", "why_it_works": "w"})
+    assert out["mood"] == ""                              # no leading MOOD → none parsed
+    assert out["script"].startswith("The real hook line.")
+    assert "MOOD: looks like a header" in out["script"]   # mid-text line stays as narration

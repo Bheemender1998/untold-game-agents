@@ -110,6 +110,8 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
         if short:
             out = generate_short_script(idea)
             script = out["script"]
+            if not script.strip():
+                raise ValueError(f"short script for [{idea_id}] came back empty")
             q.update_idea(idea_id, mood=out["mood"])
         else:
             script = generate_script(idea)

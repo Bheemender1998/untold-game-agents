@@ -102,7 +102,8 @@ Craft, in this exact 3-beat shape, as flowing prose (not labelled):
 
 Write for the ear: short, present-tense, concrete. Every factual claim (dates, names, scores,
 quotes) must be accurate — use web search to verify; if a detail can't be confirmed, write
-around it rather than inventing.
+around it rather than inventing. Never invent people, quotes, dates, or outcomes — if it
+can't be verified, leave it out.
 
 Your VERY FIRST line must be exactly: MOOD: <one of: tense | triumphant | somber | hype>
 (the story's dominant emotional register — drives music and narrator voice). Then the
@@ -140,23 +141,27 @@ Remember: first line `MOOD: <tense|triumphant|somber|hype>`, then the narration 
 
 
 def _parse_short(raw: str) -> dict:
-    """Split a short-writer response into {'script', 'mood'}. The mood is taken from a leading
-    `MOOD: x` line (tolerating model preamble before it); the spoken script is everything after
-    that line. Unknown/absent mood → '' (caller falls back to the pillar-derived mood)."""
-    mood = ""
-    mood_found = False
+    """Split a short-writer response into {'script', 'mood'}. MOOD is honored ONLY as the
+    first non-empty line (a 'MOOD:'-prefixed line deeper in the narration is ordinary script
+    text, never a header). Unknown/absent mood → '' (caller falls back to the pillar-derived
+    mood); the MOOD line (and any immediately duplicated ones) are stripped from the script."""
+    mood, mood_found = "", False
     lines = raw.splitlines()
     body_start = 0
     for i, ln in enumerate(lines):
         s = ln.strip()
+        if not s:
+            continue
         if s.upper().startswith("MOOD:"):
             cand = s.split(":", 1)[1].strip().lower()
             mood = cand if cand in _SHORT_MOODS else ""
             body_start = i + 1
             mood_found = True
-            break
+        break  # only the first non-empty line can be the MOOD header
+    while mood_found and body_start < len(lines) and lines[body_start].strip().upper().startswith("MOOD:"):
+        body_start += 1  # drop any immediately-repeated MOOD lines
     script_text = "\n".join(lines[body_start:]).strip()
-    if not mood_found:                      # no MOOD line at all → whole response is the script
+    if not mood_found:
         script_text = raw.strip()
     return {"script": script_text, "mood": mood}
 
