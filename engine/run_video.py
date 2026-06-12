@@ -101,7 +101,7 @@ def main() -> None:
         from engine.video import remotion_build, render_remotion
         is_short = args.format == "short"
         print(f"{GOLD}▶ Building Remotion props [{args.id}] — {idea['title_variants'][0]}{RESET}")
-        props, assets = remotion_build.build_props(
+        props, assets, music_credit = remotion_build.build_props(
             idea, script_md, video_dir, audio_ref, words, total_dur,
             width=(1080 if is_short else 1920),
             height=(1920 if is_short else 1080),
@@ -136,6 +136,9 @@ def main() -> None:
             print(f"{RED}render failed: {e}{RESET}")
             print(f"{GRAY}One-time setup: cd engine/video/remotion && npm install{RESET}")
             return
+        meta_path = os.path.join(os.path.dirname(os.path.abspath(video_dir)), "metadata.json")
+        from engine.video import music as _music
+        _music.write_credit(video_dir, meta_path, music_credit)
         q.update_idea(args.id, video_path=os.path.relpath(mp4, _ROOT))
         print(f"{GREEN}✓ {os.path.relpath(mp4, _ROOT)}{RESET}")
         return
