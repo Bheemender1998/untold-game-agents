@@ -5,7 +5,8 @@ import {Background} from './components/Background';
 import {ChapterCard} from './components/ChapterCard';
 import {Captions} from './components/Captions';
 import {Intro} from './components/Intro';
-import {Outro} from './components/Outro';
+import {EndCTA} from './components/EndCTA';
+import {Watermark} from './components/Watermark';
 
 const ms2f = (ms: number, fps: number) => Math.round((ms / 1000) * fps);
 
@@ -58,10 +59,13 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
         />
       </Sequence>
 
-      {/* subscribe outro after the narration ends */}
-      <Sequence from={introF + narrF} name="Outro">
-        <Outro kicker={props.kicker} />
+      {/* like/comment/subscribe end card after the narration ends */}
+      <Sequence from={introF + narrF} name="EndCTA">
+        <EndCTA />
       </Sequence>
+
+      {/* persistent channel watermark (bottom-right) */}
+      <Watermark />
     </AbsoluteFill>
   );
 };

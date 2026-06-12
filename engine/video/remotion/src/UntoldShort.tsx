@@ -3,6 +3,8 @@ import {AbsoluteFill, Audio, interpolate, Sequence, staticFile, useVideoConfig} 
 import type {UntoldProps} from './types';
 import {Background} from './components/Background';
 import {ShortCaptions} from './components/ShortCaptions';
+import {Watermark} from './components/Watermark';
+import {EndCTA} from './components/EndCTA';
 
 const ms2f = (ms: number, fps: number) => Math.round((ms / 1000) * fps);
 
@@ -24,7 +26,7 @@ export const UntoldShort: React.FC<UntoldProps> = (props) => {
             loop
             volume={(f) => {
               const peak = props.musicVolume ?? 0.12;
-              const total = ms2f(props.narrationMs, fps);
+              const total = ms2f(props.introMs + props.narrationMs + props.outroMs, fps);
               const fadeIn = Math.round(1.5 * fps);
               const fadeOut = Math.round(2.5 * fps);
               return interpolate(
@@ -42,6 +44,10 @@ export const UntoldShort: React.FC<UntoldProps> = (props) => {
           captions={props.captions}
         />
       </Sequence>
+      <Sequence from={introF + ms2f(props.narrationMs, fps)} name="EndCTA">
+        <EndCTA vertical />
+      </Sequence>
+      <Watermark vertical />
     </AbsoluteFill>
   );
 };
