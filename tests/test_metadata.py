@@ -22,5 +22,14 @@ def test_generate_short_metadata_falls_back_on_llm_error(monkeypatch):
     monkeypatch.setattr(metadata, "_short_desc_llm", boom)
     idea = {"title_variants": ["T"], "sport": "NFL", "pillar": "forgotten_figure"}
     m = metadata.generate_short_metadata(idea, "He walked away at his peak.\nMore text.")
-    assert m["description"] == "He walked away at his peak.\n\n#Shorts #NFL"  # minimal fallback
+    assert m["description"].startswith("He walked away at his peak.\n\n#Shorts #NFL")  # minimal fallback
+    assert "Subscribe → @untoldgamemedia" in m["description"]
     assert m["tags"] == ["Shorts", "NFL", "forgotten_figure"]
+
+
+def test_short_description_has_subscribe_cta(monkeypatch):
+    from engine import config
+    monkeypatch.setattr(metadata, "_short_desc_llm", lambda i, s: ("Hook.", ["t"]))
+    m = metadata.generate_short_metadata({"title_variants": ["T"], "sport": "F1", "pillar": "p"}, "Hook.")
+    assert m["description"].rstrip().endswith(config.CHANNEL_HANDLE)
+    assert "Subscribe" in m["description"]

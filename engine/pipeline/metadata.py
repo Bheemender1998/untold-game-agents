@@ -130,7 +130,9 @@ def generate_short_metadata(idea: dict, script: str) -> dict:
         body = next((ln.strip() for ln in script.splitlines() if ln.strip()), title)
         llm_tags = []
     hashtags = "#Shorts" + (f" #{sport.replace(' ', '')}" if sport else "")
-    description = f"{body}\n\n{hashtags}"
+    from engine.config import CHANNEL_HANDLE
+    cta = f"\U0001F44D Like · \U0001F4AC Comment · \U0001F514 Subscribe → {CHANNEL_HANDLE}"
+    description = f"{body}\n\n{hashtags}\n\n{cta}"
     tags = list(dict.fromkeys([t for t in ["Shorts", sport, pillar, *llm_tags] if t]))[:30]
     return {"title": title, "description": description, "tags": tags}
 

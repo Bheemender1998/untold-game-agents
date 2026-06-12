@@ -107,7 +107,7 @@ def main() -> None:
             height=(1920 if is_short else 1080),
             portrait=is_short,
             intro_ms=(0 if is_short else remotion_build.INTRO_MS),
-            outro_ms=(0 if is_short else remotion_build.OUTRO_MS),
+            outro_ms=(2500 if is_short else remotion_build.OUTRO_MS),
         )
         with open(os.path.join(video_dir, "props.json"), "w") as f:
             json.dump(props, f, indent=2)

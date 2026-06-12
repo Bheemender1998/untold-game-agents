@@ -87,8 +87,10 @@ def short_music_props(idea: dict, music_dir: str | None = None) -> tuple[dict, s
     chosen = pick_track(idea.get("mood") or "", idea.get("id", ""), music_dir)
     if not chosen:
         return {}, None, ""
+    from engine import config
+    credit = chosen["attribution"] or config.MUSIC_CREDIT_DEFAULT
     frag = {"musicSrc": os.path.basename(chosen["path"]), "musicVolume": MUSIC_VOLUME}
-    return frag, chosen["path"], chosen["attribution"]
+    return frag, chosen["path"], credit
 
 
 def write_credit(video_dir: str, metadata_path: str, credit: str) -> None:

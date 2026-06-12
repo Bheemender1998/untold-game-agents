@@ -72,7 +72,8 @@ def test_short_music_props_returns_fragment_asset_credit(tmp_path, monkeypatch):
     assert frag["musicVolume"] == music.MUSIC_VOLUME
     assert frag["musicSrc"] == os.path.basename(asset)
     assert asset.endswith(".mp3") and os.path.isabs(asset)
-    assert credit == ""
+    from engine import config
+    assert credit == config.MUSIC_CREDIT_DEFAULT  # CC0 track → default courtesy credit
 
 
 def test_short_music_props_empty_when_no_mood_track(tmp_path, monkeypatch):

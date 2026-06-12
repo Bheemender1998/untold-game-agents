@@ -34,6 +34,10 @@ Content pillars:
 Sports covered: NFL, NBA, Soccer/Football, Cricket, Formula 1, UFC, College Sports
 """
 
+# Channel handle (watermark, end card, description CTA) + default music credit.
+CHANNEL_HANDLE = "@untoldgamemedia"
+MUSIC_CREDIT_DEFAULT = "Music from Pixabay (royalty-free)"
+
 # ── Video length target ───────────────────────────────────────────────────────
 # Channel-wide narration-length cap. Overrides each idea's `format_suggestion`
 # (the idea agents tend to propose "18-25 min", which renders ~13min+ and tests
