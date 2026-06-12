@@ -81,7 +81,8 @@ def main() -> None:
             narration_text = tts.script_to_narration_text(script_md)
             print(f"{GOLD}▶ Narrating [{args.id}] via {provider}…{RESET}")
             try:
-                tts.synthesize(narration_text, audio_path, provider=args.tts, voice=args.voice)
+                voice = tts.narration_voice(idea, override=args.voice, provider=provider)
+                tts.synthesize(narration_text, audio_path, provider=args.tts, voice=voice)
             except Exception as e:
                 print(f"{RED}TTS failed: {e}{RESET}"); return
             audio_ref = "narration.wav"
