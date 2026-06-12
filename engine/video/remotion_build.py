@@ -75,12 +75,11 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
         "chapters": chapters,
     }
 
-    # Shorts only: a mood-matched background bed mixed low under the narration.
+    # Mood-matched background bed mixed low under the narration (both formats).
     music_credit = ""
-    if portrait:
-        frag, music_asset, music_credit = _music.short_music_props(idea)
-        if music_asset:
-            props.update(frag)
-            assets.append(music_asset)
+    frag, music_asset, music_credit = _music.short_music_props(idea)
+    if music_asset:
+        props.update(frag)
+        assets.append(music_asset)
 
     return props, assets, music_credit

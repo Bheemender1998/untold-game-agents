@@ -105,3 +105,12 @@ def test_write_credit_noop_on_empty(tmp_path):
     music.write_credit(str(video_dir), str(meta), "")
     assert json.loads(meta.read_text())["description"] == "A story."
     assert not (video_dir / "music_credit.txt").exists()
+
+
+def test_short_music_props_derives_pillar_mood_for_longform(tmp_path, monkeypatch):
+    root = _seed_tree(tmp_path)           # 'tense' folder has tracks
+    monkeypatch.setattr(music, "MUSIC_DIR", root)
+    from engine.video import tts
+    monkeypatch.setattr(tts, "mood_for_pillar", lambda p: "tense")
+    frag, asset, credit = music.short_music_props({"id": "x", "pillar": "verdict_revisited"})
+    assert asset is not None and frag["musicSrc"]

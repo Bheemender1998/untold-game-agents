@@ -25,12 +25,20 @@ def test_build_props_adds_music_for_short(tmp_path, monkeypatch):
     assert credit == "Music by X"
 
 
-def test_build_props_no_music_for_longform(tmp_path, monkeypatch):
+def test_build_props_no_music_when_track_missing(tmp_path, monkeypatch):
     _patch_heavy(monkeypatch)
-    called = []
-    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: called.append(1) or ({}, None, ""))
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
     idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
     props, assets, credit = remotion_build.build_props(
         idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0, portrait=False)
     assert "musicSrc" not in props and credit == ""
-    assert called == []   # long-form never asks for music
+
+
+def test_build_props_adds_music_for_longform(tmp_path, monkeypatch):
+    _patch_heavy(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props",
+                        lambda i, *a, **k: ({"musicSrc": "m.mp3", "musicVolume": 0.12}, "/lib/m.mp3", "Music"))
+    idea = {"id": "i", "pillar": "verdict_revisited", "title_variants": ["T"]}
+    props, assets, credit = remotion_build.build_props(
+        idea, "# s\nb", str(tmp_path), "n.wav", None, 10.0, portrait=False)
+    assert props["musicSrc"] == "m.mp3" and "/lib/m.mp3" in assets and credit == "Music"

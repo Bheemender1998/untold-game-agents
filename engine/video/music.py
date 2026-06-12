@@ -84,7 +84,9 @@ def short_music_props(idea: dict, music_dir: str | None = None) -> tuple[dict, s
     caller renders silent (self-stub). props_fragment merges into the Remotion props.
     """
     music_dir = music_dir or MUSIC_DIR
-    chosen = pick_track(idea.get("mood") or "", idea.get("id", ""), music_dir)
+    from engine.video import tts
+    mood = idea.get("mood") or tts.mood_for_pillar(idea.get("pillar"))
+    chosen = pick_track(mood, idea.get("id", ""), music_dir)
     if not chosen:
         return {}, None, ""
     from engine import config
