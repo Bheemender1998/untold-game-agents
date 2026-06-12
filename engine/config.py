@@ -70,3 +70,26 @@ QC_MAX_CAPTION_GAP_S = 8.0     # no silent caption gap longer than this
 QC_DURATION_TOLERANCE = 0.10   # video vs narration-audio duration may differ by ≤10%
 RENDER_TIMEOUT_S = 5400        # 90 min hard cap on one render subprocess
 PRODUCE_TIMEOUT_S = 1800       # 30 min cap on one produce (script + sequential fact-gate)
+
+# ── Narration voice (TTS) ─────────────────────────────────────────────────────
+# Calmer, content-aware delivery. The voice rotates by story "mood"; long-form has
+# no per-script mood, so it derives one from the idea's pillar. Voice names are
+# Kokoro voices (see engine/video/tts.py).
+NARRATION_SPEED = 0.9            # kokoro speed; <1.0 = slower, calmer
+NARRATION_GAP_S = 0.5           # silence between sentences (seconds)
+NARRATION_VOICE_DEFAULT = "bm_george"
+NARRATION_VOICE_BY_MOOD = {
+    "triumphant": "bm_george",  # authoritative for the payoff
+    "hype":       "bm_george",  # drives energy
+    "tense":      "bm_lewis",   # measured, investigative
+    "somber":     "bf_emma",    # warm, gentle for loss
+}
+# Map the 6 content pillars → a mood, so long-form narration picks a voice too.
+PILLAR_MOOD = {
+    "hidden_story":                    "tense",
+    "moments_that_changed_everything": "triumphant",
+    "forgotten_figure":                "somber",
+    "verdict_revisited":               "tense",
+    "sport_vs_world":                  "tense",
+    "what_if":                         "hype",
+}

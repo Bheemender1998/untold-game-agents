@@ -38,7 +38,7 @@ def _stub_pipeline(monkeypatch, idea, render_ok=True, qc_pass=True):
     monkeypatch.setattr(run_auto, "_render_one", lambda i: render_ok)
     monkeypatch.setattr(run_auto.qc, "qc_video", lambda i: {"passed": qc_pass, "checks": []})
     seen = {}
-    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: (seen.update(f), idea.update(f)))
     monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
     return seen
 
@@ -224,3 +224,47 @@ def test_cmd_list_shows_qc_summary(monkeypatch, tmp_path, capsys):
     run_auto.cmd_list()
     out = capsys.readouterr().out
     assert "QC FAIL" in out and "brightness_band" in out
+
+
+from collections import Counter
+
+
+def test_pipeline_returns_status_counter(monkeypatch):
+    idea = {"id": "x", "status": "in_production", "human_reviewed": False}
+    _stub_pipeline(monkeypatch, idea, qc_pass=True)
+    result = run_auto.pipeline(count=1, no_render=False)
+    assert isinstance(result, Counter)
+    assert result["awaiting_approval"] == 1
+
+
+def test_summary_message_lists_counts():
+    msg = run_auto._summary_message(Counter({"awaiting_approval": 2, "qc_failed": 1}))
+    assert "2 awaiting_approval" in msg
+    assert "1 qc_failed" in msg
+
+
+def test_summary_message_handles_empty():
+    assert run_auto._summary_message(Counter()) == "No ideas produced."
+
+
+def test_pipeline_counts_not_cleared_idea(monkeypatch):
+    idea = {"id": "x", "status": "needs_review", "human_reviewed": False}
+    _stub_pipeline(monkeypatch, idea, qc_pass=True)
+    result = run_auto.pipeline(count=1, no_render=False)
+    assert result["needs_review"] == 1
+
+
+def test_notify_invokes_osascript(monkeypatch):
+    calls = {}
+    monkeypatch.setattr(run_auto.subprocess, "run",
+                        lambda cmd, **k: calls.setdefault("cmd", cmd))
+    run_auto._notify("3 produced: 2 awaiting_approval")
+    assert calls["cmd"][0] == "osascript"
+    assert any("3 produced" in str(part) for part in calls["cmd"])
+
+
+def test_notify_never_raises(monkeypatch):
+    def boom(*a, **k):
+        raise OSError("no osascript")
+    monkeypatch.setattr(run_auto.subprocess, "run", boom)
+    run_auto._notify("anything")  # must not raise

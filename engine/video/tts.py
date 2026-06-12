@@ -18,6 +18,8 @@ import shutil
 import subprocess
 import tempfile
 
+from engine import config
+
 
 def script_to_narration_text(script_md: str) -> str:
     """Strip production cues ([VISUAL]/[ARCHIVAL]/[MUSIC]) and headers so only the
@@ -32,6 +34,31 @@ def script_to_narration_text(script_md: str) -> str:
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
         lines.append(s)
     return "\n".join(lines)
+
+
+# ── Voice selection (content-aware) ──────────────────────────────────────────
+
+def resolve_voice(mood: str | None) -> str:
+    """Kokoro voice for a story mood; falls back to the default voice."""
+    return config.NARRATION_VOICE_BY_MOOD.get(mood or "", config.NARRATION_VOICE_DEFAULT)
+
+
+def mood_for_pillar(pillar: str | None) -> str:
+    """Mood for a content pillar (long-form has no per-script mood). '' if unknown."""
+    return config.PILLAR_MOOD.get(pillar or "", "")
+
+
+def narration_voice(idea: dict, override: str | None = None,
+                    provider: str = "kokoro") -> str | None:
+    """Pick the narration voice for an idea. An explicit `override` always wins.
+    Non-kokoro providers keep their own default voice (return None). Otherwise the
+    voice comes from the idea's explicit `mood`, else its pillar-derived mood."""
+    if override:
+        return override
+    if provider != "kokoro":
+        return None
+    mood = idea.get("mood") or mood_for_pillar(idea.get("pillar"))
+    return resolve_voice(mood)
 
 
 # ── Provider selection ───────────────────────────────────────────────────────
@@ -50,14 +77,16 @@ def available_provider() -> str:
 
 
 def synthesize(text: str, out_path: str, provider: str | None = None,
-               voice: str | None = None) -> str:
+               voice: str | None = None, speed: float | None = None,
+               gap_s: float | None = None) -> str:
     """Render narration `text` to a wav at out_path. Returns out_path.
 
     provider: 'kokoro' | 'say' | None (auto). Raises if the chosen provider can't run.
+    speed/gap_s: kokoro only (None → config defaults).
     """
     provider = provider or available_provider()
     if provider == "kokoro":
-        return _synth_kokoro(text, out_path, voice)
+        return _synth_kokoro(text, out_path, voice, speed, gap_s)
     if provider == "say":
         return _synth_say(text, out_path, voice)
     raise RuntimeError(
@@ -101,7 +130,8 @@ _KOKORO_MODEL = os.environ.get("KOKORO_MODEL", os.path.join(_MODELS_DIR, "kokoro
 _KOKORO_VOICES = os.environ.get("KOKORO_VOICES", os.path.join(_MODELS_DIR, "voices.bin"))
 
 
-def _synth_kokoro(text: str, out_path: str, voice: str | None) -> str:
+def _synth_kokoro(text: str, out_path: str, voice: str | None,
+                  speed: float | None = None, gap_s: float | None = None) -> str:
     """kokoro-onnx narration. Splits long text into sentences and concatenates so we
     don't blow the per-call length limit; writes a 24kHz wav."""
     import numpy as np
@@ -114,14 +144,16 @@ def _synth_kokoro(text: str, out_path: str, voice: str | None) -> str:
             f"into {_MODELS_DIR}/ (or set KOKORO_MODEL / KOKORO_VOICES). "
             "See https://github.com/thewh1teagle/kokoro-onnx."
         )
-    voice = voice or "af_sarah"
+    voice = voice or config.NARRATION_VOICE_DEFAULT
+    speed = config.NARRATION_SPEED if speed is None else speed
+    gap_s = config.NARRATION_GAP_S if gap_s is None else gap_s
     kokoro = Kokoro(_KOKORO_MODEL, _KOKORO_VOICES)
 
     sample_rate = 24000
-    gap = np.zeros(int(0.4 * sample_rate), dtype=np.float32)   # 0.4s pause between sentences
+    gap = np.zeros(int(gap_s * sample_rate), dtype=np.float32)   # pause between sentences
     chunks: list = []
     for sent in _split_sentences(text):
-        samples, sr = kokoro.create(sent, voice=voice, speed=1.0, lang="en-us")
+        samples, sr = kokoro.create(sent, voice=voice, speed=speed, lang="en-us")
         sample_rate = sr
         chunks.append(np.asarray(samples, dtype=np.float32))
         chunks.append(gap)
