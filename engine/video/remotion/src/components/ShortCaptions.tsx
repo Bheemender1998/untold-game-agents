@@ -53,8 +53,28 @@ export const ShortCaptions: React.FC<{captions: CaptionWord[]; chapterStartsMs?:
     interpolate(leftInPage, [0, 120], [0, 1], {extrapolateLeft: 'clamp'}),
   );
 
+  // Scrim vertical center: caption block top + half a nominal line height so the
+  // gradient pool is centred on where the text actually sits, not the block's top edge.
+  // At 1920px: blockTop ≈ 768px → scrimCenterPct ≈ 44-46% — well inside the safe band.
+  const scrimCenterPct = ((blockTop + fontSize * 1.6) / height) * 100;
+
   return (
     <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start'}}>
+      {/* Soft feathered scrim behind caption text — rescues legibility on bright b-roll */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: `${scrimCenterPct}%`,
+          transform: 'translateY(-50%)',
+          height: 360,
+          background:
+            'radial-gradient(ellipse 78% 70% at 50% 50%, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0.32) 55%, rgba(0,0,0,0) 78%)',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
       <div
         style={{
           position: 'absolute',
@@ -71,6 +91,7 @@ export const ShortCaptions: React.FC<{captions: CaptionWord[]; chapterStartsMs?:
           maxWidth: 960,
           margin: '0 auto',
           opacity: pageOpacity,
+          zIndex: 2,
         }}
       >
         {page.tokens.map((tok, i) => {
@@ -100,7 +121,8 @@ export const ShortCaptions: React.FC<{captions: CaptionWord[]; chapterStartsMs?:
                 filter: `blur(${blur}px)`,
                 transform: `translateY(${lift + driftY}px) scale(${scale})`,
                 transformOrigin: 'center bottom',
-                textShadow: `0 4px 24px rgba(0,0,0,0.92)${glow}`,
+                textShadow: `0 4px 22px rgba(0,0,0,0.90), 0 2px 5px rgba(0,0,0,0.85)${glow}`,
+                WebkitTextStroke: '1px rgba(0,0,0,0.28)',
               }}
             >
               {tok.text.trim()}
