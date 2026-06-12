@@ -20,7 +20,8 @@ OUTRO_MS = 3500
 
 
 def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
-                words: list[dict] | None, total_dur: float, fps: int = 30) -> tuple[dict, list[str]]:
+                words: list[dict] | None, total_dur: float, fps: int = 30,
+                width: int = 1920, height: int = 1080) -> tuple[dict, list[str]]:
     """Build (props, asset_paths) for the Remotion render.
 
     props        → written to props.json and passed to `remotion render --props`.
@@ -61,8 +62,8 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
         "kicker": "THE UNTOLD GAME",
         "audioSrc": os.path.basename(audio_filename),
         "fps": fps,
-        "width": 1920,
-        "height": 1080,
+        "width": width,
+        "height": height,
         "introMs": INTRO_MS,
         "outroMs": OUTRO_MS,
         "narrationMs": int(round(total_dur * 1000)),
