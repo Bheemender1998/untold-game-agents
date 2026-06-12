@@ -21,6 +21,32 @@ import tempfile
 from engine import config
 
 
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen "
+         "fourteen fifteen sixteen seventeen eighteen nineteen").split()
+_TENS = ("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+
+
+def _int_to_words(n: int) -> str:
+    """Cardinal number → English words (e.g. 2003 → 'two thousand three'). Up to millions."""
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        return _TENS[n // 10] + (f"-{_ONES[n % 10]}" if n % 10 else "")
+    if n < 1000:
+        return _ONES[n // 100] + " hundred" + (f" {_int_to_words(n % 100)}" if n % 100 else "")
+    if n < 1_000_000:
+        return _int_to_words(n // 1000) + " thousand" + (f" {_int_to_words(n % 1000)}" if n % 1000 else "")
+    return str(n)
+
+
+def _spell_grouped_numbers(text: str) -> str:
+    """Spell out thousands-separated numbers (e.g. '2,003' → 'two thousand three') so TTS
+    reads them naturally instead of digit-by-digit ('two zero zero three'). Plain numbers
+    (years, small counts) already read correctly, so they're left untouched."""
+    return re.sub(r"\b\d{1,3}(?:,\d{3})+\b",
+                  lambda m: _int_to_words(int(m.group().replace(",", ""))), text)
+
+
 def script_to_narration_text(script_md: str) -> str:
     """Strip production cues ([VISUAL]/[ARCHIVAL]/[MUSIC]) and headers so only the
     spoken narration is sent to TTS."""
@@ -34,6 +60,7 @@ def script_to_narration_text(script_md: str) -> str:
         if re.match(r"(?i)^MOOD:\s*\w+\s*$", s):  # leaked short-script MOOD header
             continue
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
+        s = _spell_grouped_numbers(s)        # '2,003' → 'two thousand three' for clean TTS
         lines.append(s)
     return "\n".join(lines)
 
@@ -167,6 +194,9 @@ def _synth_kokoro(text: str, out_path: str, voice: str | None,
 
 
 def _split_sentences(text: str) -> list[str]:
-    """Naive sentence split for chunked synthesis (keeps the terminal punctuation)."""
-    parts = re.split(r"(?<=[.!?])\s+", text.replace("\n", " "))
+    """Sentence split for chunked synthesis (keeps terminal punctuation). Does NOT split
+    on the period of an initialism (e.g. 'O.J.', 'U.S.') — the negative lookbehind for an
+    uppercase-letter-then-period keeps 'O.J. Simpson' in one chunk, so they aren't spoken
+    with a spurious gap between the parts."""
+    parts = re.split(r"(?<![A-Z]\.)(?<=[.!?])\s+", text.replace("\n", " "))
     return [p.strip() for p in parts if p.strip()]

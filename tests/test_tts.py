@@ -68,3 +68,24 @@ def test_script_to_narration_text_strips_mood_header_line():
     assert out.startswith("He made white America")
     assert "MOOD" not in out
     assert "somber" not in out
+
+
+def test_split_sentences_keeps_initialisms_intact():
+    # Initials must not be split into their own chunk (each chunk gets a 0.5s gap, so
+    # "O.J. Simpson" was being spoken as "O.J. <pause> Simpson").
+    out = tts._split_sentences("In 1973, O.J. Simpson rushed for glory. The U.S. team won.")
+    assert out == ["In 1973, O.J. Simpson rushed for glory.", "The U.S. team won."]
+
+
+def test_narration_spells_out_comma_grouped_numbers():
+    # kokoro reads '2,003' as 'two zero zero three' — spell thousands-grouped numbers out.
+    out = tts.script_to_narration_text("He rushed for 2,003 yards, 1,457 short of the mark.")
+    assert "two thousand three" in out
+    assert "one thousand four hundred fifty-seven" in out
+    assert "2,003" not in out and "1,457" not in out
+
+
+def test_narration_leaves_plain_numbers_alone():
+    # Plain numbers (years, small counts) already read correctly — don't touch them.
+    out = tts.script_to_narration_text("In 1973 he gained 300 yards, 134 votes short.")
+    assert "1973" in out and "300" in out and "134" in out
