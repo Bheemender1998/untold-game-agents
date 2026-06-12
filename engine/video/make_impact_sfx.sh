@@ -52,8 +52,10 @@ echo "  $0 soft|weighty|tight"
 if [[ "${1:-}" != "" ]]; then
   pick="$OUT/impact_${1}.wav"
   [[ -f "$pick" ]] || { echo "no such variant: $1" >&2; exit 1; }
+  # `|| true` so a no-match grep (empty parse) doesn't trip `set -e` here — we want the
+  # explicit guard below to fire with a diagnostic instead of a silent pipefail exit.
   maxdb=$(ffmpeg -hide_banner -i "$pick" -af volumedetect -f null - 2>&1 \
-            | grep -oE "max_volume: [-0-9.]+ dB" | grep -oE "[-0-9.]+")
+            | grep -oE "max_volume: [-0-9.]+ dB" | grep -oE "[-0-9.]+") || true
   [[ -n "$maxdb" ]] || { echo "volumedetect parse failed for $pick" >&2; exit 1; }
   gain=$(awk "BEGIN{printf \"%.2f\", -1.0 - ($maxdb)}")
   mkdir -p "$(dirname "$FINAL")"

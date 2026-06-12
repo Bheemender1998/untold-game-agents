@@ -46,7 +46,7 @@ export const Captions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: numb
   const leftInPage = page.startMs + page.durationMs - nowMs;
   const pageOpacity = Math.min(
     interpolate(intoPage, [0, 140], [0, 1], {extrapolateRight: 'clamp'}),
-    interpolate(leftInPage, [0, 120], [0, 1], {extrapolateLeft: 'clamp'}),
+    interpolate(leftInPage, [0, 120], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
   );
 
   return (
