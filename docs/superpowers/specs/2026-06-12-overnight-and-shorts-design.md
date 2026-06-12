@@ -143,9 +143,87 @@ Standard `ship-video-change`: `pytest tests/` (hook-enforced) + still-preview (n
 
 ---
 
+## Project C — Narration voice (softer, content-aware)
+
+### Goal
+Replace the single sharp narration voice (`af_sarah` @ 1.0) with a calmer, soft-spoken
+delivery that **rotates by story register**. Improves long-form AND Shorts (shared TTS).
+
+### Decided
+- Three voices, mapped by the same `mood` field that drives music (one signal, two uses):
+
+  | `mood` | Voice | Rationale |
+  |---|---|---|
+  | triumphant | `bm_george` | authoritative for the payoff |
+  | hype | `bm_george` | drives energy |
+  | tense | `bm_lewis` | measured, investigative |
+  | somber | `bf_emma` | warm, gentle for loss |
+
+- **Speed 0.9**, **sentence gap 0.5s** for all (calmer pacing).
+- Default voice `bm_george` when `mood` is missing (self-stub).
+
+### Change (small, config-level)
+- `config.py`: `NARRATION_VOICE_BY_MOOD` map, `NARRATION_SPEED = 0.9`, `NARRATION_GAP_S = 0.5`.
+- `tts.py`: thread `speed` through `_synth_kokoro` (currently hardcoded `1.0` at `:124`);
+  use the configurable gap (currently hardcoded `0.4` at `:121`); voice resolved from mood.
+- Long-form (`UntoldVideo`) gets the same voice/speed; mood for long-form derived from its
+  pillar (or default) — decide mapping at plan time.
+
+### Verification
+By-ear audition already done (`voice_samples/`); the bm_george/bm_lewis/bf_emma @ 0.9 set
+is approved. Regression: existing TTS tests must still pass; add a test that voice/speed
+resolve from mood.
+
+---
+
+## Project D — Custom thumbnails
+
+### Goal
+A custom 1280×720 thumbnail per video matching the channel reference: dark cinematic
+background, **real licensed/archival subject photo** on one side, **gold size-stepped
+uppercase headline** on the other, **"THE UNTOLD GAME"** wordmark bottom-centre.
+
+### Decided
+- **Subject image = real licensed/archival photo** (Wikimedia/CC, or licensed Getty/AP) —
+  authentic, on-gate. **No AI-generated likenesses of real people** (ADR-0005). This makes
+  sourcing **human-in-the-loop**.
+- **Render = local**, NOT Canva. Canva MCP is interactively authenticated → unavailable in
+  the 1am cron. Local render reuses our Chromium/Remotion stack, runs unattended, free.
+
+### Components
+1. **Thumbnail headline (model step)** — a short Claude call turns the title into 3–4
+   uppercase lines with one emphasised "punch" phrase, e.g.
+   `THE / OWN GOAL / THAT COST / HIM HIS LIFE` with `OWN GOAL` largest. Emits
+   `[{text, size: small|med|big}]`.
+2. **Remotion `Thumbnail` composition** (1280×720) rendered via **`renderStill`** (single
+   frame — no video). Layers: background (subject photo if present, else atmospheric dark
+   gradient/stadium) → left→right vignette scrim for text legibility → gold headline block
+   (condensed uppercase, cream-gold `#E7D7A6`, size-stepped) → wordmark bottom-centre.
+3. **Subject-image slot** — `produced/<id>/subject.{jpg,png}` + a sidecar
+   `subject.license.json` (`{source_url, license, attribution}`). **Missing → atmospheric
+   fallback** (self-stub; the overnight run never blocks on a missing photo).
+4. **Output** `produced/<id>/thumbnail.png` → recorded as `thumbnail_path` in metadata.
+   Required-attribution licenses append the credit to the video description. At publish,
+   the uploader sets the YouTube thumbnail (Data API `thumbnails.set`).
+
+### Flow (human-in-the-loop)
+- **Overnight:** render the **atmospheric** thumbnail (no face) so the video is complete.
+- **Morning approval:** user drops the sourced photo + license into the idea folder, runs
+  `python3 -m engine.run_auto --thumbnail <id>` to regenerate with the real face, then
+  approves. (Canva remains available for hand-crafting a hero thumbnail off the same data.)
+
+### Out of scope (this cut)
+- Auto-sourcing/auto-licensing real photos (human supplies them).
+- A/B thumbnail variants.
+- Thumbnails for Shorts (Shorts use the vertical frame itself; revisit later).
+
+---
+
 ## Sequencing
 1. **A** — overnight automation (small, reuses tested orchestrator). Ship, validate one
    real night.
-2. **B** — Shorts pipeline (script mode → vertical composition → music → QC). Ship,
+2. **C** — narration voice (tiny config change, immediate quality win on existing videos).
+3. **B** — Shorts pipeline (script mode → vertical composition → music → QC). Ship,
    validate one short manually.
-3. **Follow-up** — wire Shorts into the overnight job; wall-clock-1am wake guarantee.
+4. **D** — custom thumbnails (after subject-image fork is decided).
+5. **Follow-up** — wire Shorts + thumbnails into the overnight job; wall-clock-1am wake.
