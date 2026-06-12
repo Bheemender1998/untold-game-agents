@@ -4,6 +4,62 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 9 (2026-06-12) — title-impact SFX + caption/title-card motion polish
+
+Polish session. **1 PR merged (#11)** via the full `ship-video-change` rail (dual adversarial
+review). References the durable artifacts — open them, don't re-read this for detail.
+
+### Shipped (PR #11 → `main`, squash `1ae1ef1`)
+- **Title-impact SFX.** A soft low boom under each title reveal (intro + every chapter card),
+  mixed *inside Remotion* via an `<Impact/>` `<Audio>` per `<Sequence>` (`IMPACT_VOL=0.4` in
+  `engine/video/remotion/src/UntoldVideo.tsx`) — Remotion auto-mixes it under the narration, no
+  ffmpeg post step. Sound is **synthesized** (ffmpeg `aevalsrc` chirp+decay, CC0/owned) by
+  `engine/video/make_impact_sfx.sh`; chosen **`weighty`** variant, peak-normalized to −1 dBFS into
+  the committed `engine/video/remotion/public/sfx/impact.wav`. Spec + plan:
+  `docs/superpowers/specs/2026-06-12-title-impact-sfx-design.md`,
+  `docs/superpowers/plans/2026-06-12-title-impact-sfx.md`.
+- **Frame-pure caption/title motion polish** — `Captions.tsx` (per-word blur-in + upward drift on
+  the spring pop, gold glow on active word, page-level fade that kills the hard cut at chapter
+  boundaries), `ChapterCard.tsx` (blur-in + gold accent rule wipe), `Intro.tsx` (title blur-in).
+  All pure functions of `useCurrentFrame()` — no new deps.
+- **Staging guard** — `tests/test_render_remotion.py` locks that `_stage_assets` (clears only
+  top-level `public/*.wav|*.mp4|*.mp3`) preserves the `public/sfx/` subdir. This is *why* the SFX
+  lives in a subdir: top-level `public/*.wav` is gitignored + wiped per render; `public/sfx/` is not.
+
+### Decisions / context
+- **Process rule (saved to memory `always-formal-spec-and-plan`):** user wants the full
+  brainstorm→**written spec**→**plan**→implement flow EVERY time, never shortcut even for small
+  features. I shortcut once this session and was corrected — don't repeat.
+- **Motion / Framer Motion (`motiondivision/motion`):** evaluated, **rejected for the Remotion
+  render** (its RAF/stateful engine breaks Remotion's deterministic out-of-order frame render).
+  Reserve it for the planned Next.js `dashboard/` (its real home). The caption polish above is the
+  "richer motion within the frame-pure model" alternative.
+- **Rejected the $33 Envato "Seamless Transitions for DaVinci Resolve" pack** — it's a Resolve/Fusion
+  template, unusable in our Remotion (code) pipeline; its bundled SFX are license-tied to the template.
+
+### Open / next
+1. **Tune `IMPACT_VOL` on a REAL produced video.** The preview used `defaultProps` (real
+   `narration.wav` + placeholder titles → audio/captions intentionally don't line up). Judge the
+   boom level by ear once a real render exists (`run_auto`/`run_produce`), adjust `IMPACT_VOL` in
+   `UntoldVideo.tsx`.
+2. **`feat/shorts-render` local branch is redundant** (its commits are already-merged-equivalent on
+   main). Safe to `git branch -D feat/shorts-render` — left intact this session per user.
+3. **Untracked dirs still dangling:** `engine/video/music/` (empty mood-folder scaffold — the music
+   bed is a separate future project) and `voice_samples/` (Project C voice auditions). Neither
+   committed.
+4. **PR #12** ("docs(plans): Project D thumbnails + Project E SFX sting") merged to main from another
+   line — note `docs/superpowers/plans/2026-06-12-thumbnails.md` + `...-sfx-sting.md` now exist
+   (the "SFX sting" is a *separate* planned project from this session's title-impact SFX).
+
+### Watch-outs
+- **Squash-merge SHA divergence is normal:** after `gh pr merge --squash`, local `main` (your local
+  squash) and `origin/main` (GitHub's squash) have identical trees but different SHAs. Just
+  `git fetch && git reset --hard origin/main`.
+- The SFX `<Audio>` plays from each sequence's frame 0; Remotion truncates the ~1s wav to the
+  sequence window. Short chapters (`Math.max(1,…)` guard) won't overflow.
+
+---
+
 ## Session 8 (2026-06-11) — shorter videos + Stage B shipped + CF workflow adopted
 
 Big session. **5 PRs merged (#1–#5)** through a newly-adopted PR workflow. Everything below
