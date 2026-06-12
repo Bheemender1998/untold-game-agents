@@ -44,6 +44,9 @@ TARGET_SCRIPT_WORDS_MIN = 1600
 TARGET_SCRIPT_WORDS_MAX = 2000
 TARGET_RUNTIME_LABEL = "8-9 minutes"
 
+SHORT_SCRIPT_WORDS_MIN = 90    # YouTube Shorts: ~30-50s of narration
+SHORT_SCRIPT_WORDS_MAX = 130
+
 # ── Viral potential scoring rubric ────────────────────────────────────────────
 VIRAL_RUBRIC = """
 Score each idea 1-10 on:
