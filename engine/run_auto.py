@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import sys
+from collections import Counter
 
 from engine import config
 from engine import queue_manager as q
@@ -75,9 +76,10 @@ def _render_and_qc(idea_id: str) -> None:
     print(f"· {idea_id}: {status}")
 
 
-def pipeline(count: int, no_render: bool) -> None:
+def pipeline(count: int, no_render: bool) -> Counter:
     """Produce → (render → QC) for the top-`count` pending ideas. One failure never
-    aborts the batch."""
+    aborts the batch. Returns a Counter of each idea's final status."""
+    results: Counter = Counter()
     for idea in _select(count):
         idea_id = idea["id"]
         try:
@@ -92,6 +94,18 @@ def pipeline(count: int, no_render: bool) -> None:
             _render_and_qc(idea_id)
         except Exception as e:  # never abort the batch
             print(f"! {idea_id}: error {e}")
+        finally:
+            results[(q.get_by_id(idea_id) or {}).get("status", "unknown")] += 1
+    return results
+
+
+def _summary_message(counter: Counter) -> str:
+    """Human one-liner for the overnight notification."""
+    if not counter:
+        return "No ideas produced."
+    total = sum(counter.values())
+    parts = ", ".join(f"{n} {status}" for status, n in counter.most_common())
+    return f"{total} produced: {parts}"
 
 
 def _load_metadata(rel_path: str) -> dict:
