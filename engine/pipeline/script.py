@@ -141,29 +141,36 @@ Remember: first line `MOOD: <tense|triumphant|somber|hype>`, then the narration 
 
 
 def _parse_short(raw: str) -> dict:
-    """Split a short-writer response into {'script', 'mood'}. MOOD is honored ONLY as the
-    first non-empty line (a 'MOOD:'-prefixed line deeper in the narration is ordinary script
-    text, never a header). Unknown/absent mood → '' (caller falls back to the pillar-derived
-    mood); the MOOD line (and any immediately duplicated ones) are stripped from the script."""
-    mood, mood_found = "", False
+    """Split a short-writer response into {'script', 'mood'}. MOOD is read from a `MOOD: x`
+    line at the top, tolerating leading blank lines and markdown rules (the model often wraps
+    its output in '---'). The FIRST real content line decides MOOD-vs-narration, so a
+    'MOOD:'-prefixed sentence deeper in the narration is never treated as a header. Unknown/
+    absent mood → '' (caller falls back to the pillar-derived mood); the MOOD line and any
+    leading rules/duplicates are stripped from the script."""
+    def _is_noise(t: str) -> bool:
+        # blank, or a markdown rule made only of -, *, _, = (e.g. '---', '***', '===')
+        return not t or set(t) <= {"-", "*", "_", "="}
+
+    mood = ""
     lines = raw.splitlines()
     body_start = 0
     for i, ln in enumerate(lines):
         s = ln.strip()
-        if not s:
+        if _is_noise(s):
             continue
         if s.upper().startswith("MOOD:"):
             cand = s.split(":", 1)[1].strip().lower()
             mood = cand if cand in _SHORT_MOODS else ""
-            body_start = i + 1
-            mood_found = True
-        break  # only the first non-empty line can be the MOOD header
-    while mood_found and body_start < len(lines) and lines[body_start].strip().upper().startswith("MOOD:"):
-        body_start += 1  # drop any immediately-repeated MOOD lines
-    script_text = "\n".join(lines[body_start:]).strip()
-    if not mood_found:
-        script_text = raw.strip()
-    return {"script": script_text, "mood": mood}
+            body_start = i + 1            # narration starts after the MOOD line
+        else:
+            body_start = i               # first real content line IS the narration start
+        break  # the first real content line is the only candidate for the MOOD header
+    while body_start < len(lines) and (
+        _is_noise(lines[body_start].strip())
+        or lines[body_start].strip().upper().startswith("MOOD:")
+    ):
+        body_start += 1  # drop leading blanks / rules / duplicate MOOD before the script
+    return {"script": "\n".join(lines[body_start:]).strip(), "mood": mood}
 
 
 def generate_short_script(idea: dict) -> dict:
