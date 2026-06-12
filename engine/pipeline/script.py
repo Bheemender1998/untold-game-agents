@@ -86,3 +86,81 @@ def run(idea: dict) -> dict:
     out = dict(idea)
     out["script"] = generate_script(idea)
     return out
+
+
+# ── YouTube Shorts script writer ──────────────────────────────────────────────
+
+SHORT_SYSTEM = """You are the scriptwriter for "The Untold Game" YouTube SHORTS — vertical
+30-50 second sports-history hooks. You write ONE continuous block of voiceover narration a
+single narrator reads. No section headers, no markdown, no bracketed production cues.
+
+Craft, in this exact 3-beat shape, as flowing prose (not labelled):
+- HOOK: the very first sentence is a scroll-stopping line that lands the stakes in under two
+  seconds. No throat-clearing, no "in this video".
+- FACT: one untold fact, built tight and concrete — names, dates, the turn.
+- PAYOFF: one resonant closing line that recontextualises it.
+
+Write for the ear: short, present-tense, concrete. Every factual claim (dates, names, scores,
+quotes) must be accurate — use web search to verify; if a detail can't be confirmed, write
+around it rather than inventing.
+
+Your VERY FIRST line must be exactly: MOOD: <one of: tense | triumphant | somber | hype>
+(the story's dominant emotional register — drives music and narrator voice). Then the
+narration on the following lines, and nothing else."""
+
+_SHORT_MOODS = {"tense", "triumphant", "somber", "hype"}
+
+
+class ShortScriptWriter(BaseAgent):
+    def __init__(self):
+        super().__init__()
+        self.name = "short_script_writer"
+        self.system_prompt = SHORT_SYSTEM
+
+    def write(self, idea: dict) -> dict:
+        title = idea["title_variants"][0]
+        prompt = f"""{self._context_block}
+
+Write the SHORT narration for this video.
+
+TITLE:    {title}
+HOOK:     {idea['hook']}
+PILLAR:   {idea['pillar']}
+SPORT:    {idea['sport']}
+AUDIENCE: {idea['target_audience']}
+WHY IT WORKS: {idea['why_it_works']}
+
+Use web search to verify the key facts before writing.
+
+LENGTH — HARD constraint: {config.SHORT_SCRIPT_WORDS_MIN}-{config.SHORT_SCRIPT_WORDS_MAX} spoken
+words total (~30-50 seconds). Hook + one fact + payoff. Count your words; if long, cut.
+
+Remember: first line `MOOD: <tense|triumphant|somber|hype>`, then the narration only."""
+        return _parse_short(self._call(prompt, use_search=True))
+
+
+def _parse_short(raw: str) -> dict:
+    """Split a short-writer response into {'script', 'mood'}. The mood is taken from a leading
+    `MOOD: x` line (tolerating model preamble before it); the spoken script is everything after
+    that line. Unknown/absent mood → '' (caller falls back to the pillar-derived mood)."""
+    mood = ""
+    mood_found = False
+    lines = raw.splitlines()
+    body_start = 0
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s.upper().startswith("MOOD:"):
+            cand = s.split(":", 1)[1].strip().lower()
+            mood = cand if cand in _SHORT_MOODS else ""
+            body_start = i + 1
+            mood_found = True
+            break
+    script_text = "\n".join(lines[body_start:]).strip()
+    if not mood_found:                      # no MOOD line at all → whole response is the script
+        script_text = raw.strip()
+    return {"script": script_text, "mood": mood}
+
+
+def generate_short_script(idea: dict) -> dict:
+    """Return {'script': str, 'mood': str} for a YouTube Short."""
+    return ShortScriptWriter().write(idea)
