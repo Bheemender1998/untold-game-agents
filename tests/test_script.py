@@ -55,3 +55,30 @@ def test_short_mid_script_mood_line_is_not_a_header(monkeypatch):
     assert out["mood"] == ""                              # no leading MOOD → none parsed
     assert out["script"].startswith("The real hook line.")
     assert "MOOD: looks like a header" in out["script"]   # mid-text line stays as narration
+
+
+def test_short_tolerates_leading_markdown_rule_before_mood(monkeypatch):
+    # Models often wrap output in a '---' rule before the MOOD line — that must not defeat
+    # the parse (regression: a leaked 'MOOD:' line would otherwise be spoken by TTS).
+    raw = "---\n\nMOOD: tense\n\nThe Knicks last won a title in 1973."
+    monkeypatch.setattr(script.ShortScriptWriter, "_call", lambda self, p, **k: raw)
+    out = script.generate_short_script({"title_variants": ["X"], "hook": "h",
+                                        "pillar": "sport_vs_world", "sport": "NBA",
+                                        "target_audience": "fans", "why_it_works": "w"})
+    assert out["mood"] == "tense"
+    assert out["script"] == "The Knicks last won a title in 1973."
+    assert "MOOD" not in out["script"]
+    assert "---" not in out["script"]
+
+
+def test_short_strips_leading_rule_even_without_mood(monkeypatch):
+    # Same '---' wrapper failure mode, but the model omitted MOOD entirely: the rule must
+    # still not leak into the spoken script; mood falls back to '' (caller uses the pillar).
+    monkeypatch.setattr(script.ShortScriptWriter, "_call",
+                        lambda self, p, **k: "---\n\nThe real narration starts here.")
+    out = script.generate_short_script({"title_variants": ["X"], "hook": "h",
+                                        "pillar": "what_if", "sport": "F1",
+                                        "target_audience": "fans", "why_it_works": "w"})
+    assert out["mood"] == ""
+    assert out["script"] == "The real narration starts here."
+    assert "---" not in out["script"]
