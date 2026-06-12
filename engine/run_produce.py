@@ -20,7 +20,7 @@ import os
 import tempfile
 
 from engine import queue_manager as q
-from engine.pipeline.script import generate_script
+from engine.pipeline.script import generate_script, generate_short_script
 from engine.pipeline.metadata import generate_metadata
 
 GOLD, GREEN, RED, GRAY, RESET = "\033[93m", "\033[92m", "\033[91m", "\033[90m", "\033[0m"
@@ -45,6 +45,16 @@ def _atomic_write(path: str, content: str) -> None:
         raise
 
 
+def _short_metadata(idea: dict, script: str) -> dict:
+    """Minimal YouTube metadata for a Short. Full SEO metadata is long-form only."""
+    title = idea["title_variants"][0]
+    first_line = next((ln.strip() for ln in script.splitlines() if ln.strip()), title)
+    sport = idea.get("sport", "")
+    tags = [t for t in ["Shorts", sport, idea.get("pillar", "")] if t]
+    desc = f"{first_line}\n\n#Shorts" + (f" #{sport.replace(' ', '')}" if sport else "")
+    return {"title": title, "description": desc, "tags": tags}
+
+
 def _select(args) -> list[dict]:
     if args.id:
         idea = q.get_by_id(args.id)
@@ -55,7 +65,7 @@ def _select(args) -> list[dict]:
 
 
 def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = True,
-            autofix: bool = True, max_claims: int = 25) -> dict:
+            autofix: bool = True, max_claims: int = 25, short: bool = False) -> dict:
     """Generate script + metadata for one idea; write artifacts; update the queue.
 
     The fact-gate is auto-chained: the script is verified (and auto-corrected once,
@@ -97,7 +107,12 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
                       script_path=None, metadata_path=None,
                       factcheck_path=None, video_path=None)
         print(f"  {GRAY}writing script…{RESET}")
-        script = generate_script(idea)
+        if short:
+            out = generate_short_script(idea)
+            script = out["script"]
+            q.update_idea(idea_id, mood=out["mood"])
+        else:
+            script = generate_script(idea)
 
     # Keep script.md in sync with `script` (the content we verify + feed to metadata
     # + record). Always (over)write so a re-run can't leave a STALE on-disk script.
@@ -129,7 +144,7 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
             print(f"  {RED}✗ fact-gate NOT passed ({why}) → needs_review{RESET}")
 
     print(f"  {GRAY}optimising metadata…{RESET}")
-    meta = generate_metadata(idea, script)
+    meta = _short_metadata(idea, script) if short else generate_metadata(idea, script)
     metadata_file = os.path.join(out_dir, "metadata.json")
     _atomic_write(metadata_file, json.dumps(meta, indent=2, ensure_ascii=False))
     print(f"  {GREEN}✓ metadata.json — title: {meta.get('title','?')}{RESET}")
@@ -155,6 +170,8 @@ def main() -> None:
     ap.add_argument("--no-factcheck", action="store_true", help="skip the fact-gate (not recommended)")
     ap.add_argument("--no-autofix", action="store_true", help="fact-check but don't auto-correct")
     ap.add_argument("--max-claims", type=int, default=25)
+    ap.add_argument("--short", action="store_true",
+                    help="produce a YouTube Short (30-50s) instead of long-form")
     args = ap.parse_args()
 
     ideas = _select(args)
@@ -169,7 +186,8 @@ def main() -> None:
         try:
             r = produce(idea, metadata_only=args.metadata_only,
                         factcheck_enabled=not args.no_factcheck,
-                        autofix=not args.no_autofix, max_claims=args.max_claims)
+                        autofix=not args.no_autofix, max_claims=args.max_claims,
+                        short=args.short)
             done += 1
             if not r["fact_passed"]:
                 needs_review += 1
