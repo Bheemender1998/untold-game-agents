@@ -252,3 +252,19 @@ def test_pipeline_counts_not_cleared_idea(monkeypatch):
     _stub_pipeline(monkeypatch, idea, qc_pass=True)
     result = run_auto.pipeline(count=1, no_render=False)
     assert result["needs_review"] == 1
+
+
+def test_notify_invokes_osascript(monkeypatch):
+    calls = {}
+    monkeypatch.setattr(run_auto.subprocess, "run",
+                        lambda cmd, **k: calls.setdefault("cmd", cmd))
+    run_auto._notify("3 produced: 2 awaiting_approval")
+    assert calls["cmd"][0] == "osascript"
+    assert any("3 produced" in str(part) for part in calls["cmd"])
+
+
+def test_notify_never_raises(monkeypatch):
+    def boom(*a, **k):
+        raise OSError("no osascript")
+    monkeypatch.setattr(run_auto.subprocess, "run", boom)
+    run_auto._notify("anything")  # must not raise

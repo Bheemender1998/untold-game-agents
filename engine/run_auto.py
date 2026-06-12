@@ -108,6 +108,19 @@ def _summary_message(counter: Counter) -> str:
     return f"{total} produced: {parts}"
 
 
+def _notify(message: str, title: str = "The Untold Game — overnight") -> None:
+    """Best-effort macOS Notification Center banner. Never raises (notification
+    failure must not fail an otherwise-good overnight run)."""
+    try:
+        subprocess.run(
+            ["osascript", "-e",
+             f"display notification {json.dumps(message)} with title {json.dumps(title)}"],
+            check=False,
+        )
+    except Exception:
+        pass
+
+
 def _load_metadata(rel_path: str) -> dict:
     with open(os.path.join(_ROOT, rel_path)) as f:
         return json.load(f)
@@ -210,7 +223,9 @@ def main() -> None:
     elif args.render:
         cmd_render(args.render)
     else:
-        pipeline(count=args.count, no_render=args.no_render)
+        results = pipeline(count=args.count, no_render=args.no_render)
+        if not args.no_render:
+            _notify(_summary_message(results))
 
 
 if __name__ == "__main__":
