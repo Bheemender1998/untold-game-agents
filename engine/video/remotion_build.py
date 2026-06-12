@@ -13,6 +13,7 @@ import os
 from engine.video import captions as _captions
 from engine.video import compose as _compose
 from engine.video import footage as _footage
+from engine.video import music as _music
 from engine.video import tts as _tts
 
 INTRO_MS = 4000
@@ -73,4 +74,13 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
         "captions": cap_words,
         "chapters": chapters,
     }
-    return props, assets
+
+    # Shorts only: a mood-matched background bed mixed low under the narration.
+    music_credit = ""
+    if portrait:
+        frag, music_asset, music_credit = _music.short_music_props(idea)
+        if music_asset:
+            props.update(frag)
+            assets.append(music_asset)
+
+    return props, assets, music_credit
