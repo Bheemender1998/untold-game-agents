@@ -13,6 +13,7 @@ export const Intro: React.FC<{title: string; kicker: string}> = ({title, kicker}
   });
   const opacity = appear * out;
   const y = interpolate(appear, [0, 1], [30, 0]);
+  const titleBlur = interpolate(appear, [0, 1], [10, 0]); // title resolves out of a soft blur
 
   return (
     <AbsoluteFill
@@ -43,6 +44,7 @@ export const Intro: React.FC<{title: string; kicker: string}> = ({title, kicker}
           maxWidth: 1500,
           padding: '0 160px',
           transform: `translateY(${y}px)`,
+          filter: `blur(${titleBlur}px)`,
           textShadow: '0 6px 40px rgba(0,0,0,0.7)',
         }}
       >

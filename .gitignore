@@ -41,6 +41,8 @@ engine/video/remotion/public/*.wav
 engine/video/remotion/public/*.mp3
 engine/video/remotion/props.json
 engine/video/renderer/renders/
+# Throwaway SFX audition previews (regenerate via make_impact_sfx.sh)
+engine/video/sfx_auditions/
 engine/video/renderer/index.html
 engine/video/renderer/*.mp4
 engine/video/renderer/*.wav

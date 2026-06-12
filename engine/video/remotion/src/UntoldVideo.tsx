@@ -9,6 +9,13 @@ import {Outro} from './components/Outro';
 
 const ms2f = (ms: number, fps: number) => Math.round((ms / 1000) * fps);
 
+// Soft low-end impact under each title reveal (intro + chapter cards). Remotion mixes it
+// alongside the narration; kept low so it sits under the voice. Tune IMPACT_VOL by ear.
+const IMPACT_VOL = 0.4;
+const Impact: React.FC = () => (
+  <Audio src={staticFile('sfx/impact.wav')} volume={IMPACT_VOL} />
+);
+
 export const UntoldVideo: React.FC<UntoldProps> = (props) => {
   const {fps} = useVideoConfig();
   const introF = ms2f(props.introMs, fps);
@@ -22,6 +29,7 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
       {/* intro title card */}
       <Sequence durationInFrames={introF} name="Intro">
         <Intro title={props.title} kicker={props.kicker} />
+        <Impact />
       </Sequence>
 
       {/* narration starts after the intro */}
@@ -38,6 +46,7 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
           name={`Chapter ${i + 1}`}
         >
           <ChapterCard headline={c.headline} />
+          <Impact />
         </Sequence>
       ))}
 
