@@ -106,13 +106,13 @@ def _fetch_one(query: str, out_path: str, api_key: str, min_width: int,
 
 
 def fetch_clip(query: str, out_path: str, api_key: str | None = None,
-               min_width: int = 1280) -> str | None:
+               min_width: int = 1280, portrait: bool = False) -> str | None:
     """Search Pexels and download one atmospheric clip to out_path. Returns out_path,
     or None on any failure / missing key (caller self-stubs)."""
     api_key = api_key or os.environ.get("PEXELS_API_KEY")
     if not api_key:
         return None
-    res = _fetch_one(query, out_path, api_key, min_width, set())
+    res = _fetch_one(query, out_path, api_key, min_width, set(), portrait=portrait)
     return res[0] if res else None
 
 

@@ -22,7 +22,6 @@ export const UntoldShort: React.FC<UntoldProps> = (props) => {
       <Sequence from={introF} name="Captions">
         <ShortCaptions
           captions={props.captions}
-          chapterStartsMs={props.chapters.map((c) => c.startMs)}
         />
       </Sequence>
     </AbsoluteFill>

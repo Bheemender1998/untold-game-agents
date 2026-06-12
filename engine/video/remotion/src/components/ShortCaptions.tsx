@@ -6,10 +6,10 @@ import type {CaptionWord} from '../types';
 
 // Vertical (1080×1920) caption block for YouTube Shorts.
 // No chapter-headline suppression — Shorts have no chapter cards.
-// Positioned in the safe band: clear of the top channel-name strip (~12%)
-// and the bottom buttons strip (~18%). Block sits ~42-52% down the frame.
+// Seated in the vertical safe band; the short per-page combine window keeps
+// pages to ~1-2 lines so they stay clear of the bottom UI strip in practice.
 
-export const ShortCaptions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: number[]}> = ({
+export const ShortCaptions: React.FC<{captions: CaptionWord[]}> = ({
   captions,
 }) => {
   const frame = useCurrentFrame();
