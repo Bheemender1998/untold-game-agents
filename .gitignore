@@ -63,3 +63,6 @@ voice_samples/
 # fact-gate (never commit — entity cache + shadow measurement log)
 .factcache.json
 .factgate-shadow.jsonl
+
+# generated channel assets (regenerable via run_banner; source of truth is config/channel.yaml)
+channel/

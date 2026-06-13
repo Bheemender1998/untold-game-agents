@@ -50,3 +50,10 @@ def test_subject_path_prefers_png_then_jpg(tmp_path, monkeypatch):
     # a .png present -> .png wins
     open(os.path.join(d, "subject.png"), "w").close()
     assert paths.subject_path("id1", "long").endswith("subject.png")
+
+
+def test_channel_paths():
+    import os
+    from engine import paths
+    assert paths.channel_banner_path() == os.path.join(paths.CHANNEL_DIR, "banner.png")
+    assert paths.channel_description_path() == os.path.join(paths.CHANNEL_DIR, "description.txt")
