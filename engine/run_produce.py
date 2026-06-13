@@ -21,7 +21,8 @@ import tempfile
 
 from engine import queue_manager as q
 from engine import paths
-from engine.pipeline.script import (clean_short_body, generate_script, generate_short_script,
+from engine import config
+from engine.pipeline.script import (generate_script, generate_short_script,
                                      derive_short_tease, tease_within_long)
 from engine.pipeline.metadata import generate_metadata, generate_short_metadata
 
@@ -47,6 +48,15 @@ def _atomic_write(path: str, content: str) -> None:
         raise
 
 
+def _append_shadow(rec: dict) -> None:
+    """Append one JSON line to the gitignored shadow-measurement log. Best-effort."""
+    try:
+        with open(config.FACTCACHE_PATH.replace(".factcache.json", ".factgate-shadow.jsonl"), "a") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
 def _select(args) -> list[dict]:
     if args.id:
         idea = q.get_by_id(args.id)
@@ -57,12 +67,13 @@ def _select(args) -> list[dict]:
 
 
 def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = True,
-            autofix: bool = True, max_claims: int = 25, fmt: str = "long") -> dict:
+            max_claims: int = 25, fmt: str = "long") -> dict:
     """Generate script + metadata for one idea; write artifacts; update the queue.
 
-    The fact-gate is auto-chained: the script is verified (and auto-corrected once,
-    then re-verified) before it feeds metadata. The idea is marked `in_production`
-    only if the gate passes; otherwise `needs_review`.
+    The fact-gate is auto-chained (verdicts only — no auto-correct, human-only).
+    In shadow mode (config.FACT_GATE_SHADOW=True) the gate verdict is recorded but
+    every script still routes to needs_review. When shadow is off (live mode) a
+    passed script goes to in_production.
     """
     idea_id = idea["id"]
     title = idea["title_variants"][0]
@@ -117,20 +128,12 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
     if not metadata_only:
         print(f"  {GREEN}✓ script.md ({len(script.split())} words){RESET}")
 
-    # ── Fact-gate (auto-chained) ─────────────────────────────────────────────
-    # Verify the script before it feeds metadata. Auto-correct once, re-verify.
+    # ── Fact-gate (auto-chained; verdicts only — no auto-correct, human-only) ────
     fact_result = None
     if not metadata_only and factcheck_enabled:
         from engine.pipeline import factcheck as fc
         print(f"  {GRAY}fact-checking script…{RESET}")
         fact_result = fc.factcheck(script, max_claims=max_claims)
-        if autofix and fact_result["issues"]:
-            print(f"  {GRAY}auto-correcting {len(fact_result['issues'])} claim(s) + re-verifying…{RESET}")
-            script = fc.correct_script(script, fact_result["issues"])
-            if short:
-                script = clean_short_body(script)  # correction model re-adds MOOD/preamble
-            _atomic_write(script_file, f"# {title}\n\n{script}\n")
-            fact_result = fc.factcheck(script, max_claims=max_claims)
         _atomic_write(os.path.join(out_dir, "factcheck.json"),
                       json.dumps(fact_result, indent=2, ensure_ascii=False))
         if fact_result["passed"]:
@@ -146,9 +149,16 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
     _atomic_write(metadata_file, json.dumps(meta, indent=2, ensure_ascii=False))
     print(f"  {GREEN}✓ metadata.json — title: {meta.get('title','?')}{RESET}")
 
-    # Status is gated on the fact-check: production-ready only if verified.
-    passed = fact_result is None or fact_result["passed"]
-    fields = {"status": "in_production" if passed else "needs_review",
+    # Status gate. In SHADOW mode the gate's pass is recorded but NOT trusted — every
+    # script still routes to needs_review (human), exactly as before the redesign.
+    shadow = getattr(config, "FACT_GATE_SHADOW", True)
+    gate_passed = fact_result is None or fact_result["passed"]
+    if fact_result is not None and shadow:
+        _append_shadow({"id": idea_id, "fmt": fmt,
+                        "would_auto_pass": fact_result.get("would_auto_pass", fact_result["passed"]),
+                        "issues": len(fact_result["issues"]), "checked": fact_result["checked"]})
+    effective_pass = gate_passed and not (fact_result is not None and shadow)
+    fields = {"status": "in_production" if effective_pass else "needs_review",
               "metadata_path": os.path.relpath(metadata_file, _ROOT)}
     if os.path.exists(script_file):
         fields["script_path"] = os.path.relpath(script_file, _ROOT)
@@ -156,7 +166,7 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
         fields["fact_passed"] = fact_result["passed"]
         fields["factcheck_path"] = os.path.relpath(os.path.join(out_dir, "factcheck.json"), _ROOT)
     q.update_idea(idea_id, **fields)
-    return {"metadata": meta, "fact_passed": passed}
+    return {"metadata": meta, "fact_passed": effective_pass}
 
 
 def produce_companion_short(idea: dict) -> dict:
@@ -206,7 +216,6 @@ def main() -> None:
     ap.add_argument("--top", type=int, help="produce the top-N PENDING ideas (dev/testing)")
     ap.add_argument("--metadata-only", action="store_true", help="skip script generation (cheap test)")
     ap.add_argument("--no-factcheck", action="store_true", help="skip the fact-gate (not recommended)")
-    ap.add_argument("--no-autofix", action="store_true", help="fact-check but don't auto-correct")
     ap.add_argument("--max-claims", type=int, default=25)
     ap.add_argument("--format", choices=["long", "short"], default="long",
                     help="output format (default: long-form)")
@@ -227,7 +236,7 @@ def main() -> None:
             fmt = "short" if (args.short or args.format == "short") else "long"
             r = produce(idea, metadata_only=args.metadata_only,
                         factcheck_enabled=not args.no_factcheck,
-                        autofix=not args.no_autofix, max_claims=args.max_claims,
+                        max_claims=args.max_claims,
                         fmt=fmt)
             done += 1
             if not r["fact_passed"]:
