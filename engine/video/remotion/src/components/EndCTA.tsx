@@ -56,6 +56,25 @@ export const EndCTA: React.FC<{vertical?: boolean}> = ({vertical}) => {
       <div style={{fontFamily: oswald, fontSize: vertical ? 26 : 24, color: CREAM, opacity: 0.8, marginTop: 14}}>
         for more untold stories.
       </div>
+      {vertical ? (
+        <div
+          style={{
+            fontFamily: oswald,
+            fontSize: 38,
+            color: GOLD,
+            textTransform: 'uppercase',
+            textAlign: 'center',
+            letterSpacing: '0.04em',
+            marginTop: 28,
+            transform: `translateY(${y}px)`,
+            textShadow: '0 4px 24px rgba(0,0,0,0.85)',
+          }}
+        >
+          Full story on our channel
+          <br />
+          link in description
+        </div>
+      ) : null}
     </AbsoluteFill>
   );
 };
