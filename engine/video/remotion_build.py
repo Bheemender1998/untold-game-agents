@@ -8,6 +8,7 @@ Pexels footage (footage.fetch_clips), and whisper word timings (captions) — bu
 props.json the React composition consumes instead of HyperFrames HTML.
 """
 from __future__ import annotations
+import math
 import os
 
 from engine.video import captions as _captions
@@ -18,6 +19,22 @@ from engine.video import tts as _tts
 
 INTRO_MS = 4000
 OUTRO_MS = 3500
+
+
+def beat_track(narration_ms: int, beat_s: float) -> list[dict]:
+    """Split a narration of `narration_ms` into contiguous b-roll beats of ~`beat_s`
+    seconds each. Returns [{"startMs", "endMs"}, ...]; the final beat is clamped to
+    narration_ms. One clip will be fetched per beat (no single-clip loop)."""
+    if narration_ms <= 0 or beat_s <= 0:
+        return [{"startMs": 0, "endMs": max(0, narration_ms)}]
+    beat_ms = int(round(beat_s * 1000))
+    n = max(1, math.ceil(narration_ms / beat_ms))
+    beats = []
+    for i in range(n):
+        start = i * beat_ms
+        end = min((i + 1) * beat_ms, narration_ms)
+        beats.append({"startMs": start, "endMs": end})
+    return beats
 
 
 def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,

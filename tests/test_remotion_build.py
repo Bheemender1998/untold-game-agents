@@ -1,4 +1,29 @@
+import math
+
 from engine.video import remotion_build, music
+
+
+def test_beat_track_covers_narration_contiguously():
+    beats = remotion_build.beat_track(10_000, 2.5)   # 10s narration, 2.5s beats
+    assert len(beats) == 4
+    assert beats[0]["startMs"] == 0
+    # contiguous, non-overlapping
+    for a, b in zip(beats, beats[1:]):
+        assert a["endMs"] == b["startMs"]
+    # last beat reaches the end of the narration
+    assert beats[-1]["endMs"] == 10_000
+
+
+def test_beat_track_rounds_up_partial_final_beat():
+    beats = remotion_build.beat_track(9_000, 2.5)     # 9 / 2.5 = 3.6 → 4 beats
+    assert len(beats) == math.ceil(9_000 / 2_500)
+    assert beats[-1]["endMs"] == 9_000                # clamped to narration end
+
+
+def test_beat_track_long_cadence_is_coarser():
+    short_beats = remotion_build.beat_track(60_000, 2.5)
+    long_beats = remotion_build.beat_track(60_000, 7.0)
+    assert len(short_beats) > len(long_beats)         # short cuts more often
 
 
 def _patch_heavy(monkeypatch):
