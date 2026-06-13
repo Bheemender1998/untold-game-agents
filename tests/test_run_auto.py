@@ -426,3 +426,36 @@ def test_companion_render_does_not_clobber_long_video_path(monkeypatch):
     run_auto._companion_short("x")
     assert idea["video_path"] == "produced/x/long/video/video.mp4"      # long path intact
     assert idea["short_video_path"] == "produced/x/short/video/video.mp4"
+
+
+def test_cmd_approve_refuses_duplicate_when_already_published(monkeypatch):
+    import pytest
+    # status passes the first check, but UNDER THE LOCK a concurrent run already published.
+    records = iter([
+        {"id": "dup", "status": "awaiting_approval", "metadata_path": "produced/dup/metadata.json",
+         "video_path": "produced/dup/video/video.mp4"},
+        {"id": "dup", "status": "published", "long_youtube_url": "https://youtu.be/already"},
+    ])
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: next(records))
+    monkeypatch.setattr(run_auto, "_load_metadata", lambda p: {"title": "T"})
+    up = {"called": False}
+    monkeypatch.setattr(run_auto.uploader, "upload",
+                        lambda **k: up.__setitem__("called", True) or "x")
+    with pytest.raises(SystemExit):
+        run_auto.cmd_approve("dup", public=False, dry_run=False)
+    assert up["called"] is False          # never uploaded — duplicate refused under the lock
+
+
+def test_approve_lock_is_exclusive(tmp_path, monkeypatch):
+    import fcntl as _f
+    import pytest
+    monkeypatch.setattr(run_auto.paths, "artifact_dir", lambda i, fmt: str(tmp_path))
+    with run_auto._approve_lock("z"):
+        f2 = open(str(tmp_path / ".approve.lock"), "w")
+        with pytest.raises(OSError):      # second exclusive non-blocking lock must fail
+            _f.flock(f2.fileno(), _f.LOCK_EX | _f.LOCK_NB)
+        f2.close()
+    # released after the block — re-acquire succeeds
+    f3 = open(str(tmp_path / ".approve.lock"), "w")
+    _f.flock(f3.fileno(), _f.LOCK_EX | _f.LOCK_NB)
+    _f.flock(f3.fileno(), _f.LOCK_UN); f3.close()

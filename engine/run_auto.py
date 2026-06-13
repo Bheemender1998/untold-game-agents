@@ -2,6 +2,7 @@
 human approval CLI. Runs in the user's shell (render needs npx). Shells out per stage with
 the right interpreter (the produce/render venvs can't coexist in one process)."""
 from __future__ import annotations
+import fcntl
 import json
 import os
 import re
@@ -10,6 +11,7 @@ import subprocess
 import sys
 import urllib.parse
 from collections import Counter
+from contextlib import contextmanager
 
 from engine import config
 from engine import queue_manager as q
@@ -233,6 +235,27 @@ def cmd_reject(idea_id: str) -> None:
     print(f"✓ {idea_id} rejected")
 
 
+@contextmanager
+def _approve_lock(idea_id: str):
+    """Per-idea exclusive lock so two concurrent --approve runs can't both upload (the
+    YouTube API has no idempotency key — two racing inserts create two videos, which is
+    exactly how a triple-duplicate happened). Refuses (exits) if the lock is already held."""
+    d = paths.artifact_dir(idea_id, _OVERNIGHT_FMT)
+    os.makedirs(d, exist_ok=True)
+    f = open(os.path.join(d, ".approve.lock"), "w")
+    try:
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            sys.exit(f"{idea_id}: another --approve is already running — refusing (avoids a duplicate upload)")
+        yield
+    finally:
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        finally:
+            f.close()
+
+
 def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
     idea = q.get_by_id(idea_id) or {}
     if not idea:
@@ -248,31 +271,39 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
             sys.exit(f"dry-run FAILED for {idea_id}: metadata/video invalid")
         print(f"✓ dry-run OK for {idea_id} (auth + metadata valid; not published)")
         return
-    thumb = paths.thumbnail_path(idea_id, "long")
-    thumb = thumb if os.path.exists(thumb) else None
-    yt_id = uploader.upload(video_path=video, title=meta["title"],
-                            description=meta.get("description", ""),
-                            tags=meta.get("tags"), privacy=privacy,
-                            thumbnail_path=thumb)
-    q.update_idea(idea_id, status="published",
-                  long_youtube_url=f"https://youtu.be/{yt_id}")
-    print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
-    long_url = f"https://youtu.be/{yt_id}"
-    # Companion short (if produced + clean): upload with the long URL embedded in its description (inherits the long's privacy).
-    if idea.get("short_status") == "short_awaiting_approval" and idea.get("short_video_path"):
-        try:
-            smeta = _load_metadata(idea["short_metadata_path"])
-            svideo = os.path.join(_ROOT, idea["short_video_path"])
-            sdesc = f"{smeta.get('description', '')}\n\n▶ Full story on our channel: {long_url}".strip()
-            sthumb = paths.thumbnail_path(idea_id, "short")
-            sthumb = sthumb if os.path.exists(sthumb) else None
-            short_id = uploader.upload(video_path=svideo, title=smeta["title"],
-                                       description=sdesc, tags=smeta.get("tags"), privacy=privacy,
-                                       thumbnail_path=sthumb)
-            q.update_idea(idea_id, short_youtube_url=f"https://youtu.be/{short_id}")
-            print(f"✓ companion short {idea_id} → https://youtu.be/{short_id} ({privacy})")
-        except Exception as e:                  # short failure must not undo the long
-            print(f"⚠ {idea_id}: long published but companion short upload failed — {e}")
+    with _approve_lock(idea_id):
+        # Re-check UNDER the lock: a concurrent run that beat us here may have just published.
+        # Lock (blocks concurrency) + this re-check (catches the already-uploaded case) together
+        # make a double-upload impossible.
+        fresh = q.get_by_id(idea_id) or {}
+        if fresh.get("long_youtube_url") or fresh.get("status") == "published":
+            sys.exit(f"{idea_id}: already published ({fresh.get('long_youtube_url')}) — refusing duplicate upload")
+        thumb = paths.thumbnail_path(idea_id, "long")
+        thumb = thumb if os.path.exists(thumb) else None
+        yt_id = uploader.upload(video_path=video, title=meta["title"],
+                                description=meta.get("description", ""),
+                                tags=meta.get("tags"), privacy=privacy,
+                                thumbnail_path=thumb)
+        q.update_idea(idea_id, status="published",
+                      long_youtube_url=f"https://youtu.be/{yt_id}")
+        print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
+        long_url = f"https://youtu.be/{yt_id}"
+        # Companion short (if produced + clean): upload with the long URL embedded in its
+        # description (inherits the long's privacy). Inside the lock so it can't dup either.
+        if idea.get("short_status") == "short_awaiting_approval" and idea.get("short_video_path"):
+            try:
+                smeta = _load_metadata(idea["short_metadata_path"])
+                svideo = os.path.join(_ROOT, idea["short_video_path"])
+                sdesc = f"{smeta.get('description', '')}\n\n▶ Full story on our channel: {long_url}".strip()
+                sthumb = paths.thumbnail_path(idea_id, "short")
+                sthumb = sthumb if os.path.exists(sthumb) else None
+                short_id = uploader.upload(video_path=svideo, title=smeta["title"],
+                                           description=sdesc, tags=smeta.get("tags"), privacy=privacy,
+                                           thumbnail_path=sthumb)
+                q.update_idea(idea_id, short_youtube_url=f"https://youtu.be/{short_id}")
+                print(f"✓ companion short {idea_id} → https://youtu.be/{short_id} ({privacy})")
+            except Exception as e:                  # short failure must not undo the long
+                print(f"⚠ {idea_id}: long published but companion short upload failed — {e}")
 
 
 def _video_id(url: str) -> str:
