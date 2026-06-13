@@ -7,7 +7,9 @@ learn from real performance — the ConvictionFinder loop applied to a YouTube c
 ## Stages
 1. **Ideate (DONE / LIVE)** — 4 agents generate scored, web-researched ideas;
    human review/approve. Free DuckDuckGo search; Claude Sonnet 4.6.
-2. **Produce (Stage 2)** — `pipeline/`: script → thumbnail → metadata → schedule.
+2. **Produce (Stage 2 — mostly built)** — `pipeline/`: script, metadata, fact-gate, **thumbnail
+   generator** (`run_thumbnail`, Pillow "Prestige Feed Killer"), and **channel banner/positioning**
+   (`run_banner`, "Editorial Archive") are LIVE; `schedule` pending.
 3. **Publish (Stage 2)** — `publish/`: YouTube Data API v3 upload (OAuth), cadence-aware.
 4. **Learn (Stage 3)** — `ingest/` + `outcomes/`: pull post-publish metrics, feed
    predicted-vs-actual back so the agents/scorer improve.

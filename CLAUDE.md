@@ -12,7 +12,7 @@ Railway cron, a review/approve loop, and (Stage 2+) a publish + learning loop.
 | `engine/run_pipeline.py` | CLI: run agents → interactive review dashboard | **LIVE** |
 | `engine/config.py` | Model, channel context, viral rubric, queue path | **LIVE** |
 | `engine/queue_manager.py` | JSON idea queue (pending → approved → rejected) | **LIVE** |
-| `engine/pipeline/` | ideate → script → thumbnail → metadata → schedule | ideate LIVE, rest Stage 2 |
+| `engine/pipeline/` | ideate → script → thumbnail → banner → metadata → schedule | ideate/script/metadata/thumbnail/banner LIVE; schedule Stage 2 |
 | `engine/publish/` | YouTube Data API v3 upload + scheduler (OAuth) | Stage 2 |
 | `engine/ingest/` | YouTube Analytics / Trends loaders (learning loop) | Stage 3 |
 | `engine/outcomes/` | Track published-video performance vs predicted score | Stage 3 |
@@ -45,6 +45,9 @@ python3 -m engine.run_pipeline            # all 4 agents (parallel) → review d
 python3 -m engine.run_pipeline --agent 1  # one agent (1=history 2=trending 3=gaps 4=evergreen)
 python3 -m engine.run_pipeline --review   # review the existing queue, no generation
 python3 -m engine.run_pipeline --stats    # queue stats only
+python3 -m engine.run_produce --id <id> [--format short] [--metadata-only]  # script+metadata (—metadata-only = retitle, no re-render)
+python3 -m engine.run_thumbnail --id <id> [--format short]  # composite thumbnail from produced/<id>/<fmt>/subject.png
+python3 -m engine.run_banner              # generate channel/banner.png + description.txt (manual upload to Studio)
 ```
 
 ## Gate discipline
