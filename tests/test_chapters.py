@@ -38,8 +38,9 @@ def test_rebuild_uses_real_times_and_headlines():
 def test_rebuild_handles_count_mismatch():
     # desc has 3 chapter lines, render produced 4 → result reflects the 4 real chapters
     out = chapters.rebuild_chapters(_DESC, _PROPS)
-    assert out.count("\n00:") + (1 if out.startswith("00:") else 0) >= 0  # smoke
-    assert "02:02 — Tamburello" in out          # the 4th chapter is present
+    assert "02:02 — Tamburello" in out          # the 4th (real) chapter is present
+    # exactly the 4 render chapters, not the 3 the description originally had
+    assert len([l for l in out.splitlines() if l[:1].isdigit() and ":" in l[:6]]) == 4
 
 
 def test_rebuild_no_chapters_returns_unchanged():

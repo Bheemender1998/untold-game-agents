@@ -69,7 +69,7 @@ def sync_from_render(idea_id: str, fmt: str = "long") -> bool:
         with open(props_path) as f:
             chapters = json.load(f).get("chapters", [])
         new_desc = rebuild_chapters(meta.get("description", ""), chapters)
-        if new_desc == meta.get("description"):
+        if new_desc == meta.get("description", ""):
             return False
         meta["description"] = new_desc
         tmp = meta_path + ".tmp"
