@@ -211,6 +211,10 @@ def _video_id(url: str) -> str:
 def cmd_backlink(idea_id: str) -> None:
     """Append the idea's long URL to its already-published short's description."""
     idea = q.get_by_id(idea_id) or {}
+    if not idea:
+        sys.exit(f"No idea found for id {idea_id}")
+    if idea.get("short_backlinked"):
+        sys.exit(f"{idea_id}: already back-linked (short_backlinked=True)")
     long_url = idea.get("long_youtube_url")
     short_url = idea.get("short_youtube_url")
     if not (long_url and short_url):

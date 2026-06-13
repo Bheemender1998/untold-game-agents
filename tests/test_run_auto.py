@@ -291,3 +291,16 @@ def test_cmd_backlink_refuses_without_both_urls(monkeypatch):
     import pytest
     with pytest.raises(SystemExit):
         run_auto.cmd_backlink("x")
+
+
+def test_cmd_backlink_refuses_if_already_backlinked(monkeypatch):
+    idea = {"id": "x", "long_youtube_url": "https://youtu.be/LONG",
+            "short_youtube_url": "https://youtu.be/SHORT", "short_backlinked": True}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    called = {"append": False}
+    monkeypatch.setattr(run_auto.uploader, "append_to_description",
+                        lambda *a, **k: called.__setitem__("append", True))
+    import pytest
+    with pytest.raises(SystemExit):
+        run_auto.cmd_backlink("x")
+    assert called["append"] is False   # never touched the live description
