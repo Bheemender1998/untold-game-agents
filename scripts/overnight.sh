@@ -4,6 +4,15 @@
 # this is the #1 thing that breaks unattended macOS jobs.
 set -uo pipefail
 
+# Hold the Mac awake for the whole run — idle sleep would pause the 45-min render.
+# Re-exec self once under caffeinate (-i no idle sleep, -s no system sleep on AC).
+# Re-invoke via /bin/bash (matching launchd) so this works even without the +x bit;
+# full paths because launchd's minimal env may not have /usr/bin on PATH yet.
+if [ -z "${_OVERNIGHT_CAFFEINATED:-}" ]; then
+  export _OVERNIGHT_CAFFEINATED=1
+  exec /usr/bin/caffeinate -i -s -- /bin/bash "$0" "$@"
+fi
+
 REPO="/Users/bheemendergurram/untold_game_agents"
 cd "$REPO" || exit 1
 
