@@ -55,6 +55,16 @@ def _sport_query(query: str, sport: str | None) -> str:
     return f"{keyword} {query}"
 
 
+from engine import config as _config
+
+def mood_beat_queries(mood: str | None, n: int) -> list[str]:
+    """n atmospheric search queries for the given mood, cycling the pool so consecutive
+    beats differ. Unknown/empty mood falls back to 'tense'. Deterministic (no RNG) — the
+    per-clip variety comes from footage.fetch_clips' dedup, not from query randomness."""
+    pool = _config.MOOD_BROLL_POOL.get(mood or "", _config.MOOD_BROLL_POOL["tense"])
+    return [pool[i % len(pool)] for i in range(n)]
+
+
 def pexels_available() -> bool:
     return bool(os.environ.get("PEXELS_API_KEY"))
 

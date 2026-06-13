@@ -115,6 +115,21 @@ PILLAR_MOOD = {
     "what_if":                         "hype",
 }
 
+# Atmospheric b-roll search terms per mood. Purely symbolic/abstract (nature, sky, weather,
+# space, texture) — zero integrity risk (never implies real event footage). Each pool has
+# enough terms that beat-level selection + the global used_clips.json dedup yields a fresh
+# clip per beat. Keys match the four canonical MOODS (tense/triumphant/somber/hype).
+MOOD_BROLL_POOL = {
+    "somber": ["rain on window", "grey ocean waves", "dusk fog forest", "empty road night",
+               "falling snow slow", "still misty lake", "dark clouds drifting", "candle flame dark"],
+    "triumphant": ["sunrise over clouds", "light rays forest", "open blue sky", "mountain summit",
+                   "golden hour ocean", "soaring birds sky", "sun flare horizon", "aurora night sky"],
+    "tense": ["storm clouds timelapse", "lightning strike", "crashing waves rocks", "dark smoke",
+              "fast moving clouds", "flickering light dark", "rough sea storm", "wind grass field"],
+    "hype": ["city lights night", "neon lights motion", "fireworks night", "highway traffic timelapse",
+             "fast city motion", "abstract energy light", "crowd lights blur", "spinning star trails"],
+}
+
 # ── Fact-gate (fact_gate.py) ──────────────────────────────────────────────────
 import os as _os  # local alias; config.py is module-level constants
 _FACT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))  # repo root
