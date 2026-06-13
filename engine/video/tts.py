@@ -12,6 +12,7 @@ Two providers, auto-detected (no config needed):
 (captions.py) gives the word timings later — TTS only has to produce clean audio.
 """
 from __future__ import annotations
+import functools
 import os
 import re
 import shutil
@@ -24,6 +25,19 @@ from engine import config
 _ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen "
          "fourteen fifteen sixteen seventeen eighteen nineteen").split()
 _TENS = ("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+
+# Seedable phonetic respellings applied to the NARRATION TEXT ONLY (not the caption
+# glossary), so espeak says tricky names right. Approximate — tune by ear over time.
+# Captions keep the canonical spelling (proper_nouns feeds whisper the real names).
+_PRONUNCIATION = {
+    "Ickx": "Eex",
+    "Balestre": "Balestra",
+    "Bellof": "Bell-off",
+    "Tendulkar": "Ten-dull-car",
+    "Sachin": "Suh-chin",
+    "Médellín": "Meda-yeen",
+    "Medellín": "Meda-yeen",
+}
 
 
 def _int_to_words(n: int) -> str:
@@ -71,6 +85,23 @@ def _spell_years(text: str) -> str:
     digits glued to other digits (e.g. '$1,984', '19840')."""
     return re.sub(r"(?<![\d.$,])(1[1-9]\d{2}|20\d{2})(?!\d)",
                   lambda m: _year_to_words(int(m.group())), text)
+
+
+@functools.lru_cache(maxsize=1)
+def _pronunciation_re():
+    if not _PRONUNCIATION:
+        return None
+    alt = "|".join(re.escape(k) for k in sorted(_PRONUNCIATION, key=len, reverse=True))
+    return re.compile(rf"\b(?:{alt})\b")
+
+
+def apply_pronunciation(text: str) -> str:
+    """Respell mapped names phonetically for TTS (word-boundary, longest-match-first).
+    Applied to the narration text only — the caption glossary keeps canonical names."""
+    pat = _pronunciation_re()
+    if pat is None:
+        return text
+    return pat.sub(lambda m: _PRONUNCIATION[m.group(0)], text)
 
 
 def script_to_narration_text(script_md: str) -> str:

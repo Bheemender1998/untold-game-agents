@@ -140,3 +140,23 @@ def test_script_to_narration_leaves_non_years_alone():
     out = tts.script_to_narration_text("He ran 400 meters; the crowd was 2,003 strong.")
     assert "400" in out
     assert "two thousand three" in out
+
+
+def test_apply_pronunciation_respells_known_names():
+    from engine.video import tts
+    out = tts.apply_pronunciation("Jacky Ickx and Jean-Marie Balestre argued.")
+    assert "Ickx" not in out
+    assert tts._PRONUNCIATION["Ickx"] in out
+
+
+def test_apply_pronunciation_leaves_unmapped_text_untouched():
+    from engine.video import tts
+    assert tts.apply_pronunciation("Senna led the race.") == "Senna led the race."
+
+
+def test_apply_pronunciation_is_word_boundary_safe():
+    from engine.video import tts
+    tts._PRONUNCIATION.setdefault("Lauda", "Lowda")
+    tts._pronunciation_re.cache_clear()       # map changed → rebuild the regex
+    out = tts.apply_pronunciation("Laudable Lauda")
+    assert "Laudable" in out
