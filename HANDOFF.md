@@ -4,6 +4,46 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 10 (2026-06-12/13) — Shorts→YouTube end-to-end + template/branding/long-form/automation
+
+Huge session. **1 PR merged (#14, squash `5b6aa84`)** via the full `ship-video-change` rail (dual
+adversarial review — Claude + Codex, both PASS after a fix round). Reference the durable artifacts
+below; don't re-read this for detail.
+
+### Shipped to YouTube
+- **5 Shorts produced → fact-reviewed → rendered → published** (user did the final review):
+  Senna `yhClmmEGEHM` · World Cup `y0nw8wBn6ok` · O.J. `1vrjioS4sls` · Barry Sanders `k6dGc65jTJA` ·
+  Sachin `mB1Gaz5QAGY`. Channel **The Untold Game** (`@untoldgamemedia`). OAuth already configured
+  (`client_secrets.json` + `token.json`, gitignored). `run_auto --approve <id>` = unlisted; never `--public`.
+
+### Shipped (PR #14 → `main`) — see specs/plans in `docs/superpowers/{specs,plans}/2026-06-12-*`
+- **Mood music** on both formats (`engine/video/music.py`; pillar→mood fallback for long-form).
+- **TTS/script fixes** (`tts.py`, `pipeline/script.py`, `factcheck.py`): no narrated `MOOD:`/preamble;
+  comma-number spelling (millions/billions, skip currency/decimals); no gaps in initialisms/abbrevs.
+- **Voices** → only `af_sarah` (somber) + `bm_george` (rest).
+- **Sport-relevant b-roll** (`footage._sport_query` + `_HEADLINE_SYSTEM`) — keeps ADR-0005 ban.
+- **Richer Short descriptions** (`metadata.generate_short_metadata`).
+- **Branding:** `Watermark` + `EndCTA` components on both formats; `brand.ts`; logo at
+  `engine/video/remotion/public/brand/logo.png` (cropped channel avatar — swap a transparent PNG anytime).
+- **Curated music library** committed (28 tracks in mood folders + `manifest.json`; `_unused/` gitignored).
+
+### Decisions / watch-outs
+- **Overnight automation already existed** (PR #7: `scripts/overnight.sh` + `deploy/launchd/`). I built a
+  redundant, PATH-broken rewrite — the review caught it; **reverted to the existing one**. It runs nightly
+  **01:00** → `run_auto --count 3` (3 long videos). Now on `main`, so tonight uses the merged pipeline.
+- **Music credit** is a neutral `"Royalty-free background music"` (library is mixed-source; set real
+  per-track credits in `engine/video/music/attribution.json` to override).
+- Process rule reaffirmed + broadened (memory `always-formal-spec-and-plan`): brainstorm→spec→plan→execute
+  for **everything incl. bug fixes**. Also see memory `shorts-template-and-publish`.
+
+### Open / next — Phase 2 (needs per-format artifact separation `produced/<id>/long|short/`)
+1. **Companion shorts** that tease each long video (user's 3-long-then-3-short engagement loop).
+2. **Long versions of the 5 published Shorts** (render-heavy, 5×~45min).
+3. Optional: tune long-form narration to be more engaging in its own right.
+The blocker for 1+2: one idea currently = one `produced/<id>/` dir, so long+short clobber — build the split first.
+
+---
+
 ## Session 9 (2026-06-12) — title-impact SFX + caption/title-card motion polish
 
 Polish session. **1 PR merged (#11)** via the full `ship-video-change` rail (dual adversarial
