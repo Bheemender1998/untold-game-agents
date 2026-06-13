@@ -7,6 +7,9 @@ __pycache__/
 # OS
 .DS_Store
 
+# brainstorming visual companion (transient mockups)
+.superpowers/
+
 # Secrets / environment (keep only the example template)
 .env
 .env.*
