@@ -109,6 +109,31 @@ _EXTRACT_SCHEMA = {
 }
 
 
+_STOP = {"the", "a", "an", "of", "in", "on", "at", "to", "and", "or", "he", "she",
+         "it", "his", "her", "was", "were", "is", "are", "by", "for", "with", "that"}
+
+
+def _keywords(fact: str) -> set[str]:
+    return {w for w in _re.findall(r"[\w']+", fact.lower()) if w not in _STOP and len(w) > 3} \
+        | set(_re.findall(r"\d+", fact))   # always keep bare numbers (84, 211, 1994)
+
+
+def _window(extract_text: str, fact: str, max_chars: int = 1200) -> str:
+    """Return the sentences of `extract_text` that contain `fact` keywords, capped to
+    `max_chars`. Empty string if none match (caller treats as thin evidence)."""
+    kws = _keywords(fact)
+    if not kws:
+        return ""
+    sentences = _re.split(r"(?<=[.!?])\s+", extract_text)
+    hits = [s for s in sentences if kws & _keywords(s)]
+    if not hits:
+        return ""
+    out = " ".join(hits)
+    return out[:max_chars]
+
+
+# ── Extract & classify (LLM call #1) ─────────────────────────────────────────
+
 def extract_and_classify(script_md: str, max_claims: int = 25) -> list[dict]:
     out = _structured(
         _EXTRACT_SYSTEM,
