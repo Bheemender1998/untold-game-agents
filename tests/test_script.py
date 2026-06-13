@@ -172,10 +172,14 @@ def test_tease_within_long_flags_new_acronym():
 
 
 def test_hook_rule_present_in_all_hook_prompts():
-    # Regression firewall: the mystery-first hook rule must survive future prompt edits.
+    # Regression firewall: the conflict/mystery-first hook rule + integrity guard must
+    # survive future prompt edits. (Long-form keeps the "front-load the mystery" phrasing;
+    # shorts use the sharper conflict-first ≤8-word wording.)
     from engine.pipeline import script
+    assert "front-load the mystery" in script.SCRIPT_SYSTEM
+    for prompt in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM):
+        assert "central conflict or mystery" in prompt
     for prompt in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM, script.SCRIPT_SYSTEM):
-        assert "front-load the mystery" in prompt
         assert "exact verified value" in prompt
 
 
@@ -223,3 +227,24 @@ def test_title_numbers_within_passes_legit_decimal():
     ok, new = script.title_numbers_within("The 1.5 Second Gap That Decided It",
                                           "The gap was 1.5 seconds at the line.")
     assert ok and new == []
+
+
+def test_short_system_prompt_front_loads_conflict():
+    from engine.pipeline import script
+    s = script.SHORT_SYSTEM.lower()
+    # conflict-first, with specifics deferred to the FACT beat
+    assert "first line" in s
+    assert "eight words" in s or "≤ 8" in s or "8 words" in s
+    assert "fact beat" in s
+    # explicit ban on atmosphere/scene-setting openers
+    assert "atmosphere" in s or "scene-setting" in s
+    # integrity preserved (no rounding)
+    assert "never round" in s
+
+
+def test_derive_tease_prompt_front_loads_conflict():
+    from engine.pipeline import script
+    s = script.DERIVE_TEASE_SYSTEM.lower()
+    assert "first line" in s
+    assert "eight words" in s or "8 words" in s
+    assert "atmosphere" in s or "scene-setting" in s
