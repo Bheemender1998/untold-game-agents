@@ -134,6 +134,48 @@ def _window(extract_text: str, fact: str, max_chars: int = 1200) -> str:
 
 # ── Extract & classify (LLM call #1) ─────────────────────────────────────────
 
+def _resolve_title(query: str, cache: dict) -> str | None:
+    res = cache["resolutions"]
+    if query not in res:
+        res[query] = wikipedia.search_title(query) or ""
+    return res[query] or None
+
+
+def _get_extract(title: str, cache: dict) -> str:
+    ex = cache["extracts"]
+    entry = ex.get(title)
+    if entry and _fresh(entry):
+        return entry["text"]
+    text = wikipedia.extract(title)
+    ex[title] = {"text": text, "fetched_at": time.time()}
+    return text
+
+
+def _mediawiki_evidence(claim: dict, cache: dict) -> dict:
+    title = _resolve_title(f"{claim['entity']} {claim['fact']}", cache)
+    if not title:
+        return {"kind": "none", "text": "", "source": ""}
+    window = _window(_get_extract(title, cache), claim["fact"])
+    if not window:
+        return {"kind": "none", "text": "", "source": ""}
+    return {"kind": "encyclopedic", "text": window, "source": f"Wikipedia: {title}"}
+
+
+def gather_evidence(claim: dict, cache: dict) -> dict:
+    """Tiered: encyclopedic -> MediaWiki (cached) first; recent or MediaWiki-thin -> DDG.
+    Returns Evidence; kind='none' if nothing usable (claim cannot auto-pass)."""
+    if claim["era"] == "encyclopedic":
+        ev = _mediawiki_evidence(claim, cache)
+        if ev["kind"] == "encyclopedic":
+            return ev
+    web = web_search(claim["text"], max_results=5)
+    if web and not web.lstrip().startswith("["):    # "[...]" = error / no-results note
+        return {"kind": "web", "text": web, "source": "duckduckgo"}
+    return {"kind": "none", "text": "", "source": ""}
+
+
+# ── Extract & classify (LLM call #1) ─────────────────────────────────────────
+
 def extract_and_classify(script_md: str, max_claims: int = 25) -> list[dict]:
     out = _structured(
         _EXTRACT_SYSTEM,
