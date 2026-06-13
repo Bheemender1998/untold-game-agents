@@ -68,6 +68,14 @@ format). Returns `{script, mood}` via the existing `_parse_short`; short metadat
 existing `generate_short_metadata`. Keep the prompt as close to `generate_short_script`'s
 as possible so we don't stray from the approved base.
 
+**Per-story depiction (music + narration vary by story).** The returned `mood` is the
+companion short's own `MOOD` header, matched to that story's tone — exactly as the
+approved per-story shorts work. That `mood` drives, for each short independently: the
+**mood-matched music** (`music.pick_track(mood, ...)` → the right mood folder) and the
+**Kokoro narration voice** (`resolve_voice(mood)` → af_sarah for somber, bm_george for
+the rest). B-roll is sport-relevant to the idea. So a somber story gets somber
+voice+music, a triumphant one gets hype — nothing is fixed across stories.
+
 ### Component 2 — Containment guard (`engine/pipeline/factcheck.py` or `script.py`)
 
 ```python
