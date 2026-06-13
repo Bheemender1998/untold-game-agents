@@ -12,6 +12,7 @@ import anthropic
 
 from engine.ideate.base_agent import BaseAgent
 from engine.config import MODEL, MAX_TOKENS
+from engine.pipeline.script import title_numbers_within
 
 METADATA_SYSTEM = """You are a YouTube SEO and packaging strategist for "The Untold Game"
 (sports-history documentaries). You turn a finished script into publish-ready metadata
@@ -90,6 +91,54 @@ def generate_metadata(idea: dict, script: str) -> dict:
 
 # ── Shorts metadata (purpose-written description, no chapters) ────────────────
 
+_SHORT_TITLE_SYSTEM = """You write the TITLE for a YouTube SHORT on a sports-history channel.
+One line, <= ~70 characters so it stays legible on a phone. Punchy and front-loaded.
+
+Open the gap by withholding the resolution, never by editorializing: make the unanswered question
+irresistible without giving away the payoff, and assert no framing not literally supported by the
+script. Use ONLY facts in the script — introduce no name, number, or date that isn't there. Any
+specific you include must be the EXACT value from the script: never round, never invent a
+superlative. Plain text only: no surrounding quotes, no hashtags, no emoji, no preamble or labels."""
+
+_SHORT_TITLE_SCHEMA = {
+    "type": "object",
+    "properties": {"title": {"type": "string"}},
+    "required": ["title"],
+    "additionalProperties": False,
+}
+
+
+def _short_title_llm(idea: dict, script: str) -> str:
+    """One structured call → a punchy, front-loaded, gap-opening SHORT title. Raises on failure.
+    Length (~70 chars) is a prompt-level soft target only — structured outputs do NOT enforce
+    maxLength on this raw output_config.format path, so do not add it to the schema."""
+    client = anthropic.Anthropic(max_retries=5)
+    prompt = (f"SPORT: {idea.get('sport', '')}  PILLAR: {idea.get('pillar', '')}\n\n"
+              f"SCRIPT:\n{script}\n\nWrite the Short title.")
+    resp = client.messages.create(
+        model=MODEL, max_tokens=64, system=_SHORT_TITLE_SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
+        output_config={"format": {"type": "json_schema", "schema": _SHORT_TITLE_SCHEMA}},
+    )
+    data = json.loads(next(b.text for b in resp.content if b.type == "text"))
+    return data["title"].strip()
+
+
+def _short_title(idea: dict, script: str) -> str:
+    """The Short's title: a dedicated front-loaded, gap-opening LLM title, guarded by the
+    digit-containment backstop. Self-stubs to title_variants[0] if the LLM call fails, returns
+    empty, or the backstop rejects the title (a number absent from the fact-gated script)."""
+    fallback = idea["title_variants"][0]
+    try:
+        title = _short_title_llm(idea, script)
+    except Exception:
+        return fallback
+    if not title:
+        return fallback
+    ok, _ = title_numbers_within(title, script)
+    return title if ok else fallback
+
+
 _SHORT_DESC_SYSTEM = """You write the description for a YouTube SHORT on a sports-history
 channel. In 2-3 short sentences, hook the viewer and tease the intrigue — do NOT spoil the
 ending or state the payoff. Plain text only: no markdown, no 'MOOD:' line, no hashtags, no
@@ -125,7 +174,7 @@ def generate_short_metadata(idea: dict, script: str) -> dict:
     """Title + a purpose-written 2-3 sentence description + tags for a Short.
     Self-stubs to a minimal description (first clean line) if the LLM call fails. Music
     credit is added later at render time by engine.video.music.write_credit."""
-    title = idea["title_variants"][0]
+    title = _short_title(idea, script)
     sport = idea.get("sport", "")
     pillar = idea.get("pillar", "")
     try:
