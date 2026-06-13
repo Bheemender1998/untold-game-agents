@@ -33,3 +33,9 @@ def test_short_description_has_subscribe_cta(monkeypatch):
     m = metadata.generate_short_metadata({"title_variants": ["T"], "sport": "F1", "pillar": "p"}, "Hook.")
     assert m["description"].rstrip().endswith(config.CHANNEL_HANDLE)
     assert "Subscribe" in m["description"]
+
+
+def test_title_rule_present_in_metadata_system():
+    from engine.pipeline import metadata
+    assert "Open the gap by withholding" in metadata.METADATA_SYSTEM
+    assert "exact verified values or none" in metadata.METADATA_SYSTEM
