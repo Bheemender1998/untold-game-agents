@@ -95,7 +95,9 @@ These are prompt-string edits only. No behavioral code change.
 - **Normalize thousands separators before comparison.** `_TEASE_NUM_RE` (`\b\d[\d,]*\b`)
   keeps the grouping comma *inside* the token, so `"2,003"` (script) and `"2003"` (title)
   are different strings and would false-flag. Strip commas from each digit token before
-  the set comparison (`"2,003"` → `"2003"`). **Strip commas only — never decimal points**
+  the set comparison (`"2,003"` → `"2003"`). Use a **global** substitution
+  (`tok.replace(",", "")`) so multi-grouped numbers normalize fully (`"1,234,567"` →
+  `"1234567"`), not just the first separator. **Strip commas only — never decimal points**
   (`"1.5"` → `"15"` would corrupt the value). Apply the same normalization to both the
   script tokens and the title tokens.
 - `generate_short_metadata` calls it; a non-empty novel-number list → reject the LLM
