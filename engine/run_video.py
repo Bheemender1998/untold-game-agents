@@ -36,7 +36,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="The Untold Game — build a video composition")
-    ap.add_argument("--id", required=True, help="produced idea id (has produced/<id>/script.md)")
+    ap.add_argument("--id", required=True, help="produced idea id (has produced/<id>/<fmt>/script.md)")
     ap.add_argument("--mode", choices=["text", "narrated"], default="text")
     ap.add_argument("--audio", help="reuse an existing narration file (narrated mode); "
                     "default is to generate it from the script")
