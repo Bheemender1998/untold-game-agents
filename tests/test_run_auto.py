@@ -313,3 +313,41 @@ def test_video_id_parses_misordered_query_and_rejects_garbage():
     assert run_auto._video_id("https://www.youtube.com/shorts/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
     with pytest.raises(ValueError):
         run_auto._video_id("https://example.com/definitely-not-a-yt-url")
+
+
+def test_render_companion_short_renders_and_qcs(monkeypatch):
+    monkeypatch.setattr(run_auto, "_produce_companion", lambda i: {"within_long": True})
+    calls = {}
+
+    def _fake_run(cmd, timeout=None):
+        calls["cmd"] = cmd
+        return 0
+
+    monkeypatch.setattr(run_auto, "_run", _fake_run)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": True, "checks": []})
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto._companion_short("x")
+    assert "--format" in calls["cmd"] and "short" in calls["cmd"]
+    assert seen.get("short_status") == "short_awaiting_approval"
+    assert "short_video_path" in seen
+
+
+def test_companion_short_failure_does_not_raise(monkeypatch):
+    monkeypatch.setattr(run_auto, "_produce_companion",
+                        lambda i: (_ for _ in ()).throw(RuntimeError("derive blew up")))
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto._companion_short("x")   # must not raise
+    assert seen.get("short_status") == "short_failed"
+
+
+def test_companion_short_guard_fail_flags_needs_review(monkeypatch):
+    monkeypatch.setattr(run_auto, "_produce_companion", lambda i: {"within_long": False})
+    called = {"render": False}
+    monkeypatch.setattr(run_auto, "_run", lambda cmd, timeout=None: called.__setitem__("render", True) or 0)
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto._companion_short("x")
+    assert seen.get("short_status") == "short_needs_review"
+    assert called["render"] is False    # guard failed → never rendered
