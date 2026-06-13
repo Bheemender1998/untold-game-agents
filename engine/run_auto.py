@@ -158,9 +158,17 @@ def _notify(message: str, title: str = "The Untold Game — overnight") -> None:
     """Best-effort macOS Notification Center banner. Never raises (notification
     failure must not fail an otherwise-good overnight run)."""
     try:
+        # Pass text as argv, never interpolated into the AppleScript source: osascript
+        # rejects json.dumps's \uXXXX escapes (e.g. the title's em-dash) with
+        # "-2741: unknown token", which silently dropped the completion banner.
+        # "--" ends option parsing so a message/title starting with "-" is treated as
+        # an operand, not an osascript flag (which would silently drop the banner too).
         subprocess.run(
-            ["osascript", "-e",
-             f"display notification {json.dumps(message)} with title {json.dumps(title)}"],
+            ["osascript",
+             "-e", "on run argv",
+             "-e", "display notification (item 1 of argv) with title (item 2 of argv)",
+             "-e", "end run",
+             "--", message, title],
             check=False,
         )
     except Exception:
