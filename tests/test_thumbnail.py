@@ -103,3 +103,19 @@ def test_generate_thumbnail_composites_when_subject_present(tmp_path, monkeypatc
     assert _os.path.exists(paths.thumbnail_path("id8", "long"))
     with Image.open(paths.thumbnail_path("id8", "long")) as im:
         assert im.size == (1280, 720)
+
+
+def test_run_thumbnail_main_errors_without_subject(tmp_path, monkeypatch, capsys):
+    import sys
+    from engine import paths, queue_manager
+    from engine import run_thumbnail
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path))
+    _os.makedirs(paths.artifact_dir("idz", "short"), exist_ok=True)
+    monkeypatch.setattr(queue_manager, "get_by_id", lambda _id: {"id": "idz", "script": "s"})
+    monkeypatch.setattr(sys, "argv", ["run_thumbnail", "--id", "idz", "--format", "short"])
+    import pytest
+    with pytest.raises(SystemExit) as e:
+        run_thumbnail.main()
+    assert e.value.code != 0
+    out, err = capsys.readouterr()
+    assert "no subject photo" in (out + err).lower()
