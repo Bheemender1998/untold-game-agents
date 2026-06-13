@@ -53,6 +53,12 @@ export const ShortCaptions: React.FC<{captions: CaptionWord[]}> = ({
     interpolate(leftInPage, [0, 120], [0, 1], {extrapolateLeft: 'clamp'}),
   );
 
+  // Page-level punch: the whole block springs in slightly on each new caption page —
+  // a pattern interrupt on top of the per-word animation below.
+  const intoPageF = (intoPage / 1000) * fps;
+  const pagePop = spring({frame: intoPageF, fps, config: {damping: 14, mass: 0.4, stiffness: 200}});
+  const pageScale = 0.96 + 0.04 * Math.min(pagePop, 1);
+
   // Scrim vertical center: caption block top + half a nominal line height so the
   // gradient pool is centred on where the text actually sits, not the block's top edge.
   // At 1920px: blockTop ≈ 768px → scrimCenterPct ≈ 44-46% — well inside the safe band.
@@ -81,6 +87,8 @@ export const ShortCaptions: React.FC<{captions: CaptionWord[]}> = ({
           top: blockTop,
           left: 0,
           right: 0,
+          transform: `scale(${pageScale})`,
+          transformOrigin: 'center center',
           paddingLeft: 60,
           paddingRight: 60,
           display: 'flex',
