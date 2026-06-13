@@ -169,3 +169,11 @@ def test_tease_within_long_flags_new_acronym():
     short = "He changed the NBA forever in 1984."   # NBA not in long
     ok, extra = script.tease_within_long(short, long)
     assert not ok and "NBA" in extra
+
+
+def test_hook_rule_present_in_all_hook_prompts():
+    # Regression firewall: the mystery-first hook rule must survive future prompt edits.
+    from engine.pipeline import script
+    for prompt in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM, script.SCRIPT_SYSTEM):
+        assert "front-load the mystery" in prompt
+        assert "exact verified value" in prompt
