@@ -72,7 +72,10 @@ def upload(
     }
 
     youtube = get_service()
-    media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
+    # Chunked (not -1/single-shot) so next_chunk() reports progress — a single-shot upload
+    # prints nothing for minutes and looks dead, which invites a duplicate re-run. 50 MiB is
+    # a multiple of the required 256 KiB. Also more resumable on a flaky connection.
+    media = MediaFileUpload(video_path, chunksize=50 * 1024 * 1024, resumable=True)
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
     response = None
