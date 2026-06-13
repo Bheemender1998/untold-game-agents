@@ -17,7 +17,7 @@ export const UntoldShort: React.FC<UntoldProps> = (props) => {
 
   return (
     <AbsoluteFill style={{backgroundColor: '#0a0a0a'}}>
-      <Background chapters={props.chapters} introMs={props.introMs} />
+      <Background chapters={props.chapters} introMs={props.introMs} bBeats={props.bBeats} />
       <Sequence from={introF} name="Narration">
         <Audio src={staticFile(props.audioSrc)} />
         {props.musicSrc ? (

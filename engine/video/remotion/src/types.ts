@@ -14,6 +14,13 @@ export type Chapter = {
   bClipMs?: number;  // clip length, so we can loop it under a longer chapter
 };
 
+export type BBeat = {
+  startMs: number;       // relative to narration start
+  endMs: number;
+  src?: string | null;   // filename in public/ (atmospheric clip); null/omitted → gradient shows through
+  zoomDir: 'in' | 'out'; // Ken-Burns direction for this beat
+};
+
 export type UntoldProps = {
   title: string;
   kicker: string;        // "THE UNTOLD GAME"
@@ -26,6 +33,7 @@ export type UntoldProps = {
   narrationMs: number;   // length of the narration audio
   captions: CaptionWord[];
   chapters: Chapter[];
+  bBeats?: BBeat[];      // beat-level b-roll track; preferred over per-chapter `chapters[].bClip`
   musicSrc?: string;     // background bed filename in public/ (Shorts only); omitted → silent
   musicVolume?: number;  // peak bed volume under the narration (e.g. 0.12)
 };

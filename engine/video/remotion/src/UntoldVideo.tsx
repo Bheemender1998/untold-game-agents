@@ -25,7 +25,7 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
   return (
     <AbsoluteFill style={{backgroundColor: '#0a0a0a'}}>
       {/* graded atmospheric b-roll per chapter + vignette/scrim (behind everything) */}
-      <Background chapters={props.chapters} introMs={props.introMs} />
+      <Background chapters={props.chapters} introMs={props.introMs} bBeats={props.bBeats} />
 
       {/* intro title card */}
       <Sequence durationInFrames={introF} name="Intro">
