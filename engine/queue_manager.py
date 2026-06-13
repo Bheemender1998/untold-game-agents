@@ -170,6 +170,7 @@ def split_youtube_url_field() -> int:
     for idea in ideas:
         if idea.get("youtube_url") and not idea.get("short_youtube_url"):
             idea["short_youtube_url"] = idea["youtube_url"]
+            del idea["youtube_url"]
             moved += 1
     if moved:
         _save(ideas)
