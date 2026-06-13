@@ -186,3 +186,69 @@ def extract_and_classify(script_md: str, max_claims: int = 25) -> list[dict]:
         if _force_recent(c["text"]):
             c["era"] = "recent"
     return claims
+
+
+# ── Judge (LLM call #2) ───────────────────────────────────────────────────────
+
+_JUDGE_SYSTEM = """You are a rigorous fact-checker judging a batch of claims, each with its
+gathered evidence. For EACH claim, judge ONLY from its evidence:
+- supported   : the evidence confirms the SAME entity AND the SAME specific fact. Confidence
+                floor -- only mark supported on a genuine match, never on fuzzy keyword overlap.
+- contradicted: the evidence says something different -- give the CORRECTED fact.
+- unverified  : the evidence is ambiguous, partial, wrong-entity, or empty. When in doubt,
+                unverified -- a false 'supported' ships an error.
+Source weighting: ENCYCLOPEDIC evidence outranks WEB snippets; never let a weak web snippet
+override an encyclopedic confirmation. Return one verdict per claim, echoing its index."""
+
+_JUDGE_SCHEMA = {
+    "type": "object",
+    "properties": {"verdicts": {"type": "array", "items": {
+        "type": "object",
+        "properties": {
+            "index": {"type": "integer"},
+            "verdict": {"type": "string", "enum": ["supported", "contradicted", "unverified"]},
+            "correction": {"type": "string"}, "source": {"type": "string"},
+        },
+        "required": ["index", "verdict", "correction", "source"],
+        "additionalProperties": False,
+    }}},
+    "required": ["verdicts"],
+    "additionalProperties": False,
+}
+
+_JUDGE_CHUNK = 20  # claims per judge call; overflow → +1 call each (rare after windowing)
+
+
+def _judge_chunk(items: list[tuple]) -> list[dict]:
+    """One judge call for up to _JUDGE_CHUNK (claim, evidence) items. Fails CLOSED:
+    on any error every claim in the chunk becomes unverified."""
+    blocks = []
+    for i, (claim, ev) in enumerate(items):
+        blocks.append(f"[{i}] CLAIM: {claim['text']}\n    EVIDENCE ({ev['kind']}): "
+                      f"{ev['text'] or '(none)'}")
+    prompt = "Judge each claim from its evidence:\n\n" + "\n\n".join(blocks)
+    try:
+        out = _structured(_JUDGE_SYSTEM, prompt, _JUDGE_SCHEMA, max_tokens=4096)
+        by_index = {v["index"]: v for v in out["verdicts"]}
+    except Exception:                              # fail closed, loudly
+        by_index = {}
+    verdicts = []
+    for i, (claim, ev) in enumerate(items):
+        v = by_index.get(i)
+        verdicts.append({
+            "claim": claim["text"],
+            "verdict": v["verdict"] if v else "unverified",   # legacy key (not 'status')
+            "correction": (v.get("correction", "") if v else ""),
+            "source": (v.get("source", "") if v else ev["source"]),
+            "evidence_kind": ev["kind"],
+        })
+    return verdicts
+
+
+def judge(items: list[tuple]) -> list[dict]:
+    """Batched judge over (claim, evidence) pairs → list[Verdict] aligned to input order.
+    Splits into _JUDGE_CHUNK-sized calls (+1 LLM call per overflow chunk)."""
+    out = []
+    for start in range(0, len(items), _JUDGE_CHUNK):
+        out.extend(_judge_chunk(items[start:start + _JUDGE_CHUNK]))
+    return out
