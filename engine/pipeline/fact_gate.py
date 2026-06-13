@@ -59,3 +59,20 @@ def _cache_save(cache: dict) -> None:
 
 def _fresh(entry: dict) -> bool:
     return (time.time() - entry.get("fetched_at", 0)) < config.FACTCACHE_TTL_DAYS * 86400
+
+
+import re as _re
+
+_TEMPORAL = _re.compile(
+    r"\b(currently|right now|this (year|season|week|month)|as of|last (year|season|week|month)|"
+    r"recently|nowadays|these days)\b", _re.I)
+_YEAR = _re.compile(r"\b(\d{4})\b")
+
+
+def _force_recent(text: str) -> bool:
+    """Heuristic backstop: True if the claim looks current/recent (year >= this year, or a
+    temporal phrase). Can only escalate caution, never reduce it."""
+    if _TEMPORAL.search(text):
+        return True
+    this_year = datetime.date.today().year
+    return any(int(y) >= this_year for y in _YEAR.findall(text))
