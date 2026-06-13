@@ -200,6 +200,28 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
     print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
 
 
+def _video_id(url: str) -> str:
+    """Extract the YouTube video id from a youtu.be/<id> or watch?v=<id> URL."""
+    url = url.strip()
+    if "watch?v=" in url:
+        return url.split("watch?v=")[1].split("&")[0]
+    return url.rstrip("/").split("/")[-1].split("?")[0]
+
+
+def cmd_backlink(idea_id: str) -> None:
+    """Append the idea's long URL to its already-published short's description."""
+    idea = q.get_by_id(idea_id) or {}
+    long_url = idea.get("long_youtube_url")
+    short_url = idea.get("short_youtube_url")
+    if not (long_url and short_url):
+        sys.exit(f"{idea_id}: need both long_youtube_url and short_youtube_url "
+                 f"(long={long_url!r}, short={short_url!r})")
+    suffix = f"▶ Full story on our channel: {long_url}"
+    uploader.append_to_description(_video_id(short_url), suffix)
+    q.update_idea(idea_id, short_backlinked=True)
+    print(f"✓ {idea_id}: back-linked short {short_url} → {long_url}")
+
+
 def main() -> None:
     import argparse
     ap = argparse.ArgumentParser(description="The Untold Game — Stage B orchestrator")
@@ -212,6 +234,8 @@ def main() -> None:
     ap.add_argument("--public", action="store_true", help="--approve as public (default unlisted)")
     ap.add_argument("--dry-run", action="store_true", help="--approve: auth+metadata check, no insert")
     ap.add_argument("--reject", metavar="ID", help="mark an idea rejected")
+    ap.add_argument("--backlink", metavar="ID",
+                    help="append the long's URL to its published short's description")
     ap.add_argument("--render", metavar="ID", help="render a single cleared idea (skips produce)")
     args = ap.parse_args()
 
@@ -223,6 +247,8 @@ def main() -> None:
         cmd_reject(args.reject)
     elif args.approve:
         cmd_approve(args.approve, public=args.public, dry_run=args.dry_run)
+    elif args.backlink:
+        cmd_backlink(args.backlink)
     elif args.render:
         cmd_render(args.render)
     else:

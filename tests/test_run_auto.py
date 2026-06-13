@@ -269,3 +269,25 @@ def test_notify_never_raises(monkeypatch):
         raise OSError("no osascript")
     monkeypatch.setattr(run_auto.subprocess, "run", boom)
     run_auto._notify("anything")  # must not raise
+
+
+def test_cmd_backlink_appends_long_url_to_short(monkeypatch):
+    idea = {"id": "x",
+            "long_youtube_url": "https://youtu.be/LONG",
+            "short_youtube_url": "https://youtu.be/SHORT"}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    calls = {}
+    monkeypatch.setattr(run_auto.uploader, "append_to_description",
+                        lambda vid, suffix, **k: calls.update(vid=vid, suffix=suffix) or "newdesc")
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: True)
+    run_auto.cmd_backlink("x")
+    assert calls["vid"] == "SHORT"            # extracted the short's video id
+    assert "https://youtu.be/LONG" in calls["suffix"]
+
+
+def test_cmd_backlink_refuses_without_both_urls(monkeypatch):
+    monkeypatch.setattr(run_auto.q, "get_by_id",
+                        lambda i: {"id": "x", "short_youtube_url": "https://youtu.be/SHORT"})
+    import pytest
+    with pytest.raises(SystemExit):
+        run_auto.cmd_backlink("x")
