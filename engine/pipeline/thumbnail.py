@@ -1,7 +1,8 @@
-"""Stage 2 — THUMBNAIL: generate thumbnail concepts + A/B variants."""
+"""Stage 2 — THUMBNAIL: deterministic Pillow compositor for the channel's
+"Prestige Feed Killer" thumbnail template (asset layer + tension layer)."""
 from __future__ import annotations
+import os
 
-
-def run(idea: dict) -> dict:
-    """Stage 2 — THUMBNAIL: generate thumbnail concepts + A/B variants. TODO (Stage 2)."""
-    return idea
+_FONTS = os.path.join(os.path.dirname(__file__), "assets", "fonts")
+TENSION_FONT = os.path.join(_FONTS, "Anton-Regular.ttf")
+STAMP_FONT = os.path.join(_FONTS, "PlayfairDisplay.ttf")

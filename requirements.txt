@@ -1,4 +1,5 @@
 anthropic>=0.40.0
+Pillow>=10.0
 ddgs>=6.0.0          # free DuckDuckGo web search (open source, no API key)
 python-dotenv>=1.0.0 # load ANTHROPIC_API_KEY from .env
 
