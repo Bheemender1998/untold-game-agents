@@ -142,6 +142,14 @@ def mood_for_pillar(pillar: str | None) -> str:
     return config.PILLAR_MOOD.get(pillar or "", "")
 
 
+def narration_pace(fmt: str | None) -> tuple[float, float]:
+    """(speed, gap_s) for kokoro narration by output format. 'short' is brisk + tight;
+    anything else (long/None) keeps the calm cinematic defaults."""
+    if fmt == "short":
+        return config.SHORT_NARRATION_SPEED, config.SHORT_NARRATION_GAP_S
+    return config.NARRATION_SPEED, config.NARRATION_GAP_S
+
+
 def narration_voice(idea: dict, override: str | None = None,
                     provider: str = "kokoro") -> str | None:
     """Pick the narration voice for an idea. An explicit `override` always wins.

@@ -176,3 +176,21 @@ def test_spell_years_leaves_decades_alone():
     from engine.video import tts
     out = tts.script_to_narration_text("The 1990s were wild.")
     assert "1990s" in out          # not half-converted to 'nineteen ninety s'
+
+
+def test_narration_pace_short_is_brisk_and_tight():
+    from engine.video import tts
+    from engine import config
+    speed, gap = tts.narration_pace("short")
+    assert speed == config.SHORT_NARRATION_SPEED
+    assert gap == config.SHORT_NARRATION_GAP_S
+    assert speed > config.NARRATION_SPEED      # brisker than long-form
+    assert gap < config.NARRATION_GAP_S        # tighter pauses than long-form
+
+
+def test_narration_pace_long_uses_calm_defaults():
+    from engine.video import tts
+    from engine import config
+    assert tts.narration_pace("long") == (config.NARRATION_SPEED, config.NARRATION_GAP_S)
+    # unknown/None format defaults to long-form (calm)
+    assert tts.narration_pace(None) == (config.NARRATION_SPEED, config.NARRATION_GAP_S)
