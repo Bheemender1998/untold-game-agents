@@ -38,3 +38,20 @@ def qc_path(idea_id: str, fmt: str) -> str:
 
 def video_dir(idea_id: str, fmt: str) -> str:
     return os.path.join(artifact_dir(idea_id, fmt), "video")
+
+
+def thumbnail_path(idea_id: str, fmt: str) -> str:
+    return os.path.join(artifact_dir(idea_id, fmt), "thumbnail.jpg")
+
+
+def subject_path(idea_id: str, fmt: str) -> str:
+    """The human-supplied subject photo. Prefers subject.png, then subject.jpg;
+    returns the .png path (which may not exist yet) when neither is present."""
+    d = artifact_dir(idea_id, fmt)
+    png = os.path.join(d, "subject.png")
+    jpg = os.path.join(d, "subject.jpg")
+    if os.path.exists(png):
+        return png
+    if os.path.exists(jpg):
+        return jpg
+    return png

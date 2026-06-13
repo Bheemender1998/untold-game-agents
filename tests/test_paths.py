@@ -31,3 +31,22 @@ def test_all_paths_share_artifact_dir_root():
     for p in (paths.script_path("x", "long"), paths.metadata_path("x", "long"),
               paths.video_dir("x", "long")):
         assert p.startswith(base)
+
+
+def test_thumbnail_path_under_artifact_dir():
+    p = paths.thumbnail_path("abc123", "short")
+    assert p == os.path.join(paths.artifact_dir("abc123", "short"), "thumbnail.jpg")
+
+
+def test_subject_path_prefers_png_then_jpg(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path))
+    d = paths.artifact_dir("id1", "long")
+    os.makedirs(d, exist_ok=True)
+    # nothing present yet -> default .png path
+    assert paths.subject_path("id1", "long").endswith("subject.png")
+    # a .jpg present and no .png -> returns the .jpg
+    open(os.path.join(d, "subject.jpg"), "w").close()
+    assert paths.subject_path("id1", "long").endswith("subject.jpg")
+    # a .png present -> .png wins
+    open(os.path.join(d, "subject.png"), "w").close()
+    assert paths.subject_path("id1", "long").endswith("subject.png")
