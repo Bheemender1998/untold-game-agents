@@ -118,3 +118,21 @@ def test_short_keeps_invalid_mood_first_line_as_narration(monkeypatch):
                                         "target_audience": "fans", "why_it_works": "w"})
     assert out["mood"] == ""
     assert out["script"].startswith("MOOD: this was the word")  # kept as narration
+
+
+def test_derive_short_tease_parses_mood_and_includes_long(monkeypatch):
+    from engine.pipeline import script
+    captured = {}
+    def fake_call(self, prompt, use_search=True):
+        captured["prompt"] = prompt
+        captured["use_search"] = use_search
+        return "MOOD: somber\nHe was closing fast. Then the flag fell. The full story is wild."
+    monkeypatch.setattr(script.CompanionTeaseWriter, "_call", fake_call, raising=True)
+    idea = {"title_variants": ["The Race That Was Stopped"], "hook": "h", "pillar": "what_if",
+            "sport": "F1", "target_audience": "a", "why_it_works": "w"}
+    out = script.derive_short_tease("LONG SCRIPT: Senna closed a seven-second gap...", idea)
+    assert out["mood"] == "somber"
+    assert "He was closing fast." in out["script"]
+    assert "MOOD:" not in out["script"]
+    assert "LONG SCRIPT: Senna closed" in captured["prompt"]
+    assert captured["use_search"] is False

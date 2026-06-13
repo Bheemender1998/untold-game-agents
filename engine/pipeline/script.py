@@ -208,3 +208,54 @@ def clean_short_body(raw: str) -> str:
 def generate_short_script(idea: dict) -> dict:
     """Return {'script': str, 'mood': str} for a YouTube Short."""
     return ShortScriptWriter().write(idea)
+
+
+# ── Companion tease writer (derived from the verified long script) ─────────────
+
+DERIVE_TEASE_SYSTEM = """You write a YouTube SHORT (vertical, 30-50s) that is a condensed,
+high-retention cut of a LONGER video whose full narration is given to you. Same craft as our
+shorts: write for the ear, present-tense, concrete, scroll-stopping.
+
+In this exact 3-beat shape, as flowing prose (not labelled):
+- HOOK: a scroll-stopping first line that lands the stakes in under two seconds.
+- FACT: the single most arresting fact of the story, tight and concrete.
+- PAYOFF: a closing line that resolves the short while nodding that the full story is bigger.
+
+HARD INTEGRITY RULE: use ONLY facts that appear in the long narration provided. Do NOT introduce
+any new name, date, number, quote, or claim that is not already in that text. If something isn't
+in the long, leave it out. No web search — the long is already verified.
+
+Your VERY FIRST line must be exactly: MOOD: <one of: tense | triumphant | somber | hype>
+(the story's dominant emotional register — drives music and narrator voice). Then the narration
+on the following lines, and nothing else."""
+
+
+class CompanionTeaseWriter(BaseAgent):
+    def __init__(self):
+        super().__init__()
+        self.name = "companion_tease_writer"
+        self.system_prompt = DERIVE_TEASE_SYSTEM
+
+    def write(self, long_script: str, idea: dict) -> dict:
+        title = idea["title_variants"][0]
+        prompt = f"""Write the SHORT companion narration for this long video.
+
+TITLE:  {title}
+SPORT:  {idea.get('sport', '')}
+
+LENGTH — HARD constraint: {config.SHORT_SCRIPT_WORDS_MIN}-{config.SHORT_SCRIPT_WORDS_MAX} spoken
+words total (~30-50 seconds). Hook + one fact + payoff. Count your words; if long, cut.
+
+Use ONLY facts present in the LONG NARRATION below — introduce nothing new.
+
+LONG NARRATION:
+{long_script}
+
+Remember: first line `MOOD: <tense|triumphant|somber|hype>`, then the narration only."""
+        return _parse_short(self._call(prompt, use_search=False))
+
+
+def derive_short_tease(long_script: str, idea: dict) -> dict:
+    """Return {'script': str, 'mood': str} for a companion Short derived from the verified
+    long. Same approved short style; no web search (the long is already fact-gated)."""
+    return CompanionTeaseWriter().write(long_script, idea)
