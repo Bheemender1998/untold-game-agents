@@ -81,3 +81,41 @@ def test_produce_writes_under_long_subdir(tmp_path, monkeypatch):
     run_produce.produce(idea, factcheck_enabled=False, fmt="long")
     assert (tmp_path / "produced" / "zz" / "long" / "script.md").exists()
     assert (tmp_path / "produced" / "zz" / "long" / "metadata.json").exists()
+
+
+def test_produce_companion_short_writes_short_artifacts(tmp_path, monkeypatch):
+    from engine import run_produce, paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
+    longdir = tmp_path / "produced" / "zz" / "long"
+    longdir.mkdir(parents=True)
+    (longdir / "script.md").write_text("# T\n\nIn 1984 Senna chased Prost at Monaco. Seven seconds.\n")
+    monkeypatch.setattr(run_produce, "derive_short_tease",
+                        lambda long_script, idea: {"script": "Senna chased Prost at Monaco in 1984.", "mood": "somber"})
+    monkeypatch.setattr(run_produce, "generate_short_metadata",
+                        lambda idea, s: {"title": "Senna Short", "description": "d", "tags": []})
+    seen = {}
+    monkeypatch.setattr(run_produce.q, "update_idea", lambda i, **f: seen.update(f))
+    idea = {"id": "zz", "title_variants": ["T"], "sport": "F1"}
+    res = run_produce.produce_companion_short(idea)
+    assert (tmp_path / "produced" / "zz" / "short" / "script.md").exists()
+    assert (tmp_path / "produced" / "zz" / "short" / "metadata.json").exists()
+    assert res["within_long"] is True
+    assert seen.get("short_status") == "short_ready"
+    assert seen.get("mood") == "somber"
+
+
+def test_produce_companion_short_flags_when_guard_fails(tmp_path, monkeypatch):
+    from engine import run_produce, paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
+    longdir = tmp_path / "produced" / "zz" / "long"
+    longdir.mkdir(parents=True)
+    (longdir / "script.md").write_text("# T\n\nIn 1984 Senna chased Prost at Monaco.\n")
+    monkeypatch.setattr(run_produce, "derive_short_tease",
+                        lambda long_script, idea: {"script": "Senna beat Mansell by 1992 points.", "mood": "hype"})
+    monkeypatch.setattr(run_produce, "generate_short_metadata",
+                        lambda idea, s: {"title": "x", "description": "d", "tags": []})
+    seen = {}
+    monkeypatch.setattr(run_produce.q, "update_idea", lambda i, **f: seen.update(f))
+    res = run_produce.produce_companion_short({"id": "zz", "title_variants": ["T"], "sport": "F1"})
+    assert res["within_long"] is False
+    assert seen.get("short_status") == "short_needs_review"

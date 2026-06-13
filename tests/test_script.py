@@ -118,3 +118,54 @@ def test_short_keeps_invalid_mood_first_line_as_narration(monkeypatch):
                                         "target_audience": "fans", "why_it_works": "w"})
     assert out["mood"] == ""
     assert out["script"].startswith("MOOD: this was the word")  # kept as narration
+
+
+def test_tease_within_long_passes_when_subset():
+    from engine.pipeline import script
+    long = "In 1984 Ayrton Senna chased Alain Prost at Monaco. The gap was seven seconds."
+    short = "Senna was closing on Prost at Monaco in 1984. Seven seconds. Then a flag fell."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_flags_new_name_and_number():
+    from engine.pipeline import script
+    long = "In 1984 Ayrton Senna chased Alain Prost at Monaco."
+    short = "Senna beat Nigel Mansell by 1992 points."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok
+    assert "Mansell" in extra and "1992" in extra
+
+
+def test_tease_within_long_substring_number_is_flagged():
+    from engine.pipeline import script
+    long = "In 1984 Senna raced at Monaco."
+    short = "It happened in 84 at Monaco."   # '84' is a substring of '1984' but a NEW token
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "84" in extra
+
+
+def test_derive_short_tease_parses_mood_and_includes_long(monkeypatch):
+    from engine.pipeline import script
+    captured = {}
+    def fake_call(self, prompt, use_search=True):
+        captured["prompt"] = prompt
+        captured["use_search"] = use_search
+        return "MOOD: somber\nHe was closing fast. Then the flag fell. The full story is wild."
+    monkeypatch.setattr(script.CompanionTeaseWriter, "_call", fake_call, raising=True)
+    idea = {"title_variants": ["The Race That Was Stopped"], "hook": "h", "pillar": "what_if",
+            "sport": "F1", "target_audience": "a", "why_it_works": "w"}
+    out = script.derive_short_tease("LONG SCRIPT: Senna closed a seven-second gap...", idea)
+    assert out["mood"] == "somber"
+    assert "He was closing fast." in out["script"]
+    assert "MOOD:" not in out["script"]
+    assert "LONG SCRIPT: Senna closed" in captured["prompt"]
+    assert captured["use_search"] is False
+
+
+def test_tease_within_long_flags_new_acronym():
+    from engine.pipeline import script
+    long = "In 1984 Senna raced at Monaco."
+    short = "He changed the NBA forever in 1984."   # NBA not in long
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "NBA" in extra

@@ -141,7 +141,8 @@ def main() -> None:
         meta_path = os.path.join(os.path.dirname(os.path.abspath(video_dir)), "metadata.json")
         from engine.video import music as _music
         _music.write_credit(video_dir, meta_path, music_credit)
-        q.update_idea(args.id, video_path=os.path.relpath(mp4, _ROOT))
+        _vp_field = "short_video_path" if args.format == "short" else "video_path"
+        q.update_idea(args.id, **{_vp_field: os.path.relpath(mp4, _ROOT)})
         print(f"{GREEN}✓ {os.path.relpath(mp4, _ROOT)}{RESET}")
         return
 
@@ -176,7 +177,8 @@ def main() -> None:
         print(f"{GRAY}One-time renderer setup: cd engine/video/renderer && "
               f"npm install && npx hyperframes init .{RESET}")
         return
-    q.update_idea(args.id, video_path=os.path.relpath(mp4, _ROOT))
+    _vp_field = "short_video_path" if args.format == "short" else "video_path"
+    q.update_idea(args.id, **{_vp_field: os.path.relpath(mp4, _ROOT)})
     print(f"{GREEN}✓ {os.path.relpath(mp4, _ROOT)}{RESET}")
 
 

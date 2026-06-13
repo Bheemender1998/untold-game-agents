@@ -313,3 +313,82 @@ def test_video_id_parses_misordered_query_and_rejects_garbage():
     assert run_auto._video_id("https://www.youtube.com/shorts/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
     with pytest.raises(ValueError):
         run_auto._video_id("https://example.com/definitely-not-a-yt-url")
+
+
+def test_render_companion_short_renders_and_qcs(monkeypatch):
+    monkeypatch.setattr(run_auto, "_produce_companion", lambda i: {"within_long": True})
+    calls = {}
+
+    def _fake_run(cmd, timeout=None):
+        calls["cmd"] = cmd
+        return 0
+
+    monkeypatch.setattr(run_auto, "_run", _fake_run)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": True, "checks": []})
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto._companion_short("x")
+    assert "--format" in calls["cmd"] and "short" in calls["cmd"]
+    assert seen.get("short_status") == "short_awaiting_approval"
+    assert "short_video_path" in seen
+
+
+def test_companion_short_failure_does_not_raise(monkeypatch):
+    monkeypatch.setattr(run_auto, "_produce_companion",
+                        lambda i: (_ for _ in ()).throw(RuntimeError("derive blew up")))
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto._companion_short("x")   # must not raise
+    assert seen.get("short_status") == "short_failed"
+
+
+def test_companion_short_guard_fail_flags_needs_review(monkeypatch):
+    monkeypatch.setattr(run_auto, "_produce_companion", lambda i: {"within_long": False})
+    called = {"render": False}
+    monkeypatch.setattr(run_auto, "_run", lambda cmd, timeout=None: called.__setitem__("render", True) or 0)
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto._companion_short("x")
+    assert seen.get("short_status") == "short_needs_review"
+    assert called["render"] is False    # guard failed → never rendered
+
+
+def test_cmd_approve_uploads_long_then_linked_short(monkeypatch):
+    idea = {"id": "x", "status": "awaiting_approval",
+            "metadata_path": "produced/x/long/metadata.json",
+            "video_path": "produced/x/long/video/video.mp4",
+            "short_status": "short_awaiting_approval",
+            "short_metadata_path": "produced/x/short/metadata.json",
+            "short_video_path": "produced/x/short/video/video.mp4"}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    metas = {"produced/x/long/metadata.json": {"title": "Long", "description": "L", "tags": []},
+             "produced/x/short/metadata.json": {"title": "Short", "description": "S", "tags": []}}
+    monkeypatch.setattr(run_auto, "_load_metadata", lambda p: metas[p])
+    import os
+    monkeypatch.setattr(os.path, "exists", lambda p: True)
+    ups = []
+    monkeypatch.setattr(run_auto.uploader, "upload",
+                        lambda **k: ups.append(k) or ("ytLONG" if "Long" in k["title"] else "ytSHORT"))
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto.cmd_approve("x", public=False, dry_run=False)
+    assert ups[0]["title"] == "Long" and ups[1]["title"] == "Short"
+    assert "youtu.be/ytLONG" in ups[1]["description"]   # short desc links the long
+    assert "ytLONG" in seen["long_youtube_url"] and "ytSHORT" in seen["short_youtube_url"]
+
+
+def test_companion_render_does_not_clobber_long_video_path(monkeypatch):
+    # Simulate the real run_video --format short behavior: it writes short_video_path, NOT video_path.
+    idea = {"id": "x", "video_path": "produced/x/long/video/video.mp4"}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    monkeypatch.setattr(run_auto, "_produce_companion", lambda i: {"within_long": True})
+    def fake_run(cmd, timeout=None):
+        # mirror run_video's fixed behavior for --format short
+        idea["short_video_path"] = "produced/x/short/video/video.mp4"
+        return 0
+    monkeypatch.setattr(run_auto, "_run", fake_run)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": True, "checks": []})
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: idea.update(f))
+    run_auto._companion_short("x")
+    assert idea["video_path"] == "produced/x/long/video/video.mp4"      # long path intact
+    assert idea["short_video_path"] == "produced/x/short/video/video.mp4"

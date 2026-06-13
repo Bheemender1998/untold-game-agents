@@ -80,6 +80,46 @@ def _render_and_qc(idea_id: str) -> None:
     status = "awaiting_approval" if report["passed"] else "qc_failed"
     q.update_idea(idea_id, status=status)
     print(f"· {idea_id}: {status}")
+    if status == "awaiting_approval":
+        _companion_short(idea_id)   # 3 long + 3 short: each cleared long spawns its companion short
+
+
+def _produce_companion(idea_id: str) -> dict:
+    """Derive + write the companion short artifacts (in-process; no web fact-gate)."""
+    from engine import run_produce
+    idea = q.get_by_id(idea_id) or {}
+    return run_produce.produce_companion_short(idea)
+
+
+def _companion_short(idea_id: str) -> None:
+    """Produce → render → QC the companion short for a long that's awaiting approval.
+    Self-stubbing: any failure flags short_status and returns (never breaks the long)."""
+    try:
+        res = _produce_companion(idea_id)
+        if not res.get("within_long", True):
+            q.update_idea(idea_id, short_status="short_needs_review")
+            print(f"· {idea_id}: companion short needs_review (containment guard)")
+            return
+        rc = _run([_VENV_PY, "-m", "engine.run_video", "--id", idea_id,
+                   "--render", "--mode", "narrated", "--format", "short"],
+                  timeout=config.RENDER_TIMEOUT_S)
+        if rc != 0:
+            q.update_idea(idea_id, short_status="short_render_failed",
+                          short_render_note=("timed out" if rc == 124 else f"exit {rc}"))
+            print(f"· {idea_id}: companion short render_failed")
+            return
+        report = qc.qc_video(idea_id, "short")
+        if report["passed"]:
+            q.update_idea(idea_id, short_status="short_awaiting_approval",
+                          short_video_path=os.path.relpath(
+                              os.path.join(paths.video_dir(idea_id, "short"), "video.mp4"), _ROOT))
+            print(f"· {idea_id}: companion short short_awaiting_approval")
+        else:
+            q.update_idea(idea_id, short_status="short_qc_failed")
+            print(f"· {idea_id}: companion short short_qc_failed")
+    except Exception as e:                       # never break the long / batch
+        q.update_idea(idea_id, short_status="short_failed", short_render_note=str(e))
+        print(f"· {idea_id}: companion short failed — {e}")
 
 
 def pipeline(count: int, no_render: bool) -> Counter:
@@ -201,6 +241,19 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
     q.update_idea(idea_id, status="published",
                   long_youtube_url=f"https://youtu.be/{yt_id}")
     print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
+    long_url = f"https://youtu.be/{yt_id}"
+    # Companion short (if produced + clean): upload with the long URL embedded in its description (inherits the long's privacy).
+    if idea.get("short_status") == "short_awaiting_approval" and idea.get("short_video_path"):
+        try:
+            smeta = _load_metadata(idea["short_metadata_path"])
+            svideo = os.path.join(_ROOT, idea["short_video_path"])
+            sdesc = f"{smeta.get('description', '')}\n\n▶ Full story on our channel: {long_url}".strip()
+            short_id = uploader.upload(video_path=svideo, title=smeta["title"],
+                                       description=sdesc, tags=smeta.get("tags"), privacy=privacy)
+            q.update_idea(idea_id, short_youtube_url=f"https://youtu.be/{short_id}")
+            print(f"✓ companion short {idea_id} → https://youtu.be/{short_id} ({privacy})")
+        except Exception as e:                  # short failure must not undo the long
+            print(f"⚠ {idea_id}: long published but companion short upload failed — {e}")
 
 
 def _video_id(url: str) -> str:
