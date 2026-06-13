@@ -104,3 +104,12 @@ PILLAR_MOOD = {
     "sport_vs_world":                  "tense",
     "what_if":                         "hype",
 }
+
+# ── Fact-gate (fact_gate.py) ──────────────────────────────────────────────────
+import os as _os  # local alias; config.py is module-level constants
+_FACT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))  # repo root
+# Persistent MediaWiki entity cache (gitignored). Keyed by resolved article title;
+# compounds across videos. See docs/superpowers/specs/2026-06-13-fact-gate-design.md.
+FACTCACHE_PATH = _os.path.join(_FACT_ROOT, ".factcache.json")
+FACTCACHE_TTL_DAYS = 30          # bounds living-entity staleness (see spec Risks)
+FACT_GATE_SHADOW = True          # ship in shadow: compute verdicts, still route all to human
