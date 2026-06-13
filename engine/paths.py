@@ -55,3 +55,15 @@ def subject_path(idea_id: str, fmt: str) -> str:
     if os.path.exists(jpg):
         return jpg
     return png
+
+
+# Channel-level (not per-idea) assets: the generated banner + description for manual upload.
+CHANNEL_DIR = os.path.join(_ROOT, "channel")
+
+
+def channel_banner_path() -> str:
+    return os.path.join(CHANNEL_DIR, "banner.png")
+
+
+def channel_description_path() -> str:
+    return os.path.join(CHANNEL_DIR, "description.txt")
