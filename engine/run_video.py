@@ -82,7 +82,7 @@ def main() -> None:
             if not provider:
                 print(f"{RED}No TTS provider. `pip install kokoro-onnx` or run on macOS "
                       f"(say + ffmpeg).{RESET}"); return
-            narration_text = tts.script_to_narration_text(script_md)
+            narration_text = tts.apply_pronunciation(tts.script_to_narration_text(script_md))
             print(f"{GOLD}▶ Narrating [{args.id}] via {provider}…{RESET}")
             try:
                 voice = tts.narration_voice(idea, override=args.voice, provider=provider)
@@ -95,6 +95,8 @@ def main() -> None:
         glossary = captions.proper_nouns(tts.script_to_narration_text(script_md))
         tx = captions.transcribe(audio_path, initial_prompt=glossary)   # {words, segments} | None
         words = tx["words"] if tx else None           # downstream wants the word list
+        if words:
+            words = captions.digitize_number_words(words)  # captions show "1984", not words
         synced = "word-synced (whisper)" if words else "estimated timing (no faster-whisper)"
         print(f"{GREEN}✓ narration {total_dur:.0f}s — captions: {synced}{RESET}")
 
