@@ -41,7 +41,7 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
             src={staticFile(props.musicSrc)}
             loop
             volume={(f) => {
-              const peak = props.musicVolume ?? 0.12;
+              const peak = props.musicVolume ?? 0.08;
               const total = ms2f(props.introMs + props.narrationMs + props.outroMs, fps) - introF;
               const fadeIn = Math.round(1.5 * fps);
               const fadeOut = Math.round(2.5 * fps);

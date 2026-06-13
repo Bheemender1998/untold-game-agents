@@ -5,9 +5,14 @@ from engine.video import music
 
 
 def test_module_constants():
-    assert music.MUSIC_VOLUME == 0.12
+    assert music.MUSIC_VOLUME == 0.08
     assert music.MOODS == ("tense", "triumphant", "somber", "hype")
     assert music.MUSIC_DIR.endswith("engine/video/music")
+
+
+def test_music_volume_lowered_to_0_08():
+    from engine.video import music
+    assert music.MUSIC_VOLUME == 0.08
 
 
 def test_build_manifest_groups_by_mood_and_ignores_unused(tmp_path):
