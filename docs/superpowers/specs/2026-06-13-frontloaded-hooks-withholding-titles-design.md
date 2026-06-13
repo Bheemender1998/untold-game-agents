@@ -74,6 +74,13 @@ These are prompt-string edits only. No behavioral code change.
   (mirrors `_short_desc_llm`) that writes a punchy, front-loaded, gap-opening Short
   title (≤ ~70 chars, mobile-legible), using only facts in the (already fact-gated)
   script. System prompt carries the title rule.
+- **Length is a prompt-level soft target, NOT a schema constraint.** Do **not** add
+  `maxLength` to the structured-output schema: Anthropic structured outputs do not enforce
+  string-length constraints, and the SDK's strip-and-client-validate fallback only fires on
+  `messages.parse()` — this code uses the raw `output_config.format` path on
+  `messages.create()`, so a schema `maxLength` would be a silent no-op. The ~70-char target
+  lives in the prompt only; over-length is a legibility nit, not an integrity failure
+  (YouTube allows 100), and is left unenforced by code.
 - **`generate_short_metadata`** — replace the verbatim `title = idea["title_variants"][0]`
   with the result of `_short_title_llm`, guarded by the §3 backstop. **Self-stub to
   `title_variants[0]`** if the LLM call fails OR the backstop rejects the title (matches
@@ -85,8 +92,19 @@ These are prompt-string edits only. No behavioral code change.
   e.g. `title_numbers_within(title, script) -> tuple[bool, list[str]]`: returns whether
   every digit group in the title appears as a digit group in the script, plus the list
   of novel numbers.
+- **Normalize thousands separators before comparison.** `_TEASE_NUM_RE` (`\b\d[\d,]*\b`)
+  keeps the grouping comma *inside* the token, so `"2,003"` (script) and `"2003"` (title)
+  are different strings and would false-flag. Strip commas from each digit token before
+  the set comparison (`"2,003"` → `"2003"`). **Strip commas only — never decimal points**
+  (`"1.5"` → `"15"` would corrupt the value). Apply the same normalization to both the
+  script tokens and the title tokens.
 - `generate_short_metadata` calls it; a non-empty novel-number list → reject the LLM
   title and self-stub to `title_variants[0]`.
+- **Known conservative limitation:** if the title writes a number as a digit (`"6"`) that
+  the script only spells out (`"six"`), the backstop will flag it and fall back. This is a
+  rare, *safe* false-positive (we lose a punchy title, we never ship a fabricated stat) —
+  not worth a number-words normalizer. Document it in the helper docstring; don't build
+  for it.
 - **Digit groups only — not the proper-noun half of `tease_within_long`.** Rationale:
   `_TEASE_NAME_RE` selects proper-noun candidates *by capitalization*, but titles are
   Title Case, so every content word ("Tournament", "Supposed") becomes a candidate and
