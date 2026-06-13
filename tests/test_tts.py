@@ -103,3 +103,10 @@ def test_spell_numbers_handles_millions_and_skips_decimals_currency():
 def test_split_sentences_protects_abbreviations():
     assert tts._split_sentences("Dr. Smith arrived. He left.") == ["Dr. Smith arrived.", "He left."]
     assert tts._split_sentences("He moved to D.C. with U.S. backing.") == ["He moved to D.C. with U.S. backing."]
+
+
+def test_split_sentences_breaks_after_sentence_end_initialism():
+    # A sentence ending in an initialism + a clear sentence-starter is a real break...
+    assert tts._split_sentences("She lives in D.C. She moved.") == ["She lives in D.C.", "She moved."]
+    # ...but a name following initials must NOT split (the original O.J. bug).
+    assert tts._split_sentences("O.J. Simpson rushed. He scored.") == ["O.J. Simpson rushed.", "He scored."]

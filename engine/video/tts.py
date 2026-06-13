@@ -196,19 +196,28 @@ def _synth_kokoro(text: str, out_path: str, voice: str | None,
 
 
 _ABBR = re.compile(r"\b(?:Mr|Mrs|Ms|Dr|Jr|Sr|St|vs|No|etc|Inc|Ltd)\.")
+# Words that almost always begin a NEW sentence — used to recover a real sentence break
+# after an initialism (e.g. "…in D.C. She moved.") without re-splitting a name ("O.J. Simpson").
+_SENT_START = (r"The|This|That|These|Those|It|He|She|They|We|You|I|But|And|Or|Yet|So|"
+               r"When|While|After|Before|Then|Now|Today|Yesterday|Tomorrow|Meanwhile|"
+               r"By|In|On|At|For|From|With|Despite|During|Within|His|Her|Their|Its|A|An")
+_INITIALISM_BREAK = re.compile(rf"(?<=[A-Z]\.)\s+(?=(?:{_SENT_START})\b)")
 
 
 def _split_sentences(text: str) -> list[str]:
     """Sentence split for chunked synthesis (keeps terminal punctuation). Dotted initialisms
     (O.J., U.S., D.C., I.R.S.) and common abbreviations (Dr., Mr., No.) are protected so they
-    aren't split into their own chunk — which would speak them with a spurious 0.5s gap.
-    (Heuristic: a rare initialism that genuinely ends a sentence may merge with the next — a
-    minor pacing nit, far better than the frequent mid-name gaps.)"""
+    aren't split into their own chunk — which would speak them with a spurious 0.5s gap. A real
+    sentence break that lands right after an initialism (e.g. 'in D.C. She moved.') is recovered
+    only when the next word is a clear sentence-starter, so names ('O.J. Simpson') stay intact."""
     sep = "․"  # one-dot leader stands in for a protected period during the split
     hide = lambda m: m.group(0).replace(".", sep)
     t = text.replace("\n", " ")
     t = re.sub(r"\b(?:[A-Za-z]\.){2,}", hide, t)        # O.J., U.S., D.C., I.R.S.
     t = re.sub(r"\b[A-Z]\.(?=\s*[A-Z][a-z])", hide, t)  # single initial before a name: "J. Smith"
     t = _ABBR.sub(hide, t)                               # Dr., Mr., No., etc.
-    parts = re.split(r"(?<=[.!?])\s+", t)
-    return [p.replace(sep, ".").strip() for p in parts if p.strip()]
+    out: list[str] = []
+    for p in re.split(r"(?<=[.!?])\s+", t):
+        p = p.replace(sep, ".")
+        out.extend(s.strip() for s in _INITIALISM_BREAK.split(p) if s.strip())
+    return out
