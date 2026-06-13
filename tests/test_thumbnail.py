@@ -135,6 +135,21 @@ def test_generate_thumbnail_removes_stale_thumbnail_when_subject_missing(tmp_pat
     assert not _os.path.exists(paths.thumbnail_path("stale1", "long"))   # stale removed
 
 
+def test_generate_thumbnail_self_stub_survives_remove_error(tmp_path, monkeypatch):
+    from engine import paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path))
+    d = paths.artifact_dir("s2", "long")
+    _os.makedirs(d, exist_ok=True)
+    Image.new("RGB", (1280, 720), (0, 0, 0)).save(paths.thumbnail_path("s2", "long"))
+    def boom(_p):
+        raise OSError("permission denied")
+    monkeypatch.setattr(tn.os, "remove", boom)   # removal fails
+    # the self-stub path must NEVER propagate — it returns the idea unchanged
+    idea = {"id": "s2"}
+    out = tn.generate_thumbnail(idea, "long")
+    assert out is idea
+
+
 def test_run_thumbnail_main_errors_without_subject(tmp_path, monkeypatch, capsys):
     import sys
     from engine import paths, queue_manager

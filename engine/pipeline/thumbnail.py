@@ -175,11 +175,14 @@ def generate_thumbnail(idea: dict, fmt: str) -> dict:
     subject = paths.subject_path(idea_id, fmt)
     if not os.path.exists(subject):
         stale = paths.thumbnail_path(idea_id, fmt)
-        if os.path.exists(stale):
-            os.remove(stale)
-            print(f"  · removed stale thumbnail for [{idea_id}/{fmt}] — no subject photo")
-        else:
-            print(f"  · thumbnail skipped for [{idea_id}/{fmt}] — no subject photo at {subject}")
+        try:
+            if os.path.exists(stale):
+                os.remove(stale)
+                print(f"  · removed stale thumbnail for [{idea_id}/{fmt}] — no subject photo")
+            else:
+                print(f"  · thumbnail skipped for [{idea_id}/{fmt}] — no subject photo at {subject}")
+        except OSError as e:
+            print(f"  · thumbnail self-stub: could not remove stale thumbnail for [{idea_id}/{fmt}] ({e})")
         return idea
     text = _thumbnail_text(idea, idea.get("script", ""))
     out = paths.thumbnail_path(idea_id, fmt)
