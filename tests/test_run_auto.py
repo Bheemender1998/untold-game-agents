@@ -375,3 +375,20 @@ def test_cmd_approve_uploads_long_then_linked_short(monkeypatch):
     assert ups[0]["title"] == "Long" and ups[1]["title"] == "Short"
     assert "youtu.be/ytLONG" in ups[1]["description"]   # short desc links the long
     assert "ytLONG" in seen["long_youtube_url"] and "ytSHORT" in seen["short_youtube_url"]
+
+
+def test_companion_render_does_not_clobber_long_video_path(monkeypatch):
+    # Simulate the real run_video --format short behavior: it writes short_video_path, NOT video_path.
+    idea = {"id": "x", "video_path": "produced/x/long/video/video.mp4"}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    monkeypatch.setattr(run_auto, "_produce_companion", lambda i: {"within_long": True})
+    def fake_run(cmd, timeout=None):
+        # mirror run_video's fixed behavior for --format short
+        idea["short_video_path"] = "produced/x/short/video/video.mp4"
+        return 0
+    monkeypatch.setattr(run_auto, "_run", fake_run)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": True, "checks": []})
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: idea.update(f))
+    run_auto._companion_short("x")
+    assert idea["video_path"] == "produced/x/long/video/video.mp4"      # long path intact
+    assert idea["short_video_path"] == "produced/x/short/video/video.mp4"

@@ -161,3 +161,11 @@ def test_derive_short_tease_parses_mood_and_includes_long(monkeypatch):
     assert "MOOD:" not in out["script"]
     assert "LONG SCRIPT: Senna closed" in captured["prompt"]
     assert captured["use_search"] is False
+
+
+def test_tease_within_long_flags_new_acronym():
+    from engine.pipeline import script
+    long = "In 1984 Senna raced at Monaco."
+    short = "He changed the NBA forever in 1984."   # NBA not in long
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "NBA" in extra

@@ -265,7 +265,7 @@ def derive_short_tease(long_script: str, idea: dict) -> dict:
 # ── Companion-short containment guard ─────────────────────────────────────────
 
 # Capitalized words/names (skip sentence-start common words); and number groups.
-_TEASE_NAME_RE = re.compile(r"\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\b")
+_TEASE_NAME_RE = re.compile(r"\b(?:[A-ZÁÉÍÓÚÑ]{2,}|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\b")
 _TEASE_NUM_RE = re.compile(r"\b\d[\d,]*\b")
 _TEASE_STOP = {"the", "this", "that", "then", "they", "he", "she", "it", "and", "but",
                "in", "on", "at", "a", "an", "his", "her", "their", "by", "so", "no",
