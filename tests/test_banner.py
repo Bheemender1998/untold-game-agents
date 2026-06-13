@@ -23,3 +23,13 @@ def test_banner_block_within_tv_safe_area():
     bx = L["block_box"]
     assert bx[0] >= banner.SAFE_LEFT and bx[2] <= banner.SAFE_LEFT + banner.SAFE_W
     assert bx[1] >= banner.SAFE_TOP and bx[3] <= banner.SAFE_TOP + banner.SAFE_H
+
+
+def test_run_banner_writes_banner_and_description(tmp_path, monkeypatch):
+    from engine import paths, config
+    from engine import run_banner
+    monkeypatch.setattr(paths, "CHANNEL_DIR", str(tmp_path / "channel"))
+    run_banner.main()
+    with Image.open(paths.channel_banner_path()) as im:
+        assert im.size == (2560, 1440)
+    assert open(paths.channel_description_path()).read().strip() == config.CHANNEL_DESCRIPTION.strip()
