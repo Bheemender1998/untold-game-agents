@@ -41,3 +41,29 @@ def lookup(query: str, sentences: int = 6) -> str:
         return f"[Wikipedia: {title}] {trimmed}"
     except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError):
         return ""
+
+
+def search_title(query: str) -> str | None:
+    """Return the title of the top MediaWiki search hit for `query`, or None.
+    NEVER raises (same contract as lookup)."""
+    try:
+        s = requests.get(_API, timeout=_TIMEOUT, headers={"User-Agent": _UA}, params={
+            "action": "query", "list": "search", "srsearch": query,
+            "srlimit": 1, "format": "json"})
+        hits = s.json().get("query", {}).get("search", [])
+        return hits[0]["title"] if hits else None
+    except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def extract(title: str) -> str:
+    """Return the FULL plaintext extract of `title` (not intro-only), or "" on any
+    failure. NEVER raises."""
+    try:
+        e = requests.get(_API, timeout=_TIMEOUT, headers={"User-Agent": _UA}, params={
+            "action": "query", "prop": "extracts", "explaintext": 1,
+            "titles": title, "format": "json"})
+        pages = e.json().get("query", {}).get("pages", {})
+        return (next(iter(pages.values()), {}) or {}).get("extract", "") or ""
+    except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError):
+        return ""

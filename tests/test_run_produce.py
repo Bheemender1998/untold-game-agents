@@ -9,6 +9,7 @@ def _stub_common(monkeypatch):
     import engine.pipeline.factcheck as fc
     monkeypatch.setattr(fc, "factcheck",
                         lambda *a, **k: {"passed": True, "issues": [], "checked": 1, "complete": True})
+    monkeypatch.setattr(run_produce, "_append_shadow", lambda rec: None)
     updates = []
     monkeypatch.setattr(run_produce.q, "update_idea", lambda i, **f: updates.append(f))
     return updates

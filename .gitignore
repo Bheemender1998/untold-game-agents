@@ -56,3 +56,7 @@ engine/music_all/
 
 # one-off voice-audition artifacts (not pipeline assets)
 voice_samples/
+
+# fact-gate (never commit — entity cache + shadow measurement log)
+.factcache.json
+.factgate-shadow.jsonl

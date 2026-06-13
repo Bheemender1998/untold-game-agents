@@ -1,13 +1,11 @@
 """
 The Untold Game — FACT-CHECK gate.
 
-Verifies every concrete claim in a produced script against the web. Report only,
-or --fix to rewrite the script correcting/cutting flagged claims (backs up the old
-one to script.md.bak). Writes produced/<id>/factcheck.json.
+Verifies every concrete claim in a produced script against the web.
+Report-only — writes produced/<id>/factcheck.json.
 
 Usage:
   python3 -m engine.run_factcheck --id <id>          # report
-  python3 -m engine.run_factcheck --id <id> --fix    # report + correct script.md
 
 Sequential (respects the API rate-limit tier). Headless-safe.
 """
@@ -15,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sys
 
 from engine.pipeline import factcheck
@@ -47,7 +44,6 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Fact-check gate for a produced script")
     ap.add_argument("--id", required=True)
     ap.add_argument("--format", choices=["long", "short"], default="long")
-    ap.add_argument("--fix", action="store_true", help="rewrite script.md correcting flagged claims, then re-verify")
     ap.add_argument("--max-claims", type=int, default=25)
     args = ap.parse_args()
 
@@ -63,18 +59,6 @@ def main() -> int:
     result = factcheck.factcheck(script_md, max_claims=args.max_claims)
     _print_report(result)
 
-    # --fix: correct, then RE-VERIFY the corrected script so we never declare done
-    # while corrections left (or introduced) flagged claims.
-    if args.fix and result["issues"]:
-        print(f"\n{GOLD}▶ Correcting script.md…{RESET}")
-        corrected = factcheck.correct_script(script_md, result["issues"])
-        shutil.copy(script_file, script_file + ".bak")
-        with open(script_file, "w") as f:
-            f.write(corrected)
-        print(f"{GRAY}re-verifying corrected script…{RESET}")
-        result = factcheck.factcheck(corrected, max_claims=args.max_claims)
-        _print_report(result)
-
     with open(fc_path, "w") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
     print(f"\n{GRAY}report → {os.path.relpath(fc_path, _ROOT)}{RESET}")
@@ -89,8 +73,8 @@ def main() -> int:
         reasons.append(f"{len(result['issues'])} flagged")
     if not result["complete"]:
         reasons.append("coverage incomplete")
-    hint = "" if args.fix else " Run with --fix to correct, then it re-verifies."
-    print(f"{RED}✗ NOT PASSED ({', '.join(reasons)}). Do NOT publish until resolved.{hint}{RESET}")
+    print(f"{RED}✗ NOT PASSED ({', '.join(reasons)}). Do NOT publish until resolved. "
+          f"Human-review and edit the script, then run_auto --review <id>.{RESET}")
     return 1
 
 
