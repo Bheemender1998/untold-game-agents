@@ -10,7 +10,7 @@ real performance.
 ```
 engine/ideate/    4 agents generate scored video ideas (FREE web search)   ← LIVE
        ↓          review dashboard: approve / reject
-engine/pipeline/  script → thumbnail → metadata → schedule                  ← Stage 2
+engine/pipeline/  script → thumbnail → banner → metadata → schedule          ← script/metadata/thumbnail/banner LIVE; schedule Stage 2
        ↓
 engine/publish/   upload to YouTube (Data API v3, OAuth)                     ← Stage 2
        ↓
