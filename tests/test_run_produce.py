@@ -32,7 +32,7 @@ def test_short_uses_short_writer_and_stores_mood(monkeypatch):
     monkeypatch.setattr(run_produce, "generate_short_metadata", lambda idea, s: {"title": "t", "description": "#Shorts", "tags": ["Shorts"]})
     monkeypatch.setattr(run_produce, "generate_metadata",
                         lambda idea, s: (_ for _ in ()).throw(AssertionError("long-form metadata must NOT run in --short")))
-    run_produce.produce(_idea(), short=True)
+    run_produce.produce(_idea(), fmt="short")
     assert calls.get("short") is True
     assert any(f.get("mood") == "tense" for f in updates), "mood must be stored on the idea"
 
@@ -53,7 +53,7 @@ def test_short_empty_script_raises(monkeypatch):
     _stub_common(monkeypatch)
     monkeypatch.setattr(run_produce, "generate_short_script", lambda idea: {"script": "   ", "mood": "tense"})
     with pytest.raises(ValueError):
-        run_produce.produce(_idea(), short=True)
+        run_produce.produce(_idea(), fmt="short")
 
 
 def test_long_form_still_uses_long_writer(monkeypatch):
@@ -66,5 +66,18 @@ def test_long_form_still_uses_long_writer(monkeypatch):
     monkeypatch.setattr(run_produce, "generate_metadata", lambda idea, s: {"title": "t"})
     monkeypatch.setattr(run_produce, "generate_short_script",
                         lambda idea: (_ for _ in ()).throw(AssertionError("short writer must NOT run without --short")))
-    run_produce.produce(_idea(), short=False)
+    run_produce.produce(_idea(), fmt="long")
     assert calls.get("long") is True
+
+
+def test_produce_writes_under_long_subdir(tmp_path, monkeypatch):
+    from engine import run_produce, paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
+    monkeypatch.setattr(run_produce.q, "update_idea", lambda i, **f: True)
+    monkeypatch.setattr(run_produce, "generate_script", lambda idea: "Long body words here.")
+    monkeypatch.setattr(run_produce, "generate_metadata",
+                        lambda idea, s: {"title": "T", "description": "D", "tags": []})
+    idea = {"id": "zz", "title_variants": ["My Title"]}
+    run_produce.produce(idea, factcheck_enabled=False, fmt="long")
+    assert (tmp_path / "produced" / "zz" / "long" / "script.md").exists()
+    assert (tmp_path / "produced" / "zz" / "long" / "metadata.json").exists()

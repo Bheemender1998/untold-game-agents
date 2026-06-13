@@ -27,6 +27,7 @@ import os
 import shutil
 
 from engine import queue_manager as q
+from engine import paths
 from engine.video import captions, compose, tts
 
 GOLD, GREEN, RED, GRAY, RESET = "\033[93m", "\033[92m", "\033[91m", "\033[90m", "\033[0m"
@@ -35,7 +36,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="The Untold Game — build a video composition")
-    ap.add_argument("--id", required=True, help="produced idea id (has produced/<id>/script.md)")
+    ap.add_argument("--id", required=True, help="produced idea id (has produced/<id>/<fmt>/script.md)")
     ap.add_argument("--mode", choices=["text", "narrated"], default="text")
     ap.add_argument("--audio", help="reuse an existing narration file (narrated mode); "
                     "default is to generate it from the script")
@@ -46,22 +47,23 @@ def main() -> None:
                     "default) or hyperframes (legacy text-on-gradient)")
     ap.add_argument("--render", action="store_true",
                     help="also render to MP4 (Remotion or HyperFrames per --engine)")
-    ap.add_argument("--format", choices=["landscape", "short"], default="landscape",
-                    help="output format: landscape (1920×1080, default) or short (1080×1920 vertical)")
+    ap.add_argument("--format", choices=["long", "short"], default="long",
+                    help="output format: long (1920×1080 landscape, default) or "
+                    "short (1080×1920 vertical)")
     args = ap.parse_args()
 
     idea = q.get_by_id(args.id)
     if not idea:
         print(f"{RED}No idea {args.id} in the queue.{RESET}"); return
 
-    script_file = os.path.join(_ROOT, "produced", args.id, "script.md")
+    script_file = paths.script_path(args.id, args.format)
     if not os.path.exists(script_file):
         print(f"{RED}No script at {os.path.relpath(script_file, _ROOT)}. "
               f"Run `python3 -m engine.run_produce --id {args.id}` first.{RESET}"); return
     with open(script_file) as f:
         script_md = f.read()
 
-    video_dir = os.path.join(_ROOT, "produced", args.id, "video")
+    video_dir = paths.video_dir(args.id, args.format)
     os.makedirs(video_dir, exist_ok=True)
 
     # ── Narrated mode: produce (or reuse) narration audio, then time the captions ──

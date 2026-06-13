@@ -4,18 +4,23 @@ the right interpreter (the produce/render venvs can't coexist in one process).""
 from __future__ import annotations
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
+import urllib.parse
 from collections import Counter
 
 from engine import config
 from engine import queue_manager as q
+from engine import paths
 from engine.pipeline import qc
 from engine.publish import uploader, auth
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VENV_PY = os.path.join(_ROOT, ".venv-video", "bin", "python")
+_OVERNIGHT_FMT = "long"  # overnight pipeline is long-form only (Phase 2 adds companion shorts)
+_YT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
 def _run(cmd: list[str], timeout: float | None = None) -> int:
@@ -40,7 +45,8 @@ def _select(count: int) -> list[dict]:
 
 def _produce_one(idea_id: str) -> str:
     """Run produce as a subprocess; return the idea's resulting status."""
-    rc = _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id],
+    rc = _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id,
+               "--format", _OVERNIGHT_FMT],
               timeout=config.PRODUCE_TIMEOUT_S)
     if rc != 0:
         print(f"· {idea_id}: produce {'timed out' if rc == 124 else f'exit {rc}'} "
@@ -52,7 +58,7 @@ def _produce_one(idea_id: str) -> str:
 def _render_one(idea_id: str) -> bool:
     """Render via the video venv under a hard timeout. On nonzero/timeout → render_failed."""
     rc = _run([_VENV_PY, "-m", "engine.run_video", "--id", idea_id,
-               "--render", "--mode", "narrated"],
+               "--render", "--mode", "narrated", "--format", _OVERNIGHT_FMT],
               timeout=config.RENDER_TIMEOUT_S)
     if rc != 0:
         why = "render timed out" if rc == 124 else f"render exit {rc}"
@@ -70,7 +76,7 @@ def _render_and_qc(idea_id: str) -> None:
     if not _render_one(idea_id):
         print(f"· {idea_id}: render_failed")
         return
-    report = qc.qc_video(idea_id)
+    report = qc.qc_video(idea_id, _OVERNIGHT_FMT)
     status = "awaiting_approval" if report["passed"] else "qc_failed"
     q.update_idea(idea_id, status=status)
     print(f"· {idea_id}: {status}")
@@ -127,7 +133,7 @@ def _load_metadata(rel_path: str) -> dict:
 
 
 def _qc_summary(idea_id: str) -> str:
-    path = os.path.join(_ROOT, "produced", idea_id, "qc.json")
+    path = paths.qc_path(idea_id, _OVERNIGHT_FMT)
     try:
         with open(path) as f:
             r = json.load(f)
@@ -193,8 +199,41 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
                             description=meta.get("description", ""),
                             tags=meta.get("tags"), privacy=privacy)
     q.update_idea(idea_id, status="published",
-                  youtube_url=f"https://youtu.be/{yt_id}")
+                  long_youtube_url=f"https://youtu.be/{yt_id}")
     print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
+
+
+def _video_id(url: str) -> str:
+    """Extract the 11-char YouTube video id from a youtu.be/<id>, watch?v=<id>
+    (any query-param order), /shorts/<id>, or /embed/<id> URL. Raises ValueError
+    if no valid id can be parsed (so we never patch a wrong/garbage video)."""
+    parsed = urllib.parse.urlparse(url.strip())
+    candidate = None
+    if parsed.query:
+        candidate = (urllib.parse.parse_qs(parsed.query).get("v") or [None])[0]
+    if candidate is None:
+        candidate = parsed.path.rstrip("/").split("/")[-1]
+    if not candidate or not _YT_ID_RE.match(candidate):
+        raise ValueError(f"could not extract a valid YouTube video id from {url!r}")
+    return candidate
+
+
+def cmd_backlink(idea_id: str) -> None:
+    """Append the idea's long URL to its already-published short's description."""
+    idea = q.get_by_id(idea_id) or {}
+    if not idea:
+        sys.exit(f"No idea found for id {idea_id}")
+    if idea.get("short_backlinked"):
+        sys.exit(f"{idea_id}: already back-linked (short_backlinked=True)")
+    long_url = idea.get("long_youtube_url")
+    short_url = idea.get("short_youtube_url")
+    if not (long_url and short_url):
+        sys.exit(f"{idea_id}: need both long_youtube_url and short_youtube_url "
+                 f"(long={long_url!r}, short={short_url!r})")
+    suffix = f"▶ Full story on our channel: {long_url}"
+    uploader.append_to_description(_video_id(short_url), suffix, skip_if_contains=long_url)
+    q.update_idea(idea_id, short_backlinked=True)
+    print(f"✓ {idea_id}: back-linked short {short_url} → {long_url}")
 
 
 def main() -> None:
@@ -209,6 +248,8 @@ def main() -> None:
     ap.add_argument("--public", action="store_true", help="--approve as public (default unlisted)")
     ap.add_argument("--dry-run", action="store_true", help="--approve: auth+metadata check, no insert")
     ap.add_argument("--reject", metavar="ID", help="mark an idea rejected")
+    ap.add_argument("--backlink", metavar="ID",
+                    help="append the long's URL to its published short's description")
     ap.add_argument("--render", metavar="ID", help="render a single cleared idea (skips produce)")
     args = ap.parse_args()
 
@@ -220,6 +261,8 @@ def main() -> None:
         cmd_reject(args.reject)
     elif args.approve:
         cmd_approve(args.approve, public=args.public, dry_run=args.dry_run)
+    elif args.backlink:
+        cmd_backlink(args.backlink)
     elif args.render:
         cmd_render(args.render)
     else:

@@ -93,6 +93,56 @@ def upload(
     return video_id
 
 
+def _service(service=None):
+    if service is not None:
+        return service
+    from engine.publish.auth import get_service
+    return get_service()
+
+
+def update_description(video_id: str, new_description: str, *, service=None) -> str:
+    """Replace a live video's description. videos.update needs the FULL snippet, so
+    we list the current snippet, swap only the description, and send it all back —
+    sending description alone would wipe title/categoryId. Returns the new description."""
+    youtube = _service(service)
+    items = youtube.videos().list(part="snippet", id=video_id).execute().get("items", [])
+    if not items:
+        raise ValueError(f"video {video_id!r} not found or inaccessible")
+    snippet = items[0]["snippet"]
+    snippet["description"] = new_description[:5000]
+    youtube.videos().update(part="snippet", body={"id": video_id, "snippet": snippet}).execute()
+    return snippet["description"]
+
+
+def append_to_description(video_id: str, suffix: str, *, skip_if_contains=None, service=None) -> str:
+    """Append `suffix` (e.g. a companion-long link) to a live video's existing
+    description, preserving the rest of the snippet. The suffix is ALWAYS kept intact —
+    if base+suffix would exceed 5000 chars, the existing description is truncated to make
+    room (the backlink is the point of the call). If `skip_if_contains` is already present
+    in the live description, this is a no-op (returns the current description) so re-running
+    a backlink can't duplicate it even if a prior run crashed before its flag was written."""
+    youtube = _service(service)
+    items = youtube.videos().list(part="snippet", id=video_id).execute().get("items", [])
+    if not items:
+        raise ValueError(f"video {video_id!r} not found or inaccessible")
+    snippet = items[0]["snippet"]
+    base = (snippet.get("description") or "").rstrip()
+    if skip_if_contains is not None and skip_if_contains in base:
+        return base  # already present — idempotent no-op against live state
+    if not base:
+        new_desc = suffix[:5000]
+    else:
+        sep = "\n\n"
+        room = 5000 - len(sep) - len(suffix)
+        if room < 0:
+            raise ValueError(
+                f"suffix ({len(suffix)} chars) too long to append within the 5000-char limit")
+        new_desc = f"{base[:room].rstrip()}{sep}{suffix}"
+    snippet["description"] = new_desc
+    youtube.videos().update(part="snippet", body={"id": video_id, "snippet": snippet}).execute()
+    return new_desc
+
+
 def _cli() -> None:
     import argparse
     import json
