@@ -29,8 +29,13 @@ and one approval uploads both (long first, short's description linking the long)
 
 ## Decisions (locked during brainstorming)
 
-- **Companion short = tease derived from the long** via `derive_short_tease(long_script,
-  idea)`: a ~90–130-word vertical hook that **withholds the payoff**.
+- **Companion short stays on the approved Senna/World Cup short template** — same visual
+  render (vertical, mood voice, whisper captions, mood music, sport b-roll, branding) AND
+  the same punchy short-writer style. We do NOT introduce a new/divergent short format.
+  The only net-new element is an added "Full story on our channel" CTA pointer. Its
+  *content* is derived from (and constrained to) the verified long via
+  `derive_short_tease(long_script, idea)` — a condensed Senna-style short of the long
+  story, not a withholding-cliffhanger.
 - **No redundant web fact-gate on the short.** The long is already fact-gated; the tease
   uses only the long's verified content, so it is verified by construction. Integrity is
   kept honest by a **deterministic containment guard** (no network): the short must not
@@ -53,12 +58,15 @@ and one approval uploads both (long first, short's description linking the long)
 ```python
 def derive_short_tease(long_script: str, idea: dict) -> dict   # {"script": str, "mood": str}
 ```
-Feeds the full (fact-gated) long script to the model with a prompt that: hooks on the
-single most arresting beat, **withholds the payoff**, stays in the short word band
-(`config.SHORT_SCRIPT_WORDS_MIN..MAX`), and **uses only facts already in the long — no
-new names, dates, numbers, or claims**. Returns `{script, mood}` (same shape/parse as
-`generate_short_script`, reusing `_parse_short`). Short metadata via the existing
-`generate_short_metadata`.
+Reuses the **same approved short-writer style** as `generate_short_script` (the prompt
+that produced the Senna/World Cup shorts: MOOD header, write-for-the-ear, high-retention,
+within `config.SHORT_SCRIPT_WORDS_MIN..MAX`) — the only difference is the **source**: it
+is seeded with the full fact-gated long script and constrained to **use only facts already
+in the long — no new names, dates, numbers, or claims**. Output is a condensed Senna-style
+short of the long story (it may end on a hook, but it is NOT a divergent withholding
+format). Returns `{script, mood}` via the existing `_parse_short`; short metadata via the
+existing `generate_short_metadata`. Keep the prompt as close to `generate_short_script`'s
+as possible so we don't stray from the approved base.
 
 ### Component 2 — Containment guard (`engine/pipeline/factcheck.py` or `script.py`)
 
