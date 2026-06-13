@@ -21,7 +21,8 @@ import tempfile
 
 from engine import queue_manager as q
 from engine import paths
-from engine.pipeline.script import clean_short_body, generate_script, generate_short_script
+from engine.pipeline.script import (clean_short_body, generate_script, generate_short_script,
+                                     derive_short_tease, tease_within_long)
 from engine.pipeline.metadata import generate_metadata, generate_short_metadata
 
 GOLD, GREEN, RED, GRAY, RESET = "\033[93m", "\033[92m", "\033[91m", "\033[90m", "\033[0m"
@@ -156,6 +157,47 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
         fields["factcheck_path"] = os.path.relpath(os.path.join(out_dir, "factcheck.json"), _ROOT)
     q.update_idea(idea_id, **fields)
     return {"metadata": meta, "fact_passed": passed}
+
+
+def produce_companion_short(idea: dict) -> dict:
+    """Derive a companion Short from this idea's already-produced LONG, write the short/
+    artifacts, and record short_status. No web fact-gate — the long is verified and the
+    tease is constrained to it; a containment-guard failure flags short_needs_review."""
+    idea_id = idea["id"]
+    title = idea["title_variants"][0]
+    long_script_file = paths.script_path(idea_id, "long")
+    if not os.path.exists(long_script_file):
+        raise FileNotFoundError(f"no long script for [{idea_id}] at "
+                                f"{os.path.relpath(long_script_file, _ROOT)}")
+    with open(long_script_file) as f:
+        long_script = f.read()
+
+    out = derive_short_tease(long_script, idea)
+    short_script = out["script"]
+    if not short_script.strip():
+        raise ValueError(f"companion tease for [{idea_id}] came back empty")
+    within, extra = tease_within_long(short_script, long_script)
+
+    out_dir = paths.artifact_dir(idea_id, "short")
+    os.makedirs(out_dir, exist_ok=True)
+    _atomic_write(paths.script_path(idea_id, "short"), f"# {title}\n\n{short_script}\n")
+    meta = generate_short_metadata(idea, short_script)
+    _atomic_write(paths.metadata_path(idea_id, "short"),
+                  json.dumps(meta, indent=2, ensure_ascii=False))
+
+    short_status = "short_ready" if within else "short_needs_review"
+    fields = {"short_status": short_status,
+              "short_script_path": os.path.relpath(paths.script_path(idea_id, "short"), _ROOT),
+              "short_metadata_path": os.path.relpath(paths.metadata_path(idea_id, "short"), _ROOT)}
+    if out.get("mood"):
+        fields["mood"] = out["mood"]
+    if not within:
+        fields["short_guard_new_tokens"] = extra
+    q.update_idea(idea_id, **fields)
+    print(f"  {GREEN if within else RED}{'✓' if within else '⚠'} companion short "
+          f"({len(short_script.split())} words) — {short_status}"
+          f"{'' if within else f' (new: {extra})'}{RESET}")
+    return {"metadata": meta, "within_long": within, "new_tokens": extra}
 
 
 def main() -> None:
