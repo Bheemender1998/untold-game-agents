@@ -169,3 +169,57 @@ def test_tease_within_long_flags_new_acronym():
     short = "He changed the NBA forever in 1984."   # NBA not in long
     ok, extra = script.tease_within_long(short, long)
     assert not ok and "NBA" in extra
+
+
+def test_hook_rule_present_in_all_hook_prompts():
+    # Regression firewall: the mystery-first hook rule must survive future prompt edits.
+    from engine.pipeline import script
+    for prompt in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM, script.SCRIPT_SYSTEM):
+        assert "front-load the mystery" in prompt
+        assert "exact verified value" in prompt
+
+
+def test_title_numbers_within_passes_when_numbers_in_script():
+    from engine.pipeline import script
+    ok, new = script.title_numbers_within(
+        "The Record He Quit 1457 Yards Short", "He retired 1457 yards from the record in 1999.")
+    assert ok and new == []
+
+
+def test_title_numbers_within_flags_fabricated_number():
+    from engine.pipeline import script
+    ok, new = script.title_numbers_within(
+        "The 1500-Yard Record He Walked Away From", "He retired 1457 yards short in 1999.")
+    assert not ok and new == ["1500"]
+
+
+def test_title_numbers_within_normalizes_thousands_separators():
+    from engine.pipeline import script
+    # script writes the value grouped, title writes it plain — must NOT false-flag.
+    ok, new = script.title_numbers_within("The 2003 Final That Was Stolen",
+                                          "It happened in the 2,003rd minute... in 2,003 of them.")
+    assert ok and new == []
+    # multi-grouped value normalizes fully (global comma strip).
+    ok2, _ = script.title_numbers_within("1234567 Reasons", "There were 1,234,567 of them.")
+    assert ok2
+
+
+def test_title_numbers_within_passes_when_title_has_no_numbers():
+    from engine.pipeline import script
+    ok, new = script.title_numbers_within("The Goal That Cost Him His Life", "Andres Escobar.")
+    assert ok and new == []
+
+
+def test_title_numbers_within_flags_fabricated_decimal():
+    from engine.pipeline import script
+    # title invents '3.5'; script only has the digits '3' and '5' separately -> must flag.
+    ok, new = script.title_numbers_within("The 3.5 Second Secret",
+                                          "He gained 3 yards, then waited 5 long minutes.")
+    assert not ok and new == ["3.5"]
+
+
+def test_title_numbers_within_passes_legit_decimal():
+    from engine.pipeline import script
+    ok, new = script.title_numbers_within("The 1.5 Second Gap That Decided It",
+                                          "The gap was 1.5 seconds at the line.")
+    assert ok and new == []

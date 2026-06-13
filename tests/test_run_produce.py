@@ -39,9 +39,11 @@ def test_short_uses_short_writer_and_stores_mood(monkeypatch):
 
 def test_short_writes_minimal_shorts_metadata(monkeypatch):
     # generate_short_metadata (now in pipeline.metadata) builds the Short's metadata;
-    # stub the LLM call so the test is offline and deterministic.
+    # stub the LLM calls so the test is offline and deterministic.
     from engine.pipeline import metadata
     monkeypatch.setattr(metadata, "_short_desc_llm", lambda idea, s: ("A hook that pulls you in.", ["goal"]))
+    monkeypatch.setattr(metadata, "_short_title_llm",
+                        lambda idea, script: idea["title_variants"][0])
     real_meta = run_produce.generate_short_metadata(_idea(), "The own goal that cost him his life.")
     assert real_meta["title"] == "The Own Goal That Cost Him His Life"
     assert "#Shorts" in real_meta["description"]

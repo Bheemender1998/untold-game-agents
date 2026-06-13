@@ -16,7 +16,11 @@ a YouTube channel telling forgotten sports-history stories in a cinematic, autho
 ESPN "30 for 30" voice. You write voiceover narration that a single narrator reads.
 
 Craft:
-- Open with a COLD OPEN — the hook, in-scene, no throat-clearing. Earn the click in 15 seconds.
+- Open with a COLD OPEN — the hook, in-scene, no throat-clearing. Earn the click in 15 seconds —
+  front-load the mystery, not the data: the strongest cold open carries no specific number, name,
+  or date — lead with the stakes and the unanswered question, and let specifics land after. If a
+  specific does survive into the opening line it must be the exact verified value: never round,
+  never assert a superlative as fact.
 - Then a clear arc: setup → the turning point → the revelation → the aftermath/legacy → a
   resonant closing line that recontextualises everything.
 - Write for the EAR: short sentences, concrete images, present-tense scene-setting, the
@@ -96,8 +100,13 @@ SHORT_SYSTEM = """You are the scriptwriter for "The Untold Game" YouTube SHORTS 
 single narrator reads. No section headers, no markdown, no bracketed production cues.
 
 Craft, in this exact 3-beat shape, as flowing prose (not labelled):
-- HOOK: the very first sentence is a scroll-stopping line that lands the stakes in under two
-  seconds. No throat-clearing, no "in this video".
+- HOOK: front-load the mystery, not the data. The strongest hook carries NO specific number,
+  name, or date — open on the emotional stakes and the unanswered question ("He was one season
+  from immortality. Then he walked away."), and let specifics land in the FACT beat. This
+  mystery-first hook is the GOAL, not a safe fallback — it is the scroll-stopper. If a specific
+  DOES survive into the hook it must be the exact verified value: never round (1,457, never
+  ~1,500), never assert a superlative as fact ("the greatest ... in history"). No throat-clearing,
+  no "in this video".
 - FACT: one untold fact, built tight and concrete — names, dates, the turn.
 - PAYOFF: one resonant closing line that recontextualises it.
 
@@ -218,7 +227,11 @@ high-retention cut of a LONGER video whose full narration is given to you. Same 
 shorts: write for the ear, present-tense, concrete, scroll-stopping.
 
 In this exact 3-beat shape, as flowing prose (not labelled):
-- HOOK: a scroll-stopping first line that lands the stakes in under two seconds.
+- HOOK: front-load the mystery, not the data — a scroll-stopping first line that carries NO
+  specific number, name, or date, opening on the stakes and the unanswered question; specifics
+  land in the FACT beat. This mystery-first hook is the GOAL, not a fallback. If a specific does
+  survive into the hook it must be the exact verified value: never round, never assert a
+  superlative as fact.
 - FACT: the single most arresting fact of the story, tight and concrete.
 - PAYOFF: a closing line that resolves the short while nodding that the full story is bigger.
 
@@ -291,4 +304,40 @@ def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[s
     for num in _TEASE_NUM_RE.findall(short_script):
         if num not in long_nums:
             new.add(num)
+    return (not new, sorted(new))
+
+
+# ── Short-title digit-containment backstop ────────────────────────────────────
+
+# Title backstop captures decimals as ONE token (1.5, 3.5) so a fabricated decimal can't be
+# decomposed into component digit groups that happen to appear separately in the script. Distinct
+# from _TEASE_NUM_RE (used by tease_within_long), which is intentionally left unchanged.
+_TITLE_NUM_RE = re.compile(r"\b\d[\d,]*(?:\.\d+)?\b")
+
+
+def _norm_num(tok: str) -> str:
+    """Normalise a digit token for value comparison: drop thousands-separator commas (global),
+    keep everything else. '2,003' -> '2003'; '1,234,567' -> '1234567'. Decimal points are NOT
+    stripped ('1.5' would corrupt to '15'); note _TEASE_NUM_RE already splits on '.', matching
+    the existing tease-guard behaviour."""
+    return tok.replace(",", "")
+
+
+def title_numbers_within(title: str, script: str) -> tuple[bool, list[str]]:
+    """Backstop for a generated SHORT title: every digit group in `title` must already appear
+    (comma-normalised) as a digit group in the verified `script`. Returns (ok, sorted novel
+    numbers); a non-empty list means the title introduced a number the fact-gated script doesn't
+    contain -> caller self-stubs to title_variants[0].
+
+    Digit groups ONLY -- the proper-noun half of tease_within_long is intentionally NOT used here:
+    titles are Title Case, so every word looks like a proper noun and inflected title words would
+    false-flag. Numbers don't inflect or get title-cased, so digit containment is surgical and
+    targets the real risk (a fabricated stat reaching live metadata). Decimals are captured as one
+    token ('3.5') so they can't be decomposed into component digits that appear separately in the
+    script; hyphenated ranges (1969-70) and alphanumerics (3peat) are still split/skipped --
+    an accepted lower-risk residual. Known conservative limitation: a number the title writes as
+    a digit ('6') that the script only spells out ('six') is flagged and falls back -- rare, and
+    a safe false positive (we never ship a fabricated stat)."""
+    script_nums = {_norm_num(n) for n in _TITLE_NUM_RE.findall(script)}
+    new = {_norm_num(n) for n in _TITLE_NUM_RE.findall(title)} - script_nums
     return (not new, sorted(new))
