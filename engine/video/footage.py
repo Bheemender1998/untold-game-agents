@@ -30,6 +30,30 @@ _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
 # Cross-video dedup ledger of Pexels video ids we've already used.
 _USED_PATH = os.path.join(os.path.dirname(__file__), "used_clips.json")
 
+# Keep b-roll on-sport: each sport maps to the keyword Pexels searches best on.
+_SPORT_KEYWORD = {
+    "F1": "formula 1",
+    "Soccer": "soccer",
+    "NBA": "basketball",
+    "NFL": "american football",
+    "Cricket": "cricket",
+    "College": "college sports",
+    "UFC": "mma",
+    "Multi-sport": "",   # too broad to bias on — leave the query as-is
+}
+
+
+def _sport_query(query: str, sport: str | None) -> str:
+    """Keep a stock-video query on-sport: prepend the sport keyword unless the query
+    already mentions it. Falsy sport → query unchanged (self-stub)."""
+    if not sport:
+        return query
+    keyword = _SPORT_KEYWORD.get(sport, sport.lower())
+    low = query.lower()
+    if keyword in low or sport.lower() in low:
+        return query
+    return f"{keyword} {query}"
+
 
 def pexels_available() -> bool:
     return bool(os.environ.get("PEXELS_API_KEY"))
@@ -132,16 +156,18 @@ def _save_used(used: set) -> None:
 
 
 def fetch_clips(queries: list[str], out_dir: str, api_key: str | None = None,
-                portrait: bool = False) -> list[str | None]:
+                portrait: bool = False, sport: str | None = None) -> list[str | None]:
     """One clip per query (chapter), in order. Each pick is random and de-duplicated
-    against everything used before (across videos) AND within this batch. Missing/failed → None."""
+    against everything used before (across videos) AND within this batch. Each query is
+    biased toward `sport` so the b-roll stays on-sport. Missing/failed → None."""
     os.makedirs(out_dir, exist_ok=True)
     api_key = api_key or os.environ.get("PEXELS_API_KEY")
     used = _load_used()
     batch = set(used)   # also avoid repeating a clip within this same video
     out = []
     for i, q in enumerate(queries):
-        res = _fetch_one(q, os.path.join(out_dir, f"bg_{i:02d}.mp4"), api_key, 1280, batch,
+        sq = _sport_query(q, sport)
+        res = _fetch_one(sq, os.path.join(out_dir, f"bg_{i:02d}.mp4"), api_key, 1280, batch,
                          portrait=portrait) if api_key else None
         if res:
             out.append(res[0])

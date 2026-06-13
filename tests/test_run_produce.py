@@ -29,7 +29,7 @@ def test_short_uses_short_writer_and_stores_mood(monkeypatch):
     monkeypatch.setattr(run_produce, "generate_short_script", _short_writer)
     monkeypatch.setattr(run_produce, "generate_script",
                         lambda idea: (_ for _ in ()).throw(AssertionError("long-form writer must NOT run in --short")))
-    monkeypatch.setattr(run_produce, "_short_metadata", lambda idea, s: {"title": "t", "description": "#Shorts", "tags": ["Shorts"]})
+    monkeypatch.setattr(run_produce, "generate_short_metadata", lambda idea, s: {"title": "t", "description": "#Shorts", "tags": ["Shorts"]})
     monkeypatch.setattr(run_produce, "generate_metadata",
                         lambda idea, s: (_ for _ in ()).throw(AssertionError("long-form metadata must NOT run in --short")))
     run_produce.produce(_idea(), short=True)
@@ -38,14 +38,11 @@ def test_short_uses_short_writer_and_stores_mood(monkeypatch):
 
 
 def test_short_writes_minimal_shorts_metadata(monkeypatch):
-    _stub_common(monkeypatch)
-    monkeypatch.setattr(run_produce, "generate_short_script",
-                        lambda idea: {"script": "The own goal that cost him his life.", "mood": "tense"})
-    written = {}
-    monkeypatch.setattr(run_produce, "generate_metadata",
-                        lambda idea, s: (_ for _ in ()).throw(AssertionError("must not call long-form metadata")))
-    # capture the meta dict by patching json.dumps used at the metadata write
-    real_meta = run_produce._short_metadata(_idea(), "The own goal that cost him his life.")
+    # generate_short_metadata (now in pipeline.metadata) builds the Short's metadata;
+    # stub the LLM call so the test is offline and deterministic.
+    from engine.pipeline import metadata
+    monkeypatch.setattr(metadata, "_short_desc_llm", lambda idea, s: ("A hook that pulls you in.", ["goal"]))
+    real_meta = run_produce.generate_short_metadata(_idea(), "The own goal that cost him his life.")
     assert real_meta["title"] == "The Own Goal That Cost Him His Life"
     assert "#Shorts" in real_meta["description"]
     assert "Shorts" in real_meta["tags"]

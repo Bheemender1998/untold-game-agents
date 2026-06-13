@@ -34,6 +34,12 @@ Content pillars:
 Sports covered: NFL, NBA, Soccer/Football, Cricket, Formula 1, UFC, College Sports
 """
 
+# Channel handle (watermark, end card, description CTA) + default music credit.
+CHANNEL_HANDLE = "@untoldgamemedia"
+# Neutral default — the curated library is mixed-source (Pixabay, Tunetank, etc.), so we
+# don't claim a single source. Per-track credits in music/attribution.json override this.
+MUSIC_CREDIT_DEFAULT = "Royalty-free background music"
+
 # ── Video length target ───────────────────────────────────────────────────────
 # Channel-wide narration-length cap. Overrides each idea's `format_suggestion`
 # (the idea agents tend to propose "18-25 min", which renders ~13min+ and tests
@@ -80,12 +86,14 @@ PRODUCE_TIMEOUT_S = 1800       # 30 min cap on one produce (script + sequential 
 # Kokoro voices (see engine/video/tts.py).
 NARRATION_SPEED = 0.9            # kokoro speed; <1.0 = slower, calmer
 NARRATION_GAP_S = 0.5           # silence between sentences (seconds)
+# Only two voices in rotation: af_sarah (warm, well-proportioned) carries the
+# emotional/somber stories; bm_george (authoritative British male) anchors the rest.
 NARRATION_VOICE_DEFAULT = "bm_george"
 NARRATION_VOICE_BY_MOOD = {
     "triumphant": "bm_george",  # authoritative for the payoff
     "hype":       "bm_george",  # drives energy
-    "tense":      "bm_lewis",   # measured, investigative
-    "somber":     "bf_emma",    # warm, gentle for loss
+    "tense":      "bm_george",  # measured, investigative
+    "somber":     "af_sarah",   # warm, gentle for loss
 }
 # Map the 6 content pillars → a mood, so long-form narration picks a voice too.
 PILLAR_MOOD = {

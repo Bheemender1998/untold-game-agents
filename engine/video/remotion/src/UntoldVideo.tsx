@@ -1,11 +1,12 @@
 import React from 'react';
-import {AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, interpolate, Sequence, staticFile, useVideoConfig} from 'remotion';
 import type {UntoldProps} from './types';
 import {Background} from './components/Background';
 import {ChapterCard} from './components/ChapterCard';
 import {Captions} from './components/Captions';
 import {Intro} from './components/Intro';
-import {Outro} from './components/Outro';
+import {EndCTA} from './components/EndCTA';
+import {Watermark} from './components/Watermark';
 
 const ms2f = (ms: number, fps: number) => Math.round((ms / 1000) * fps);
 
@@ -32,9 +33,27 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
         <Impact />
       </Sequence>
 
-      {/* narration starts after the intro */}
+      {/* narration starts after the intro; mood-matched music bed under it */}
       <Sequence from={introF} name="Narration">
         <Audio src={staticFile(props.audioSrc)} />
+        {props.musicSrc ? (
+          <Audio
+            src={staticFile(props.musicSrc)}
+            loop
+            volume={(f) => {
+              const peak = props.musicVolume ?? 0.12;
+              const total = ms2f(props.introMs + props.narrationMs + props.outroMs, fps) - introF;
+              const fadeIn = Math.round(1.5 * fps);
+              const fadeOut = Math.round(2.5 * fps);
+              return interpolate(
+                f,
+                [0, fadeIn, Math.max(fadeIn, total - fadeOut), total],
+                [0, peak, peak, 0],
+                {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+              );
+            }}
+          />
+        ) : null}
       </Sequence>
 
       {/* chapter title cards (headline holds ~3s then fades, leaving b-roll + captions) */}
@@ -58,10 +77,13 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
         />
       </Sequence>
 
-      {/* subscribe outro after the narration ends */}
-      <Sequence from={introF + narrF} name="Outro">
-        <Outro kicker={props.kicker} />
+      {/* like/comment/subscribe end card after the narration ends */}
+      <Sequence from={introF + narrF} name="EndCTA">
+        <EndCTA />
       </Sequence>
+
+      {/* persistent channel watermark (bottom-right) */}
+      <Watermark />
     </AbsoluteFill>
   );
 };

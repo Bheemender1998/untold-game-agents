@@ -26,4 +26,6 @@ export type UntoldProps = {
   narrationMs: number;   // length of the narration audio
   captions: CaptionWord[];
   chapters: Chapter[];
+  musicSrc?: string;     // background bed filename in public/ (Shorts only); omitted → silent
+  musicVolume?: number;  // peak bed volume under the narration (e.g. 0.12)
 };

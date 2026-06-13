@@ -21,6 +21,34 @@ import tempfile
 from engine import config
 
 
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen "
+         "fourteen fifteen sixteen seventeen eighteen nineteen").split()
+_TENS = ("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+
+
+def _int_to_words(n: int) -> str:
+    """Cardinal number → English words (e.g. 2003 → 'two thousand three'). Up to billions."""
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        return _TENS[n // 10] + (f"-{_ONES[n % 10]}" if n % 10 else "")
+    if n < 1000:
+        return _ONES[n // 100] + " hundred" + (f" {_int_to_words(n % 100)}" if n % 100 else "")
+    for div, name in ((1_000_000_000, "billion"), (1_000_000, "million"), (1000, "thousand")):
+        if n >= div:
+            return _int_to_words(n // div) + f" {name}" + (f" {_int_to_words(n % div)}" if n % div else "")
+    return str(n)
+
+
+def _spell_grouped_numbers(text: str) -> str:
+    """Spell out thousands-separated integers (e.g. '2,003' → 'two thousand three') so TTS
+    reads them naturally instead of digit-by-digit ('two zero zero three'). Skips currency
+    ('$1,234') and decimals ('1,234.56') — espeak reads those acceptably and partial spelling
+    would mangle them. Plain numbers (years, small counts) are left untouched."""
+    return re.sub(r"(?<![\d.$])\d{1,3}(?:,\d{3})+\b(?!\.\d)",
+                  lambda m: _int_to_words(int(m.group().replace(",", ""))), text)
+
+
 def script_to_narration_text(script_md: str) -> str:
     """Strip production cues ([VISUAL]/[ARCHIVAL]/[MUSIC]) and headers so only the
     spoken narration is sent to TTS."""
@@ -31,7 +59,10 @@ def script_to_narration_text(script_md: str) -> str:
             continue
         if re.match(r"^\[[A-Z].*\]$", s):   # bracketed cue lines
             continue
+        if re.match(r"(?i)^MOOD:\s*\w+\s*$", s):  # leaked short-script MOOD header
+            continue
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
+        s = _spell_grouped_numbers(s)        # '2,003' → 'two thousand three' for clean TTS
         lines.append(s)
     return "\n".join(lines)
 
@@ -164,7 +195,29 @@ def _synth_kokoro(text: str, out_path: str, voice: str | None,
     return out_path
 
 
+_ABBR = re.compile(r"\b(?:Mr|Mrs|Ms|Dr|Jr|Sr|St|vs|No|etc|Inc|Ltd)\.")
+# Words that almost always begin a NEW sentence — used to recover a real sentence break
+# after an initialism (e.g. "…in D.C. She moved.") without re-splitting a name ("O.J. Simpson").
+_SENT_START = (r"The|This|That|These|Those|It|He|She|They|We|You|I|But|And|Or|Yet|So|"
+               r"When|While|After|Before|Then|Now|Today|Yesterday|Tomorrow|Meanwhile|"
+               r"By|In|On|At|For|From|With|Despite|During|Within|His|Her|Their|Its|A|An")
+_INITIALISM_BREAK = re.compile(rf"(?<=[A-Z]\.)\s+(?=(?:{_SENT_START})\b)")
+
+
 def _split_sentences(text: str) -> list[str]:
-    """Naive sentence split for chunked synthesis (keeps the terminal punctuation)."""
-    parts = re.split(r"(?<=[.!?])\s+", text.replace("\n", " "))
-    return [p.strip() for p in parts if p.strip()]
+    """Sentence split for chunked synthesis (keeps terminal punctuation). Dotted initialisms
+    (O.J., U.S., D.C., I.R.S.) and common abbreviations (Dr., Mr., No.) are protected so they
+    aren't split into their own chunk — which would speak them with a spurious 0.5s gap. A real
+    sentence break that lands right after an initialism (e.g. 'in D.C. She moved.') is recovered
+    only when the next word is a clear sentence-starter, so names ('O.J. Simpson') stay intact."""
+    sep = "․"  # one-dot leader stands in for a protected period during the split
+    hide = lambda m: m.group(0).replace(".", sep)
+    t = text.replace("\n", " ")
+    t = re.sub(r"\b(?:[A-Za-z]\.){2,}", hide, t)        # O.J., U.S., D.C., I.R.S.
+    t = re.sub(r"\b[A-Z]\.(?=\s*[A-Z][a-z])", hide, t)  # single initial before a name: "J. Smith"
+    t = _ABBR.sub(hide, t)                               # Dr., Mr., No., etc.
+    out: list[str] = []
+    for p in re.split(r"(?<=[.!?])\s+", t):
+        p = p.replace(sep, ".")
+        out.extend(s.strip() for s in _INITIALISM_BREAK.split(p) if s.strip())
+    return out

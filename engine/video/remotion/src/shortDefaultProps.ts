@@ -30,4 +30,6 @@ export const shortDefaultProps: UntoldProps = {
     {headline: 'THE NIGHT IT ENDED', startMs: 0, endMs: 4500},
     {headline: 'A NATION WATCHED', startMs: 4500, endMs: 9000},
   ],
+  musicSrc: undefined,   // still-preview safe; real renders set this from the mood folder
+  musicVolume: 0.12,
 };

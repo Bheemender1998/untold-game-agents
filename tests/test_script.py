@@ -82,3 +82,39 @@ def test_short_strips_leading_rule_even_without_mood(monkeypatch):
     assert out["mood"] == ""
     assert out["script"] == "The real narration starts here."
     assert "---" not in out["script"]
+
+
+def test_short_drops_model_preamble_before_mood(monkeypatch):
+    # The writer (or fact-correction) sometimes emits a chatty preamble BEFORE the MOOD
+    # header. A MOOD:<valid mood> line is the real header — everything before it is
+    # scaffolding and must be dropped, never narrated. (Regression: the O.J. short opened
+    # with "All facts confirmed. Now writing the script. Mood somber...".)
+    raw = ("All facts confirmed. Now writing the script.\n\n"
+           "MOOD: somber\n\n"
+           "He made white America forget he was Black.")
+    monkeypatch.setattr(script.ShortScriptWriter, "_call", lambda self, p, **k: raw)
+    out = script.generate_short_script({"title_variants": ["X"], "hook": "h",
+                                        "pillar": "forgotten_figure", "sport": "NFL",
+                                        "target_audience": "fans", "why_it_works": "w"})
+    assert out["mood"] == "somber"
+    assert out["script"] == "He made white America forget he was Black."
+    assert "All facts confirmed" not in out["script"]
+    assert "MOOD" not in out["script"]
+
+
+def test_clean_short_body_strips_scaffolding():
+    # Used to re-clean fact-corrected short scripts (the correction model re-adds headers).
+    assert script.clean_short_body("MOOD: tense\n\nThe hook.") == "The hook."
+    assert script.clean_short_body("Preamble line.\n\nMOOD: tense\n\nThe hook.") == "The hook."
+    assert script.clean_short_body("The hook, already clean.") == "The hook, already clean."
+
+
+def test_short_keeps_invalid_mood_first_line_as_narration(monkeypatch):
+    # A real hook line that happens to start "MOOD:" (non-mood value) must NOT be dropped.
+    raw = "MOOD: this was the word on every fan's face that night.\nThen everything changed."
+    monkeypatch.setattr(script.ShortScriptWriter, "_call", lambda self, p, **k: raw)
+    out = script.generate_short_script({"title_variants": ["X"], "hook": "h",
+                                        "pillar": "what_if", "sport": "F1",
+                                        "target_audience": "fans", "why_it_works": "w"})
+    assert out["mood"] == ""
+    assert out["script"].startswith("MOOD: this was the word")  # kept as narration

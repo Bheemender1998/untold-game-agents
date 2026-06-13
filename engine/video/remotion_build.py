@@ -13,6 +13,7 @@ import os
 from engine.video import captions as _captions
 from engine.video import compose as _compose
 from engine.video import footage as _footage
+from engine.video import music as _music
 from engine.video import tts as _tts
 
 INTRO_MS = 4000
@@ -44,7 +45,7 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
 
     # One atmospheric Pexels clip per chapter (symbolic only). Missing → gradient fallback.
     clips = _footage.fetch_clips([s.get("visual", "") for s in sections], video_dir,
-                                 portrait=portrait)
+                                 portrait=portrait, sport=idea.get("sport"))
 
     chapters, assets = [], []
     for h, clip in zip(heads, clips):
@@ -73,4 +74,12 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
         "captions": cap_words,
         "chapters": chapters,
     }
-    return props, assets
+
+    # Mood-matched background bed mixed low under the narration (both formats).
+    music_credit = ""
+    frag, music_asset, music_credit = _music.short_music_props(idea)
+    if music_asset:
+        props.update(frag)
+        assets.append(music_asset)
+
+    return props, assets, music_credit

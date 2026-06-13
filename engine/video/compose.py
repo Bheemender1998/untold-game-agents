@@ -203,7 +203,8 @@ def _build_narrated(idea: dict, script_md: str, out_html: str,
     # Background layer — one atmospheric Pexels clip per chapter (symbolic only). Missing
     # key / failed fetch → None → that chapter falls back to the gradient (never crashes).
     out_dir = os.path.dirname(out_html)
-    clips = _footage.fetch_clips([s.get("visual", "") for s in sections], out_dir)
+    clips = _footage.fetch_clips([s.get("visual", "") for s in sections], out_dir,
+                                 sport=idea.get("sport"))
     bg_segments = []
     for h, clip in zip(headlines, clips):
         if clip:
@@ -235,13 +236,14 @@ channel). Split a narration script into its natural CHAPTERS (sections). For eac
 - HEADLINE: a punchy on-screen chapter title (2-5 words, uppercase-ready).
 - ANCHOR: the first 4-8 words of that chapter copied VERBATIM from the narration, exactly
   as spoken, so we can find where it starts in the audio.
-- VISUAL: a 2-4 word stock-video search query for the background. It MUST describe an
-  EMPTY PLACE, OBJECT, or TEXTURE — never a person. Good: "empty stadium night",
-  "stadium floodlights", "empty seats arena", "rain on window", "wet street night",
-  "fog over field", "storm clouds", "waving flag", "grass close up", "city lights aerial",
-  "old film grain", "candle vigil", "tunnel light". BANNED: any person, face, portrait,
-  player, crowd close-up, hands, body — and never a named real person/team/news clip.
-  When unsure, fall back to a pure texture/weather/architecture shot.
+- VISUAL: a 2-4 word stock-video search query showing ANONYMOUS action, equipment, venue, or
+  atmosphere FOR THE SPORT named above, that fits this chapter's moment. Examples — F1: "formula 1 car racing",
+  "race track aerial", "pit lane", "rain race spray", "checkered flag"; soccer: "soccer ball
+  net", "empty football stadium", "stadium floodlights"; cricket: "cricket pitch", "cricket
+  stumps", "cricket bat swing"; basketball: "basketball hoop", "empty basketball court".
+  Keep it GENERIC stock footage — NEVER an identifiable real person, named team, logo, jersey
+  number, or any news/archival clip of the actual event or people in this story. When unsure,
+  use a generic sport venue or equipment shot.
 Keep chapters in order. 6-12 chapters."""
 
 _HEADLINE_SCHEMA = {

@@ -1,8 +1,10 @@
 import React from 'react';
-import {AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, interpolate, Sequence, staticFile, useVideoConfig} from 'remotion';
 import type {UntoldProps} from './types';
 import {Background} from './components/Background';
 import {ShortCaptions} from './components/ShortCaptions';
+import {Watermark} from './components/Watermark';
+import {EndCTA} from './components/EndCTA';
 
 const ms2f = (ms: number, fps: number) => Math.round((ms / 1000) * fps);
 
@@ -18,12 +20,34 @@ export const UntoldShort: React.FC<UntoldProps> = (props) => {
       <Background chapters={props.chapters} introMs={props.introMs} />
       <Sequence from={introF} name="Narration">
         <Audio src={staticFile(props.audioSrc)} />
+        {props.musicSrc ? (
+          <Audio
+            src={staticFile(props.musicSrc)}
+            loop
+            volume={(f) => {
+              const peak = props.musicVolume ?? 0.12;
+              const total = ms2f(props.introMs + props.narrationMs + props.outroMs, fps);
+              const fadeIn = Math.round(1.5 * fps);
+              const fadeOut = Math.round(2.5 * fps);
+              return interpolate(
+                f,
+                [0, fadeIn, Math.max(fadeIn, total - fadeOut), total],
+                [0, peak, peak, 0],
+                {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+              );
+            }}
+          />
+        ) : null}
       </Sequence>
       <Sequence from={introF} name="Captions">
         <ShortCaptions
           captions={props.captions}
         />
       </Sequence>
+      <Sequence from={introF + ms2f(props.narrationMs, fps)} name="EndCTA">
+        <EndCTA vertical />
+      </Sequence>
+      <Watermark vertical />
     </AbsoluteFill>
   );
 };
