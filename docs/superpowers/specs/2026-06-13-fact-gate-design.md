@@ -35,7 +35,8 @@ false-positive tax.
 
 - Cut false positives on encyclopedic (well-documented historical) claims so clean
   scripts can pass without hand-review.
-- Cut LLM cost from ~27 calls/script to **2** (extract+classify, batched judge).
+- Cut LLM cost from ~27 calls/script to **2 typical** (extract+classify, batched
+  judge) — **+1 per overflow chunk** on unusually long scripts (see Stage 3).
 - Compound savings across videos via an entity cache (a sports channel reuses
   "Ayrton Senna", "1994 San Marino GP", etc. constantly).
 - **Never** auto-pass a claim that isn't genuinely confirmed (confidence floor), and
@@ -115,7 +116,9 @@ lever — it shrinks the problem before any routing):
   fallback** (`web_search`, the existing free client). This is the minority of claims.
 - `Evidence` carries `{kind: encyclopedic|web|none, text, source_url}`.
 
-Never raises — any lookup failure yields `kind="none"` (claim cannot auto-pass).
+Never raises — any lookup failure yields `kind="none"`. A `kind="none"` claim is **not
+dropped**: it still goes to the judge (with empty evidence) and comes back `unverified`
+(an issue → human), never silently removed from coverage (see Stage 4, item 1).
 
 ### Stage 3 — `judge(claims_with_evidence) -> list[Verdict]`  *(LLM call #2, batched)*
 
@@ -124,14 +127,21 @@ verdicts. Prompt rules:
 
 - **Confidence floor:** return `supported` **only** if the evidence confirms the
   **same entity and the same specific fact** — not fuzzy keyword overlap. Ambiguous,
-  partial, or wrong-entity evidence → `unverified`. (Trading DDG's false-flags for
-  MediaWiki false-*passes* would be worse — a false pass ships an error.)
+  partial, wrong-entity, **or empty (`kind="none"`)** evidence → `unverified`. (Trading
+  DDG's false-flags for MediaWiki false-*passes* would be worse — a false pass ships an
+  error.)
 - **Source weighting:** encyclopedic confirmation outranks web snippets. A
   MediaWiki-confirmed fact is **not** second-guessed by a weak DDG snippet.
 - Verdict: `{claim, status: supported|contradicted|unverified, correction, source,
-  evidence_kind}`.
+  evidence_kind}`. **`correction` is human-facing guidance only — nothing consumes it
+  programmatically** (auto-correct is gone; do not rewire it into a rewrite).
 - **Chunk fallback:** if total evidence exceeds a token budget, split into ≤K-claim
-  chunks and concatenate verdicts (rare; extracts are short after windowing).
+  chunks and concatenate verdicts (rare after windowing). This is **+1 LLM call per
+  overflow chunk** — so the cost figure is **"2 calls typical, +1 per overflow chunk,"**
+  not a hard 2.
+- **Judge failure → fail closed, loudly.** If the judge call fails after retries,
+  every claim becomes `unverified`, `complete=False`, `passed=False` — the whole script
+  routes to human review. A broken judge never produces an auto-pass.
 
 ### Stage 4 — `factcheck(script_md, max_claims) -> dict`  *(orchestrator)*
 
@@ -148,11 +158,22 @@ untouched:
 }
 ```
 
-- `issues` = every `contradicted` verdict + every `unverified` verdict on a checkable
-  claim (these route to human review).
-- `complete` = coverage check (enough checkable claims were actually adjudicated, not
-  left at `kind="none"`).
-- `passed` = `complete and not issues`.
+**Invariant (item 1 — closes the fail-open seam): every checkable claim terminates in
+exactly one of `{supported, contradicted, unverified}`. A claim is NEVER silently
+dropped.** A claim whose evidence-gathering failed (`kind="none"`) is still sent to the
+judge (with empty evidence) and MUST return `unverified`. `unverified` is always an
+issue. So a claim can never vanish from *both* `issues` and the coverage denominator —
+the only way to "disappear" is to be `supported`, which requires the confidence floor.
+
+- `issues` = every `contradicted` verdict **+ every `unverified` verdict** (no
+  exceptions; a `kind="none"` claim is therefore always an issue → human review).
+- `complete` = **extraction was not truncated** — every checkable claim in the script
+  was extracted *and* adjudicated, i.e. the `max_claims` cap did not force any claim to
+  be skipped. It is **not** a fraction and never reduces the denominator by dropping a
+  claim. (If the script has more checkable claims than `max_claims`, `complete=False`
+  → cannot auto-pass.)
+- `passed` = `complete and not issues` → in practice, **passes only if every checkable
+  claim came back `supported`** with nothing truncated.
 - `would_auto_pass` = the gate's *real* verdict (== `passed`), recorded even in shadow
   mode where the produce flow ignores it.
 
@@ -164,8 +185,13 @@ untouched:
 - Shape: `{"resolutions": {query: title}, "extracts": {title: {text, fetched_at}}}`.
 - Keyed by **resolved article title** so the 2nd Senna video reuses
   "Ayrton Senna" / "1994 San Marino Grand Prix" for free.
-- TTL: **180 days** (encyclopedic facts are stable; the TTL just guards against an
-  article being rewritten). Expired entries are re-fetched.
+- TTL: **30 days** (`config.FACTCACHE_TTL_DAYS`). Historical facts are stable, but
+  **living entities have moving tails** — "Verstappen has won four titles" goes stale
+  the day he wins a fifth. 30 days bounds that staleness while still giving a
+  daily-cadence channel heavy intra-month reuse; expired entries are re-fetched. This
+  does **not** fully close the living-entity gap (see Risks) — a count that changes
+  *within* the TTL against a cached extract can still false-pass; that residual is what
+  shadow mode is there to catch.
 - Concurrency: overnight `run_auto` produces sequentially (count=3, one at a time), so
   read-modify-write of the JSON file is safe. Writes are atomic (temp file + rename).
 - Per-machine: if produce runs on Railway and a second machine elsewhere, each builds
@@ -202,6 +228,16 @@ Flip `FACT_GATE_SHADOW = False` only when **all** hold over a contiguous shadow 
    `would_auto_pass` whole **and** the human confirmed clean — proving the gate isn't
    just flagging everything to stay safe.
 
+**Measurement integrity (item 4) — the threshold is only as honest as the review
+behind it.** The "zero false-passes" criterion holds only if human review stays at
+full rigor during shadow. There's a real drift risk: as confidence grows, attention
+slackens, and you record zero false-passes because you stopped looking hard, not
+because there are none — crossing the threshold on degraded evidence. **Protocol:
+during shadow, review each script at constant rigor and BLIND to the gate's
+`would_auto_pass`** — verdict the script first, *then* reveal what the gate decided and
+compare. `would_auto_pass`/`would_pass_claims` must not be visible (or must be ignored)
+until your own verdict is recorded, so the gate can't anchor you.
+
 When met, flipping the flag is the only change: `passed → in_production` (render
 overnight, no script-stage human review); `recent`/`unverified` scripts still →
 `needs_review` → human. The publish gate (`awaiting_approval` → human `--approve`)
@@ -217,7 +253,7 @@ remains regardless.
 - **`engine/run_factcheck.py`** → `--fix` **removed/deprecated** (human-only).
 - **`.claude/skills/fact-review/SKILL.md`** → drop the `--fix` mention; the human
   override is hand-edit + `--review`, as already practised.
-- **`engine/config.py`** → add `FACTCACHE_PATH`, `FACTCACHE_TTL_DAYS=180`,
+- **`engine/config.py`** → add `FACTCACHE_PATH`, `FACTCACHE_TTL_DAYS=30`,
   `FACT_GATE_SHADOW=True`.
 - **`engine/ideate/wikipedia.py`** → gains dumb primitives `search_title(query)` and
   `extract(title, full=True)`; resolution/windowing/cache smarts live in
@@ -246,6 +282,22 @@ during the 2026-06-13 review (Wikipedia extracts), mocked offline and determinis
 The test asserts the gate flags the three errors (and never `supported`s them) and
 `supported`s the correct ones — reproducing the human verdicts at claim granularity.
 
+**Honest scope of the oracle (item 3):** it mocks stages 1 and 2 (extraction and
+evidence-gathering) and exercises only the **judge** with clean claims + correct
+evidence. But the original false positives came *from* stages 1–2 (wrong-page
+Wikipedia, intro-only depth) — the very stages the oracle mocks past. **So a green
+oracle proves the judge prompt is sound; it does NOT prove the pipeline fixes the
+false-positive problem.** That proof comes only from shadow mode. A passing oracle is
+**not** license to shorten the shadow window or lower the flip threshold.
+
+**Stage 1–2 resolution test (covers what the oracle can't):** run the *real*
+`gather_evidence` resolution + windowing against **recorded MediaWiki API JSON
+fixtures** (the actual responses for "1998 FIFA World Cup Group F", "Renault Formula
+One crash controversy", "Ayrton Senna"). Assert it (a) resolves to the correct article
+title from an `entity+fact` query, and (b) the windowed extract **contains the deep
+fact** (the 84' minute, the lap-15 Turn-17 line, the steering-column ruling) — i.e. it
+no longer returns intro-only. Deterministic, offline, and it tests the actual bug fix.
+
 **Unit:**
 - Uncheckable claims (opinion/framing) dropped at stage 1.
 - Era heuristic forces `recent` on a future year even if the model tags it
@@ -272,6 +324,18 @@ The test asserts the gate flags the three errors (and never `supported`s them) a
   closed (nothing passes). Mitigated by TDD + oracle + dual adversarial review.
 - **MediaWiki false-pass** (the dangerous direction) — guarded by the confidence floor
   (`supported` requires same-entity-same-fact) and shadow measurement.
+- **Living-entity staleness gap (item 2, known + accepted).** A genuinely-recent claim
+  with no year or temporal phrase ("Verstappen has won four titles") can be tagged
+  `encyclopedic`, hit a cached extract that's stale *within* the 30-day TTL, and
+  false-pass against out-of-date evidence. The era heuristic only triggers on explicit
+  temporal cues, so it won't catch this. Partially mitigated by the 30-day TTL (vs
+  180); a per-entity "volatile/active" shorter TTL is a **deferred option**, not built
+  now. Named here so it's a decision, not an accident — and shadow mode is the net that
+  surfaces it before flip.
+- **Oracle scope (item 3).** The known-answer oracle mocks stages 1–2, so it validates
+  the judge, not the end-to-end false-positive fix (see Testing). A green oracle is not
+  evidence the pipeline works on unseen scripts — only shadow mode is. Do not let a
+  passing oracle shorten the shadow window.
 - **Contained elsewhere:** schema preserved → most consumers untouched; only 3 small
   caller edits; new gitignored cache; more (free, cached) MediaWiki calls; render and
   the 3 in-flight videos unaffected.
