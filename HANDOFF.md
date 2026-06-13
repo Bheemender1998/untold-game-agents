@@ -4,6 +4,49 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 11 (2026-06-13) — Packaging feedback → 3 slices shipped (text · thumbnails · positioning)
+
+External "make it viral / fix the identity crisis" feedback decomposed into slices ([[packaging-feedback-slices]]
+memory has the full map). **4 PRs merged** via the full `ship-video-change` rail (dual adversarial review —
+Claude + Codex, both PASS after fix rounds). Specs/plans in `docs/superpowers/{specs,plans}/2026-06-13-*`.
+
+### Shipped to main
+- **#22** — text layer: front-loaded "mystery-first" hooks + withholding (not editorializing) titles +
+  dedicated short-title pass guarded by a digit-only containment backstop (`script.title_numbers_within`).
+- **#24** — thumbnail engine "Prestige Feed Killer": `engine/pipeline/thumbnail.py` Pillow compositor
+  (archival grade + grain + vignette + UNTOLD stamp + withholding tension line w/ text-anchored red marker)
+  + `run_thumbnail` CLI + `cmd_approve` wiring. Pillow added to `python3`; OFL fonts bundled.
+- **#27** — channel positioning "Editorial Archive": `engine/pipeline/banner.py` (2560×1440) + `run_banner`
+  CLI; canonical line **"The Archive of Lost Sports History"** in `config.CHANNEL_SUBTITLE`/`CHANNEL_CONTEXT`/
+  `channel.yaml`; `config.CHANNEL_DESCRIPTION` (public About copy).
+- **#28** — `scripts/source_thumbnails.py` (Wikipedia subject photo → 6 thumbnails) +
+  `scripts/fix_live_timestamps_and_thumbs.py` (push thumbs + fix chapter timestamps on published videos).
+
+Tests: `python3 -m pytest tests/ -q` → **233 passing**. Working tree clean.
+
+### Open — manual actions (assets/code ready; human applies)
+1. `python3 -m engine.run_banner` → upload `channel/banner.png` as channel art + paste `channel/description.txt`
+   into "About" in YouTube Studio.
+2. Thumbnails for the published batch: `python3 scripts/source_thumbnails.py` (review the 6) →
+   `PYTHONPATH=. python3 scripts/fix_live_timestamps_and_thumbs.py`. New people/sports: add their Wikipedia
+   article to the `SUBJECTS` map.
+3. Retitle unpublished ideas: `python3 -m engine.run_produce --id <id> --metadata-only` (+ `--format short`).
+   New titles flow automatically for not-yet-produced ideas; published videos need the title applied in Studio.
+
+### Open — deferred slices (render layer, gate on the 45-min Remotion loop; each needs its own brainstorm→spec→plan)
+- Long-form pacing (chapter cards w/ sound, music swells, holding on silence) — overlaps [[long-form-quality-feedback]].
+- Shorts visual cadence (pattern interrupts, animated on-screen text, faster cuts).
+
+### Decisions / watch-outs
+- Issue **#21** tracks publish-gate hardening: a fabricated proper-noun in a short title / thumbnail tension
+  line isn't deterministically caught (digit-only backstop by design; publish requires manual `--approve`).
+- **Worktree/branching:** `main` is held by the parallel fact-gate worktree (`../untold_game_agents-wt-fact-gate`).
+  Don't `git checkout main` in the primary checkout — branch from `origin/main`. ([[parallel-agents-use-worktrees]])
+- Parallel fact-gate session is live (own branch); also tracking Massa thumbs / engine title-case / worktree
+  cleanup ([[first-longform-batch-published]]). Coordinate before touching `engine/run_auto.py` / `config.py` / publish path.
+
+---
+
 ## Session 10 (2026-06-12/13) — Shorts→YouTube end-to-end + template/branding/long-form/automation
 
 Huge session. **1 PR merged (#14, squash `5b6aa84`)** via the full `ship-video-change` rail (dual
