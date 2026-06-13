@@ -29,9 +29,8 @@ export const Captions: React.FC<{captions: CaptionWord[]}> = ({captions}) => {
   const page = pages.find((p) => nowMs >= p.startMs && nowMs < p.startMs + p.durationMs);
   if (!page) return null;
 
-  // Page-level fade: ease the whole block in/out instead of hard-cutting (matters most at the
-  // chapter-headline boundaries, where captions resume/suppress). Kept short so contiguous
-  // pages mid-narration only dip briefly at a natural phrase beat.
+  // Page-level fade: ease the whole block in/out instead of hard-cutting. Kept short so
+  // contiguous pages mid-narration only dip briefly at a natural phrase beat.
   const intoPage = nowMs - page.startMs;
   const leftInPage = page.startMs + page.durationMs - nowMs;
   const pageOpacity = Math.min(
