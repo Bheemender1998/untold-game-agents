@@ -243,9 +243,12 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
             sys.exit(f"dry-run FAILED for {idea_id}: metadata/video invalid")
         print(f"✓ dry-run OK for {idea_id} (auth + metadata valid; not published)")
         return
+    thumb = paths.thumbnail_path(idea_id, "long")
+    thumb = thumb if os.path.exists(thumb) else None
     yt_id = uploader.upload(video_path=video, title=meta["title"],
                             description=meta.get("description", ""),
-                            tags=meta.get("tags"), privacy=privacy)
+                            tags=meta.get("tags"), privacy=privacy,
+                            thumbnail_path=thumb)
     q.update_idea(idea_id, status="published",
                   long_youtube_url=f"https://youtu.be/{yt_id}")
     print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
@@ -256,8 +259,11 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
             smeta = _load_metadata(idea["short_metadata_path"])
             svideo = os.path.join(_ROOT, idea["short_video_path"])
             sdesc = f"{smeta.get('description', '')}\n\n▶ Full story on our channel: {long_url}".strip()
+            sthumb = paths.thumbnail_path(idea_id, "short")
+            sthumb = sthumb if os.path.exists(sthumb) else None
             short_id = uploader.upload(video_path=svideo, title=smeta["title"],
-                                       description=sdesc, tags=smeta.get("tags"), privacy=privacy)
+                                       description=sdesc, tags=smeta.get("tags"), privacy=privacy,
+                                       thumbnail_path=sthumb)
             q.update_idea(idea_id, short_youtube_url=f"https://youtu.be/{short_id}")
             print(f"✓ companion short {idea_id} → https://youtu.be/{short_id} ({privacy})")
         except Exception as e:                  # short failure must not undo the long
