@@ -52,3 +52,27 @@ def test_compose_handles_empty_tension_text(tmp_path):
     tn.compose(str(subj), "", str(out))   # asset layer only, no crash
     with Image.open(out) as im:
         assert im.size == (1280, 720)
+
+
+def test_thumbnail_text_uses_human_override(monkeypatch):
+    # override present -> used verbatim, no LLM call
+    monkeypatch.setattr(tn, "_thumbnail_text_llm", lambda i, s: (_ for _ in ()).throw(AssertionError("LLM should not be called")))
+    assert tn._thumbnail_text({"thumbnail_text": "10 DAYS LATER"}, "script") == "10 DAYS LATER"
+
+
+def test_thumbnail_text_uses_llm_when_clean(monkeypatch):
+    monkeypatch.setattr(tn, "_thumbnail_text_llm", lambda i, s: "THEN HE VANISHED")
+    assert tn._thumbnail_text({}, "He retired one season short of the record.") == "THEN HE VANISHED"
+
+
+def test_thumbnail_text_rejects_fabricated_number(monkeypatch):
+    # '1500' is not in the script -> digit backstop rejects -> empty (no override)
+    monkeypatch.setattr(tn, "_thumbnail_text_llm", lambda i, s: "1500 YARDS SHORT")
+    assert tn._thumbnail_text({}, "He retired 1457 yards short.") == ""
+
+
+def test_thumbnail_text_falls_back_to_empty_on_llm_error(monkeypatch):
+    def boom(i, s):
+        raise RuntimeError("down")
+    monkeypatch.setattr(tn, "_thumbnail_text_llm", boom)
+    assert tn._thumbnail_text({}, "script") == ""

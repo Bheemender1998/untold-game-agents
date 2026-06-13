@@ -1,8 +1,12 @@
 """Stage 2 — THUMBNAIL: deterministic Pillow compositor for the channel's
 "Prestige Feed Killer" thumbnail template (asset layer + tension layer)."""
 from __future__ import annotations
+import json
 import os
+import anthropic
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFont, ImageOps
+from engine.config import MODEL
+from engine.pipeline.script import title_numbers_within
 
 _FONTS = os.path.join(os.path.dirname(__file__), "assets", "fonts")
 TENSION_FONT = os.path.join(_FONTS, "Anton-Regular.ttf")
@@ -113,3 +117,45 @@ def compose(subject_path: str, tension_text: str, out_path: str) -> None:
     if tension_text:
         _draw_tension(draw, tension_text)
     graded.save(out_path, "JPEG", quality=88)
+
+
+_THUMB_TEXT_SYSTEM = """You write the on-thumbnail TENSION LINE for a YouTube sports-history
+SHORT/video. 2-4 words, UPPERCASE, ultra-condensed punch. Open the gap by withholding the
+resolution — never editorialize, never state the payoff. Use ONLY facts in the script; introduce
+no name, number, or date that isn't there. Any specific must be the EXACT value from the script:
+never round, never invent a superlative. Output only the line — no quotes, punctuation, or labels."""
+
+_THUMB_TEXT_SCHEMA = {
+    "type": "object",
+    "properties": {"line": {"type": "string"}},
+    "required": ["line"],
+    "additionalProperties": False,
+}
+
+
+def _thumbnail_text_llm(idea: dict, script: str) -> str:
+    """One structured call -> a 2-4 word withholding tension line. Raises on failure."""
+    client = anthropic.Anthropic(max_retries=5)
+    resp = client.messages.create(
+        model=MODEL, max_tokens=32, system=_THUMB_TEXT_SYSTEM,
+        messages=[{"role": "user", "content": f"SCRIPT:\n{script}\n\nWrite the tension line."}],
+        output_config={"format": {"type": "json_schema", "schema": _THUMB_TEXT_SCHEMA}},
+    )
+    data = json.loads(next(b.text for b in resp.content if b.type == "text"))
+    return data["line"].strip().upper()
+
+
+def _thumbnail_text(idea: dict, script: str) -> str:
+    """Resolve the tension line: human override wins; else the LLM line guarded by the digit
+    backstop; on failure / empty / backstop-reject, fall back to the override or "" (asset-only)."""
+    override = (idea.get("thumbnail_text") or "").strip()
+    if override:
+        return override
+    try:
+        line = _thumbnail_text_llm(idea, script)
+    except Exception:
+        return ""
+    if not line:
+        return ""
+    ok, _ = title_numbers_within(line, script)
+    return line if ok else ""
