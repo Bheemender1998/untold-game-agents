@@ -161,6 +161,21 @@ def update_idea(idea_id: str, **fields) -> bool:
     return False
 
 
+def split_youtube_url_field() -> int:
+    """One-time migration: move a legacy single `youtube_url` to `short_youtube_url`
+    (the existing published uploads are all shorts). Idempotent — skips any idea that
+    already has `short_youtube_url`. Returns the number of ideas migrated."""
+    ideas = _load()
+    moved = 0
+    for idea in ideas:
+        if idea.get("youtube_url") and not idea.get("short_youtube_url"):
+            idea["short_youtube_url"] = idea["youtube_url"]
+            moved += 1
+    if moved:
+        _save(ideas)
+    return moved
+
+
 def stats() -> dict:
     ideas = _load()
     statuses = {}
