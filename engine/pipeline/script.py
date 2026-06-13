@@ -6,6 +6,7 @@ ground facts). Output is a cinematic voiceover script in the channel's "30 for 3
 voice, with structure and [VISUAL]/[ARCHIVAL] production cues.
 """
 from __future__ import annotations
+import re
 
 from engine.ideate.base_agent import BaseAgent
 from engine import config
@@ -263,11 +264,9 @@ def derive_short_tease(long_script: str, idea: dict) -> dict:
 
 # ── Companion-short containment guard ─────────────────────────────────────────
 
-import re as _re
-
 # Capitalized words/names (skip sentence-start common words); and number groups.
-_TEASE_NAME_RE = _re.compile(r"\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\b")
-_TEASE_NUM_RE = _re.compile(r"\b\d[\d,]*\b")
+_TEASE_NAME_RE = re.compile(r"\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\b")
+_TEASE_NUM_RE = re.compile(r"\b\d[\d,]*\b")
 _TEASE_STOP = {"the", "this", "that", "then", "they", "he", "she", "it", "and", "but",
                "in", "on", "at", "a", "an", "his", "her", "their", "by", "so", "no",
                "when", "now"}
@@ -275,17 +274,21 @@ _TEASE_STOP = {"the", "this", "that", "then", "they", "he", "she", "it", "and", 
 
 def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[str]]:
     """Deterministic integrity guard (no network): every factual specific in the short —
-    capitalized proper-noun tokens and digit groups — must already appear in the long.
-    Returns (ok, sorted_new_tokens). A non-empty list means the short introduced something
-    the verified long didn't contain → caller flags the short needs_review."""
-    long_low = long_script.lower()
+    capitalized proper-noun tokens and digit groups — must already appear in the long, as a
+    whole token (not a substring). Returns (ok, sorted_new_tokens); a non-empty list means the
+    short introduced something the verified long didn't contain → caller flags short_needs_review.
+    Scope note: this catches capitalized names and digit groups; spelled-out numbers and
+    lowercase novel nouns are intentionally not caught — the short is also constrained by the
+    derive prompt and the long is already fact-gated, so this is a conservative backstop."""
+    long_words = {w.lower() for w in re.findall(r"\b[\w'\-]+\b", long_script)}
+    long_nums = set(_TEASE_NUM_RE.findall(long_script))
     new: set[str] = set()
     for tok in _TEASE_NAME_RE.findall(short_script):
         if len(tok) < 3 or tok.lower() in _TEASE_STOP:
             continue
-        if tok.lower() not in long_low:
+        if tok.lower() not in long_words:
             new.add(tok)
     for num in _TEASE_NUM_RE.findall(short_script):
-        if num not in long_script:
+        if num not in long_nums:
             new.add(num)
     return (not new, sorted(new))

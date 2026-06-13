@@ -137,6 +137,14 @@ def test_tease_within_long_flags_new_name_and_number():
     assert "Mansell" in extra and "1992" in extra
 
 
+def test_tease_within_long_substring_number_is_flagged():
+    from engine.pipeline import script
+    long = "In 1984 Senna raced at Monaco."
+    short = "It happened in 84 at Monaco."   # '84' is a substring of '1984' but a NEW token
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "84" in extra
+
+
 def test_derive_short_tease_parses_mood_and_includes_long(monkeypatch):
     from engine.pipeline import script
     captured = {}

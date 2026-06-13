@@ -242,7 +242,7 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
                   long_youtube_url=f"https://youtu.be/{yt_id}")
     print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
     long_url = f"https://youtu.be/{yt_id}"
-    # Companion short (if produced + clean): upload unlisted with the long URL in its description.
+    # Companion short (if produced + clean): upload with the long URL embedded in its description (inherits the long's privacy).
     if idea.get("short_status") == "short_awaiting_approval" and idea.get("short_video_path"):
         try:
             smeta = _load_metadata(idea["short_metadata_path"])

@@ -369,9 +369,6 @@ def test_cmd_approve_uploads_long_then_linked_short(monkeypatch):
     ups = []
     monkeypatch.setattr(run_auto.uploader, "upload",
                         lambda **k: ups.append(k) or ("ytLONG" if "Long" in k["title"] else "ytSHORT"))
-    appends = {}
-    monkeypatch.setattr(run_auto.uploader, "append_to_description",
-                        lambda vid, suffix, **k: appends.update(vid=vid, suffix=suffix) or "newdesc")
     seen = {}
     monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
     run_auto.cmd_approve("x", public=False, dry_run=False)
