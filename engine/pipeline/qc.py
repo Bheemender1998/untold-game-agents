@@ -7,6 +7,7 @@ import re
 import subprocess
 
 from engine import config
+from engine import paths
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -105,11 +106,11 @@ def caption_coverage(props_path: str, audio_dur: float) -> dict:
             "detail": f"coverage={coverage:.0%} max_gap={max_gap_s:.1f}s"}
 
 
-def qc_video(idea_id: str) -> dict:
-    """Run all local checks on produced/<id>/video and write produced/<id>/qc.json.
+def qc_video(idea_id: str, fmt: str = "long") -> dict:
+    """Run all local checks on produced/<id>/<fmt>/video and write that dir's qc.json.
     Returns {'passed': bool, 'checks': [...]}. Never raises — missing inputs fail a check."""
-    base = os.path.join(_ROOT, "produced", idea_id)
-    vdir = os.path.join(base, "video")
+    base = paths.artifact_dir(idea_id, fmt)
+    vdir = paths.video_dir(idea_id, fmt)
     video = os.path.join(vdir, "video.mp4")
     audio = os.path.join(vdir, "narration.wav")
     props = os.path.join(vdir, "props.json")

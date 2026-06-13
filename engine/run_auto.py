@@ -11,6 +11,7 @@ from collections import Counter
 
 from engine import config
 from engine import queue_manager as q
+from engine import paths
 from engine.pipeline import qc
 from engine.publish import uploader, auth
 
@@ -40,7 +41,8 @@ def _select(count: int) -> list[dict]:
 
 def _produce_one(idea_id: str) -> str:
     """Run produce as a subprocess; return the idea's resulting status."""
-    rc = _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id],
+    rc = _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id,
+               "--format", "long"],
               timeout=config.PRODUCE_TIMEOUT_S)
     if rc != 0:
         print(f"· {idea_id}: produce {'timed out' if rc == 124 else f'exit {rc}'} "
@@ -52,7 +54,7 @@ def _produce_one(idea_id: str) -> str:
 def _render_one(idea_id: str) -> bool:
     """Render via the video venv under a hard timeout. On nonzero/timeout → render_failed."""
     rc = _run([_VENV_PY, "-m", "engine.run_video", "--id", idea_id,
-               "--render", "--mode", "narrated"],
+               "--render", "--mode", "narrated", "--format", "long"],
               timeout=config.RENDER_TIMEOUT_S)
     if rc != 0:
         why = "render timed out" if rc == 124 else f"render exit {rc}"
@@ -70,7 +72,7 @@ def _render_and_qc(idea_id: str) -> None:
     if not _render_one(idea_id):
         print(f"· {idea_id}: render_failed")
         return
-    report = qc.qc_video(idea_id)
+    report = qc.qc_video(idea_id, "long")
     status = "awaiting_approval" if report["passed"] else "qc_failed"
     q.update_idea(idea_id, status=status)
     print(f"· {idea_id}: {status}")
@@ -127,7 +129,7 @@ def _load_metadata(rel_path: str) -> dict:
 
 
 def _qc_summary(idea_id: str) -> str:
-    path = os.path.join(_ROOT, "produced", idea_id, "qc.json")
+    path = paths.qc_path(idea_id, "long")
     try:
         with open(path) as f:
             r = json.load(f)
@@ -193,7 +195,7 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
                             description=meta.get("description", ""),
                             tags=meta.get("tags"), privacy=privacy)
     q.update_idea(idea_id, status="published",
-                  youtube_url=f"https://youtu.be/{yt_id}")
+                  long_youtube_url=f"https://youtu.be/{yt_id}")
     print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
 
 

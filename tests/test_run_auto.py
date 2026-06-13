@@ -36,7 +36,7 @@ def _stub_pipeline(monkeypatch, idea, render_ok=True, qc_pass=True):
     monkeypatch.setattr(run_auto, "_select", lambda n: [idea])
     monkeypatch.setattr(run_auto, "_produce_one", lambda i: idea["status"])
     monkeypatch.setattr(run_auto, "_render_one", lambda i: render_ok)
-    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i: {"passed": qc_pass, "checks": []})
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": qc_pass, "checks": []})
     seen = {}
     monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: (seen.update(f), idea.update(f)))
     monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
@@ -99,7 +99,7 @@ def test_cmd_approve_uploads_and_marks_published(monkeypatch):
     run_auto.cmd_approve("x", public=False, dry_run=False)
     assert calls["privacy"] == "unlisted"
     assert seen["status"] == "published"
-    assert "yt123" in seen["youtube_url"]
+    assert "yt123" in seen["long_youtube_url"]
 
 
 def test_cmd_approve_dry_run_skips_upload(monkeypatch):
@@ -128,7 +128,7 @@ def test_pipeline_render_failed_skips_qc(monkeypatch):
     monkeypatch.setattr(run_auto, "_render_one", lambda i: False)
     called = {"qc": False}
     monkeypatch.setattr(run_auto.qc, "qc_video",
-                        lambda i: called.__setitem__("qc", True) or {"passed": True, "checks": []})
+                        lambda i, fmt="long": called.__setitem__("qc", True) or {"passed": True, "checks": []})
     run_auto.pipeline(count=1, no_render=False)
     assert called["qc"] is False  # render_failed → never QC'd
 
@@ -159,7 +159,7 @@ def test_pipeline_batch_isolation_one_failure_continues(monkeypatch):
 
     monkeypatch.setattr(run_auto, "_produce_one", boom)
     monkeypatch.setattr(run_auto, "_render_one", lambda i: True)
-    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i: {"passed": True, "checks": []})
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": True, "checks": []})
     seen = []
     monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.append((i, f.get("status"))))
     run_auto.pipeline(count=2, no_render=False)
@@ -184,7 +184,7 @@ def test_cmd_render_renders_cleared_human_reviewed_idea(monkeypatch):
     idea = {"id": "x", "status": "needs_review", "human_reviewed": True}
     monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
     monkeypatch.setattr(run_auto, "_render_one", lambda i: True)
-    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i: {"passed": True, "checks": []})
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": True, "checks": []})
     seen = {}
     monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
     produce_called = {"v": False}
@@ -214,10 +214,11 @@ def test_cmd_approve_refuses_non_awaiting(monkeypatch):
 
 
 def test_cmd_list_shows_qc_summary(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(run_auto, "_ROOT", str(tmp_path))
-    vdir = tmp_path / "produced" / "x"
-    vdir.mkdir(parents=True)
-    (vdir / "qc.json").write_text(json.dumps(
+    from engine import paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
+    qc_dir = tmp_path / "produced" / "x" / "long"
+    qc_dir.mkdir(parents=True)
+    (qc_dir / "qc.json").write_text(json.dumps(
         {"passed": False, "checks": [{"name": "brightness_band", "passed": False}]}))
     monkeypatch.setattr(run_auto.q, "get_by_status",
                         lambda s: [{"id": "x", "title_variants": ["T"]}])

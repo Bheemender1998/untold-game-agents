@@ -19,6 +19,7 @@ import shutil
 import sys
 
 from engine.pipeline import factcheck
+from engine import paths
 
 GOLD, GREEN, RED, YELLOW, GRAY, RESET = (
     "\033[93m", "\033[92m", "\033[91m", "\033[33m", "\033[90m", "\033[0m")
@@ -45,12 +46,13 @@ def _print_report(result: dict) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Fact-check gate for a produced script")
     ap.add_argument("--id", required=True)
+    ap.add_argument("--format", choices=["long", "short"], default="long")
     ap.add_argument("--fix", action="store_true", help="rewrite script.md correcting flagged claims, then re-verify")
     ap.add_argument("--max-claims", type=int, default=25)
     args = ap.parse_args()
 
-    script_file = os.path.join(_ROOT, "produced", args.id, "script.md")
-    fc_path = os.path.join(_ROOT, "produced", args.id, "factcheck.json")
+    script_file = paths.script_path(args.id, args.format)
+    fc_path = paths.factcheck_path(args.id, args.format)
     if not os.path.exists(script_file):
         print(f"{RED}No script at {os.path.relpath(script_file, _ROOT)}.{RESET}")
         return 2

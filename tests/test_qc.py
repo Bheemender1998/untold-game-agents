@@ -59,21 +59,22 @@ def test_caption_coverage_fails_on_long_gap(tmp_path):
 
 @requires_ffmpeg
 def test_qc_video_writes_report_and_ands_checks(tmp_path, gray_video, silent_audio, monkeypatch):
-    # Build a fake produced/<id>/video layout
+    # Build a fake produced/<id>/long/video layout
+    from engine import paths
     idea_id = "testid01"
-    vdir = tmp_path / "produced" / idea_id / "video"
+    vdir = tmp_path / "produced" / idea_id / "long" / "video"
     vdir.mkdir(parents=True)
     (vdir / "video.mp4").write_bytes(gray_video.read_bytes())
     (vdir / "narration.wav").write_bytes(silent_audio.read_bytes())
     caps = [{"text": "a", "startMs": i * 100, "endMs": i * 100 + 90} for i in range(20)]
     (vdir / "props.json").write_text(json.dumps({"captions": caps}))
-    monkeypatch.setattr(qc, "_ROOT", str(tmp_path))
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
 
-    report = qc.qc_video(idea_id)
+    report = qc.qc_video(idea_id, "long")
     assert set(c["name"] for c in report["checks"]) == {
         "render_integrity", "brightness_band", "caption_coverage"}
     assert report["passed"] is True
-    assert os.path.exists(tmp_path / "produced" / idea_id / "qc.json")
+    assert os.path.exists(tmp_path / "produced" / idea_id / "long" / "qc.json")
 
 
 def test_caption_coverage_survives_malformed_captions(tmp_path):
@@ -85,10 +86,22 @@ def test_caption_coverage_survives_malformed_captions(tmp_path):
 
 
 def test_qc_video_survives_missing_idea_dir(tmp_path, monkeypatch):
-    # produced/<id>/ does not exist — qc_video must still return a report, not raise
-    monkeypatch.setattr(qc, "_ROOT", str(tmp_path))
-    report = qc.qc_video("ghost_idea")
+    # produced/<id>/long/ does not exist — qc_video must still return a report, not raise
+    from engine import paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
+    report = qc.qc_video("ghost_idea", "long")
     assert report["passed"] is False
     assert isinstance(report["checks"], list)
     import os
-    assert os.path.exists(tmp_path / "produced" / "ghost_idea" / "qc.json")
+    assert os.path.exists(tmp_path / "produced" / "ghost_idea" / "long" / "qc.json")
+
+
+def test_qc_video_uses_format_subdir(monkeypatch, tmp_path):
+    from engine.pipeline import qc
+    from engine import paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
+    vdir = tmp_path / "produced" / "x" / "long" / "video"
+    vdir.mkdir(parents=True)
+    report = qc.qc_video("x", "long")           # no inputs → checks fail, but no crash
+    assert "passed" in report
+    assert (tmp_path / "produced" / "x" / "long" / "qc.json").exists()
