@@ -76,6 +76,11 @@ def _render_and_qc(idea_id: str) -> None:
     if not _render_one(idea_id):
         print(f"· {idea_id}: render_failed")
         return
+    # Sync the description's chapter timestamps from the rendered props.json (real per-chapter
+    # times) — the produce-time LLM estimate is wrong; this is the authoritative correction.
+    from engine.pipeline import chapters
+    if chapters.sync_from_render(idea_id, _OVERNIGHT_FMT):
+        print(f"· {idea_id}: chapter timestamps synced from render")
     report = qc.qc_video(idea_id, _OVERNIGHT_FMT)
     status = "awaiting_approval" if report["passed"] else "qc_failed"
     q.update_idea(idea_id, status=status)
