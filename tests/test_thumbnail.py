@@ -105,6 +105,36 @@ def test_generate_thumbnail_composites_when_subject_present(tmp_path, monkeypatc
         assert im.size == (1280, 720)
 
 
+def test_compose_omits_tension_when_text_cannot_fit(tmp_path):
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1280, 720), (90, 90, 90)).save(subj)
+    out = tmp_path / "pathological.jpg"
+    tn.compose(str(subj), "WORD " * 120, str(out))   # impossible to fit — must not crash or go off-canvas
+    with Image.open(out) as im:
+        assert im.size == (1280, 720)
+
+
+def test_compose_handles_whitespace_only_tension(tmp_path):
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1280, 720), (90, 90, 90)).save(subj)
+    out = tmp_path / "ws.jpg"
+    tn.compose(str(subj), "   ", str(out))            # whitespace -> treated as empty, no crash
+    with Image.open(out) as im:
+        assert im.size == (1280, 720)
+
+
+def test_generate_thumbnail_removes_stale_thumbnail_when_subject_missing(tmp_path, monkeypatch):
+    from engine import paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path))
+    d = paths.artifact_dir("stale1", "long")
+    _os.makedirs(d, exist_ok=True)
+    # a leftover thumbnail exists but the subject photo does NOT
+    Image.new("RGB", (1280, 720), (0, 0, 0)).save(paths.thumbnail_path("stale1", "long"))
+    assert _os.path.exists(paths.thumbnail_path("stale1", "long"))
+    tn.generate_thumbnail({"id": "stale1"}, "long")
+    assert not _os.path.exists(paths.thumbnail_path("stale1", "long"))   # stale removed
+
+
 def test_run_thumbnail_main_errors_without_subject(tmp_path, monkeypatch, capsys):
     import sys
     from engine import paths, queue_manager

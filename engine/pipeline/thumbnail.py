@@ -84,6 +84,10 @@ def _draw_stamp(draw):
 def _draw_tension(draw, text):
     """Right-aligned condensed withholding text + the text-anchored red marker."""
     font, lines, box, marker, line_h, widths = _layout_tension(text, draw)
+    # Robustness: if even the smallest layout can't sit on-canvas (pathological/over-long
+    # text), omit the tension layer rather than drawing off-frame garbage. Asset layer stands.
+    if len(lines) > 3 or box[0] < RIGHT_MARGIN // 2 or box[1] < 0 or marker[3] > H:
+        return
     right, top = box[2], box[1]
     for i, ln in enumerate(lines):
         x, y = right - widths[i], top + i * line_h
@@ -113,10 +117,11 @@ def compose(subject_path: str, tension_text: str, out_path: str) -> None:
     vig = ImageOps.invert(Image.radial_gradient("L")).resize((W, H)).point(lambda v: int(80 + v * 0.69))
     graded = ImageChops.multiply(graded, Image.merge("RGB", (vig, vig, vig)))
     # layers on top
+    text = (tension_text or "").strip()
     draw = ImageDraw.Draw(graded)
     _draw_stamp(draw)
-    if tension_text:
-        _draw_tension(draw, tension_text)
+    if text:
+        _draw_tension(draw, text)
     graded.save(out_path, "JPEG", quality=88)
 
 
@@ -169,7 +174,12 @@ def generate_thumbnail(idea: dict, fmt: str) -> dict:
     idea_id = idea["id"]
     subject = paths.subject_path(idea_id, fmt)
     if not os.path.exists(subject):
-        print(f"  · thumbnail skipped for [{idea_id}/{fmt}] — no subject photo at {subject}")
+        stale = paths.thumbnail_path(idea_id, fmt)
+        if os.path.exists(stale):
+            os.remove(stale)
+            print(f"  · removed stale thumbnail for [{idea_id}/{fmt}] — no subject photo")
+        else:
+            print(f"  · thumbnail skipped for [{idea_id}/{fmt}] — no subject photo at {subject}")
         return idea
     text = _thumbnail_text(idea, idea.get("script", ""))
     out = paths.thumbnail_path(idea_id, fmt)
