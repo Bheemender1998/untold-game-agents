@@ -37,3 +37,13 @@ def test_judge_failure_fails_closed(monkeypatch):
 
 def test_judge_empty_returns_empty():
     assert fact_gate.judge([]) == []
+
+
+def test_no_evidence_cannot_be_supported(monkeypatch):
+    # Even if the judge LLM wrongly says "supported", a kind="none" claim must downgrade.
+    monkeypatch.setattr(fact_gate, "_structured", lambda *a, **k: {"verdicts": [
+        {"index": 0, "verdict": "supported", "correction": "", "source": ""}]})
+    items = [({"text": "claim with no evidence", "entity": "x", "fact": "f", "era": "encyclopedic"},
+             {"kind": "none", "text": "", "source": ""})]
+    out = fact_gate.judge(items)
+    assert out[0]["verdict"] == "unverified"   # deterministic floor, not LLM say-so

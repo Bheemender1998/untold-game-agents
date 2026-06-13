@@ -46,3 +46,19 @@ def test_issue_carries_legacy_keys(monkeypatch, tmp_path):
     r = fact_gate.factcheck("s", max_claims=25)
     iss = r["issues"][0]
     assert iss["claim"] == "a" and iss["correction"] == "fixed" and iss["source"] == "Wikipedia: X"
+
+
+def test_extraction_failure_fails_closed(monkeypatch, tmp_path):
+    monkeypatch.setattr(fact_gate.config, "FACTCACHE_PATH", str(tmp_path / ".fc.json"))
+    def boom(*a, **k): raise RuntimeError("extract LLM down")
+    monkeypatch.setattr(fact_gate, "extract_and_classify", boom)
+    r = fact_gate.factcheck("script", max_claims=25)   # must NOT raise
+    assert r["passed"] is False and r["would_auto_pass"] is False and r["complete"] is False
+    assert len(r["issues"]) == 1
+
+
+def test_empty_extraction_does_not_autopass(monkeypatch, tmp_path):
+    monkeypatch.setattr(fact_gate.config, "FACTCACHE_PATH", str(tmp_path / ".fc.json"))
+    monkeypatch.setattr(fact_gate, "extract_and_classify", lambda *a, **k: [])
+    r = fact_gate.factcheck("script", max_claims=25)
+    assert r["passed"] is False

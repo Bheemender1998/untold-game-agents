@@ -132,7 +132,7 @@ def _window(extract_text: str, fact: str, max_chars: int = 1200) -> str:
     return out[:max_chars]
 
 
-# ── Extract & classify (LLM call #1) ─────────────────────────────────────────
+# ── Evidence gathering (Wikipedia + DDG, cached) ─────────────────────────────
 
 def _resolve_title(query: str, cache: dict) -> str | None:
     res = cache["resolutions"]
@@ -147,7 +147,8 @@ def _get_extract(title: str, cache: dict) -> str:
     if entry and _fresh(entry):
         return entry["text"]
     text = wikipedia.extract(title)
-    ex[title] = {"text": text, "fetched_at": time.time()}
+    if text:                                   # don't cache empty (transient outage) results
+        ex[title] = {"text": text, "fetched_at": time.time()}
     return text
 
 
@@ -174,7 +175,7 @@ def gather_evidence(claim: dict, cache: dict) -> dict:
     return {"kind": "none", "text": "", "source": ""}
 
 
-# ── Extract & classify (LLM call #1) ─────────────────────────────────────────
+# ── Extract & classify implementation ────────────────────────────────────────
 
 def extract_and_classify(script_md: str, max_claims: int = 25) -> list[dict]:
     out = _structured(
@@ -235,9 +236,13 @@ def _judge_chunk(items: list[tuple]) -> list[dict]:
     verdicts = []
     for i, (claim, ev) in enumerate(items):
         v = by_index.get(i)
+        verdict = v["verdict"] if v else "unverified"
+        # deterministic floor: no evidence can never auto-support, regardless of LLM output
+        if ev["kind"] == "none" and verdict == "supported":
+            verdict = "unverified"
         verdicts.append({
             "claim": claim["text"],
-            "verdict": v["verdict"] if v else "unverified",   # legacy key (not 'status')
+            "verdict": verdict,                                # legacy key (not 'status')
             "correction": (v.get("correction", "") if v else ""),
             "source": (v.get("source", "") if v else ev["source"]),
             "evidence_kind": ev["kind"],
@@ -261,7 +266,16 @@ def factcheck(script_md: str, max_claims: int = 25) -> dict:
     Invariant: every checkable claim terminates in supported|contradicted|unverified; a
     claim with no usable evidence comes back unverified (an issue), never dropped. `complete`
     means extraction was NOT truncated; `passed` requires complete AND zero issues."""
-    claims = extract_and_classify(script_md, max_claims)
+    try:
+        claims = extract_and_classify(script_md, max_claims)
+    except Exception:
+        claims = None
+    if not claims:                       # extraction failed OR no checkable claims → fail closed
+        return {"checked": 0, "supported": 0,
+                "issues": [{"claim": "(no checkable claims extracted)", "verdict": "unverified",
+                            "correction": "", "source": "", "evidence_kind": "none"}],
+                "complete": False, "max_claims": max_claims,
+                "passed": False, "would_auto_pass": False}
     complete = len(claims) < max_claims          # hit the cap → coverage truncated
 
     cache = _cache_load()
