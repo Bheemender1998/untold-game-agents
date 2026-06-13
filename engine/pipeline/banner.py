@@ -2,6 +2,7 @@
 "Editorial Archive" banner (textural backdrop + wordmark + rule + subtitle)."""
 from __future__ import annotations
 import os
+import random
 
 from engine.pipeline import thumbnail
 
@@ -24,15 +25,23 @@ GAP = 24
 
 
 def _gradient():
-    """Warm archival horizontal gradient: lit warm at the left, dark at the right."""
-    g = Image.linear_gradient("L").resize((W, H))           # 0 (left) -> 255 (right)
+    """Warm archival vertical gradient: warm-lit at the top, dark at the bottom."""
+    g = Image.linear_gradient("L").resize((W, H))           # 0 (top) -> 255 (bottom)
     return ImageOps.colorize(g, black=(74, 56, 38), white=(18, 12, 6))
 
 
+def _grain():
+    """Deterministic film grain (fixed seed) — keeps compose_banner bit-reproducible."""
+    rnd = random.Random(1979)
+    tile = Image.new("L", (256, 256))
+    tile.putdata([rnd.randint(0, 255) for _ in range(256 * 256)])
+    return tile.resize((W, H)).convert("RGB")
+
+
 def _layout_banner(draw):
-    """Place wordmark + red rule + subtitle, centred in the TV-safe band. The wordmark fits
-    both the safe width and a height budget (safe band minus subtitle/rule/gaps); the subtitle
-    fits the safe width — so the whole block is contained in the safe area by construction.
+    """Place wordmark + red rule + subtitle, centred in the TV-safe band. The wordmark always
+    shrinks to fit the safe width (preferring the height budget when both constraints can be
+    met); the configured subtitle fits the safe width fully.
     Returns the fonts, per-element boxes, and the union block_box (all (l,t,r,b) tuples)."""
     target_w = int(SAFE_W * 0.96)
     name = config.CHANNEL_NAME.upper()
@@ -46,14 +55,21 @@ def _layout_banner(draw):
         sf = ImageFont.truetype(SUBTITLE_FONT, sub_size)
     slh = sum(sf.getmetrics())
 
-    # wordmark: fit to width AND the remaining height budget
+    # Largest size that fits BOTH width and the height budget; if none fits both (overlong
+    # name / tiny budget), fall back to the largest that fits the safe WIDTH — so the wordmark
+    # can never overflow horizontally regardless of name length.
     wm_budget_h = SAFE_H - (slh + GAP + RULE_H + GAP) - 20
-    wf = ImageFont.truetype(WORDMARK_FONT, 60)
-    for size in range(WORDMARK_MAX, 58, -2):
+    wf = width_fit = None
+    for size in range(WORDMARK_MAX, 16, -2):
         f = ImageFont.truetype(WORDMARK_FONT, size)
-        if draw.textlength(name, font=f) <= target_w and sum(f.getmetrics()) <= wm_budget_h:
-            wf = f
-            break
+        if draw.textlength(name, font=f) <= target_w:
+            if width_fit is None:
+                width_fit = f
+            if sum(f.getmetrics()) <= wm_budget_h:
+                wf = f
+                break
+    if wf is None:
+        wf = width_fit if width_fit is not None else ImageFont.truetype(WORDMARK_FONT, 18)
     wlh = sum(wf.getmetrics())
     ww = draw.textlength(name, font=wf)
     sw = draw.textlength(sub, font=sf)
@@ -76,8 +92,7 @@ def _layout_banner(draw):
 def compose_banner(out_path: str) -> None:
     """Render the 2560x1440 'Editorial Archive' channel banner to out_path (PNG)."""
     base = _gradient()
-    noise = Image.effect_noise((W, H), 28).convert("RGB")
-    img = Image.blend(base, noise, 0.06)
+    img = Image.blend(base, _grain(), 0.06)
     vig = ImageOps.invert(Image.radial_gradient("L")).resize((W, H)).point(lambda v: int(70 + v * 0.72))
     img = ImageChops.multiply(img, Image.merge("RGB", (vig, vig, vig)))
     draw = ImageDraw.Draw(img)
