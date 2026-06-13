@@ -94,9 +94,7 @@ def main() -> None:
         total_dur = captions.audio_duration(audio_path)
         glossary = captions.proper_nouns(tts.script_to_narration_text(script_md))
         tx = captions.transcribe(audio_path, initial_prompt=glossary)   # {words, segments} | None
-        words = tx["words"] if tx else None           # downstream wants the word list
-        if words:
-            words = captions.digitize_number_words(words)  # captions show "1984", not words
+        words = tx["words"] if tx else None           # downstream wants the word list (raw — kept for anchor matching)
         synced = "word-synced (whisper)" if words else "estimated timing (no faster-whisper)"
         print(f"{GREEN}✓ narration {total_dur:.0f}s — captions: {synced}{RESET}")
 
@@ -115,7 +113,7 @@ def main() -> None:
         )
         with open(os.path.join(video_dir, "props.json"), "w") as f:
             json.dump(props, f, indent=2)
-        srt_chunks = (captions.chunk_words_to_captions(words) if words
+        srt_chunks = (captions.chunk_words_to_captions(captions.digitize_number_words(words)) if words
                       else captions.estimate_caption_timings(
                           tts.script_to_narration_text(script_md), total_dur))
         captions.to_srt(srt_chunks, os.path.join(video_dir, "captions.srt"))

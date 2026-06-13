@@ -154,9 +154,13 @@ def test_apply_pronunciation_leaves_unmapped_text_untouched():
     assert tts.apply_pronunciation("Senna led the race.") == "Senna led the race."
 
 
-def test_apply_pronunciation_is_word_boundary_safe():
+def test_apply_pronunciation_is_word_boundary_safe(monkeypatch):
     from engine.video import tts
-    tts._PRONUNCIATION.setdefault("Lauda", "Lowda")
+    monkeypatch.setitem(tts._PRONUNCIATION, "Lauda", "Lowda")
     tts._pronunciation_re.cache_clear()       # map changed → rebuild the regex
-    out = tts.apply_pronunciation("Laudable Lauda")
-    assert "Laudable" in out
+    try:
+        out = tts.apply_pronunciation("Laudable Lauda")
+        assert "Laudable" in out
+    finally:
+        tts._PRONUNCIATION.pop("Lauda", None)
+        tts._pronunciation_re.cache_clear()   # restore: remove the injected entry
