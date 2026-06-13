@@ -252,3 +252,30 @@ def judge(items: list[tuple]) -> list[dict]:
     for start in range(0, len(items), _JUDGE_CHUNK):
         out.extend(_judge_chunk(items[start:start + _JUDGE_CHUNK]))
     return out
+
+
+def factcheck(script_md: str, max_claims: int = 25) -> dict:
+    """Run the gate. Returns the legacy schema (+ would_auto_pass for shadow telemetry):
+      {checked, supported, issues[], complete, max_claims, passed, would_auto_pass}.
+
+    Invariant: every checkable claim terminates in supported|contradicted|unverified; a
+    claim with no usable evidence comes back unverified (an issue), never dropped. `complete`
+    means extraction was NOT truncated; `passed` requires complete AND zero issues."""
+    claims = extract_and_classify(script_md, max_claims)
+    complete = len(claims) < max_claims          # hit the cap → coverage truncated
+
+    cache = _cache_load()
+    try:
+        items = [(c, gather_evidence(c, cache)) for c in claims]
+    finally:
+        _cache_save(cache)
+
+    verdicts = judge(items)
+    issues = [v for v in verdicts if v["verdict"] != "supported"]  # contradicted + unverified
+    supported = sum(1 for v in verdicts if v["verdict"] == "supported")
+    passed = (not issues) and complete
+    return {
+        "checked": len(claims), "supported": supported, "issues": issues,
+        "complete": complete, "max_claims": max_claims,
+        "passed": passed, "would_auto_pass": passed,
+    }
