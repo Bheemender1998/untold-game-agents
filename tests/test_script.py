@@ -120,6 +120,23 @@ def test_short_keeps_invalid_mood_first_line_as_narration(monkeypatch):
     assert out["script"].startswith("MOOD: this was the word")  # kept as narration
 
 
+def test_tease_within_long_passes_when_subset():
+    from engine.pipeline import script
+    long = "In 1984 Ayrton Senna chased Alain Prost at Monaco. The gap was seven seconds."
+    short = "Senna was closing on Prost at Monaco in 1984. Seven seconds. Then a flag fell."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_flags_new_name_and_number():
+    from engine.pipeline import script
+    long = "In 1984 Ayrton Senna chased Alain Prost at Monaco."
+    short = "Senna beat Nigel Mansell by 1992 points."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok
+    assert "Mansell" in extra and "1992" in extra
+
+
 def test_derive_short_tease_parses_mood_and_includes_long(monkeypatch):
     from engine.pipeline import script
     captured = {}

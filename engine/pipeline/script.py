@@ -259,3 +259,33 @@ def derive_short_tease(long_script: str, idea: dict) -> dict:
     """Return {'script': str, 'mood': str} for a companion Short derived from the verified
     long. Same approved short style; no web search (the long is already fact-gated)."""
     return CompanionTeaseWriter().write(long_script, idea)
+
+
+# ── Companion-short containment guard ─────────────────────────────────────────
+
+import re as _re
+
+# Capitalized words/names (skip sentence-start common words); and number groups.
+_TEASE_NAME_RE = _re.compile(r"\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\b")
+_TEASE_NUM_RE = _re.compile(r"\b\d[\d,]*\b")
+_TEASE_STOP = {"the", "this", "that", "then", "they", "he", "she", "it", "and", "but",
+               "in", "on", "at", "a", "an", "his", "her", "their", "by", "so", "no",
+               "when", "now"}
+
+
+def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[str]]:
+    """Deterministic integrity guard (no network): every factual specific in the short —
+    capitalized proper-noun tokens and digit groups — must already appear in the long.
+    Returns (ok, sorted_new_tokens). A non-empty list means the short introduced something
+    the verified long didn't contain → caller flags the short needs_review."""
+    long_low = long_script.lower()
+    new: set[str] = set()
+    for tok in _TEASE_NAME_RE.findall(short_script):
+        if len(tok) < 3 or tok.lower() in _TEASE_STOP:
+            continue
+        if tok.lower() not in long_low:
+            new.add(tok)
+    for num in _TEASE_NUM_RE.findall(short_script):
+        if num not in long_script:
+            new.add(num)
+    return (not new, sorted(new))
