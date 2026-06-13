@@ -41,8 +41,18 @@ def test_append_to_description_appends_suffix():
     assert yt._videos.update_body["snippet"]["description"] == new_desc
 
 
-def test_append_to_description_truncates_to_5000():
+def test_append_to_description_truncates_base_keeping_suffix():
     yt = _FakeYouTube({"title": "T", "categoryId": "17", "description": "x" * 4999})
     new_desc = uploader.append_to_description("vid1", "SUFFIX", service=yt)
-    assert len(new_desc) == 5000
-    assert new_desc.startswith("x" * 4999)
+    assert len(new_desc) <= 5000
+    assert new_desc.endswith("SUFFIX")          # suffix kept intact
+    assert new_desc.startswith("x")             # base preserved (truncated to make room)
+
+
+def test_append_to_description_skips_when_already_present():
+    yt = _FakeYouTube({"title": "T", "categoryId": "17",
+                       "description": "watch this\n\nFull story: https://youtu.be/LONGvideoID"})
+    result = uploader.append_to_description("vid1", "Full story: https://youtu.be/LONGvideoID",
+                                            skip_if_contains="https://youtu.be/LONGvideoID", service=yt)
+    assert yt._videos.update_body is None       # no update call — already present
+    assert "https://youtu.be/LONGvideoID" in result

@@ -28,6 +28,7 @@ def test_skips_when_short_already_set(tmp_path, monkeypatch):
     moved = q.split_youtube_url_field()
     assert moved == 0
     assert q.get_by_id("a")["short_youtube_url"] == "https://youtu.be/EXISTING"
+    assert "youtube_url" not in q.get_by_id("a")  # legacy key retired even when short already set
 
 
 def test_skips_when_no_youtube_url(tmp_path, monkeypatch):

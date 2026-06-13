@@ -4,9 +4,11 @@ the right interpreter (the produce/render venvs can't coexist in one process).""
 from __future__ import annotations
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
+import urllib.parse
 from collections import Counter
 
 from engine import config
@@ -18,6 +20,7 @@ from engine.publish import uploader, auth
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VENV_PY = os.path.join(_ROOT, ".venv-video", "bin", "python")
 _OVERNIGHT_FMT = "long"  # overnight pipeline is long-form only (Phase 2 adds companion shorts)
+_YT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
 def _run(cmd: list[str], timeout: float | None = None) -> int:
@@ -201,11 +204,18 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
 
 
 def _video_id(url: str) -> str:
-    """Extract the YouTube video id from a youtu.be/<id> or watch?v=<id> URL."""
-    url = url.strip()
-    if "watch?v=" in url:
-        return url.split("watch?v=")[1].split("&")[0]
-    return url.rstrip("/").split("/")[-1].split("?")[0]
+    """Extract the 11-char YouTube video id from a youtu.be/<id>, watch?v=<id>
+    (any query-param order), /shorts/<id>, or /embed/<id> URL. Raises ValueError
+    if no valid id can be parsed (so we never patch a wrong/garbage video)."""
+    parsed = urllib.parse.urlparse(url.strip())
+    candidate = None
+    if parsed.query:
+        candidate = (urllib.parse.parse_qs(parsed.query).get("v") or [None])[0]
+    if candidate is None:
+        candidate = parsed.path.rstrip("/").split("/")[-1]
+    if not candidate or not _YT_ID_RE.match(candidate):
+        raise ValueError(f"could not extract a valid YouTube video id from {url!r}")
+    return candidate
 
 
 def cmd_backlink(idea_id: str) -> None:
@@ -221,7 +231,7 @@ def cmd_backlink(idea_id: str) -> None:
         sys.exit(f"{idea_id}: need both long_youtube_url and short_youtube_url "
                  f"(long={long_url!r}, short={short_url!r})")
     suffix = f"▶ Full story on our channel: {long_url}"
-    uploader.append_to_description(_video_id(short_url), suffix)
+    uploader.append_to_description(_video_id(short_url), suffix, skip_if_contains=long_url)
     q.update_idea(idea_id, short_backlinked=True)
     print(f"✓ {idea_id}: back-linked short {short_url} → {long_url}")
 
