@@ -2,8 +2,8 @@
 The Untold Game — PRODUCE stage entrypoint.
 
 Turns approved ideas into production-ready output: a full narration script and
-optimised YouTube metadata. Artifacts land in `produced/<id>/`, and the idea is
-marked `in_production` with the artifact paths recorded on it.
+optimised YouTube metadata. Artifacts land in `produced/<id>/<fmt>/` (fmt: long|short),
+and the idea is marked `in_production` with the artifact paths recorded on it.
 
 Usage:
   python3 -m engine.run_produce                 # all APPROVED ideas
