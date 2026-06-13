@@ -53,6 +53,3 @@ engine/video/used_clips.json
 # music: keep curated mood folders + manifest; ignore unsorted/off-tone library
 engine/video/music/_unused/
 engine/music_all/
-
-# overnight automation log
-logs/overnight.log

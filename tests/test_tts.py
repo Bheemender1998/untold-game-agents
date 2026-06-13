@@ -89,3 +89,17 @@ def test_narration_leaves_plain_numbers_alone():
     # Plain numbers (years, small counts) already read correctly — don't touch them.
     out = tts.script_to_narration_text("In 1973 he gained 300 yards, 134 votes short.")
     assert "1973" in out and "300" in out and "134" in out
+
+
+def test_spell_numbers_handles_millions_and_skips_decimals_currency():
+    assert "one million" in tts._spell_grouped_numbers("1,234,567 fans")
+    # decimals + currency left intact (no partial mangling)
+    assert tts._spell_grouped_numbers("hit 1,234.56 today") == "hit 1,234.56 today"
+    assert tts._spell_grouped_numbers("a $1,234 deal") == "a $1,234 deal"
+    # plain comma integer still spelled
+    assert "two thousand three" in tts._spell_grouped_numbers("2,003 yards")
+
+
+def test_split_sentences_protects_abbreviations():
+    assert tts._split_sentences("Dr. Smith arrived. He left.") == ["Dr. Smith arrived.", "He left."]
+    assert tts._split_sentences("He moved to D.C. with U.S. backing.") == ["He moved to D.C. with U.S. backing."]

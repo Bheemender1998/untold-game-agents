@@ -27,23 +27,25 @@ _TENS = ("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eigh
 
 
 def _int_to_words(n: int) -> str:
-    """Cardinal number → English words (e.g. 2003 → 'two thousand three'). Up to millions."""
+    """Cardinal number → English words (e.g. 2003 → 'two thousand three'). Up to billions."""
     if n < 20:
         return _ONES[n]
     if n < 100:
         return _TENS[n // 10] + (f"-{_ONES[n % 10]}" if n % 10 else "")
     if n < 1000:
         return _ONES[n // 100] + " hundred" + (f" {_int_to_words(n % 100)}" if n % 100 else "")
-    if n < 1_000_000:
-        return _int_to_words(n // 1000) + " thousand" + (f" {_int_to_words(n % 1000)}" if n % 1000 else "")
+    for div, name in ((1_000_000_000, "billion"), (1_000_000, "million"), (1000, "thousand")):
+        if n >= div:
+            return _int_to_words(n // div) + f" {name}" + (f" {_int_to_words(n % div)}" if n % div else "")
     return str(n)
 
 
 def _spell_grouped_numbers(text: str) -> str:
-    """Spell out thousands-separated numbers (e.g. '2,003' → 'two thousand three') so TTS
-    reads them naturally instead of digit-by-digit ('two zero zero three'). Plain numbers
-    (years, small counts) already read correctly, so they're left untouched."""
-    return re.sub(r"\b\d{1,3}(?:,\d{3})+\b",
+    """Spell out thousands-separated integers (e.g. '2,003' → 'two thousand three') so TTS
+    reads them naturally instead of digit-by-digit ('two zero zero three'). Skips currency
+    ('$1,234') and decimals ('1,234.56') — espeak reads those acceptably and partial spelling
+    would mangle them. Plain numbers (years, small counts) are left untouched."""
+    return re.sub(r"(?<![\d.$])\d{1,3}(?:,\d{3})+\b(?!\.\d)",
                   lambda m: _int_to_words(int(m.group().replace(",", ""))), text)
 
 
@@ -193,10 +195,20 @@ def _synth_kokoro(text: str, out_path: str, voice: str | None,
     return out_path
 
 
+_ABBR = re.compile(r"\b(?:Mr|Mrs|Ms|Dr|Jr|Sr|St|vs|No|etc|Inc|Ltd)\.")
+
+
 def _split_sentences(text: str) -> list[str]:
-    """Sentence split for chunked synthesis (keeps terminal punctuation). Does NOT split
-    on the period of an initialism (e.g. 'O.J.', 'U.S.') — the negative lookbehind for an
-    uppercase-letter-then-period keeps 'O.J. Simpson' in one chunk, so they aren't spoken
-    with a spurious gap between the parts."""
-    parts = re.split(r"(?<![A-Z]\.)(?<=[.!?])\s+", text.replace("\n", " "))
-    return [p.strip() for p in parts if p.strip()]
+    """Sentence split for chunked synthesis (keeps terminal punctuation). Dotted initialisms
+    (O.J., U.S., D.C., I.R.S.) and common abbreviations (Dr., Mr., No.) are protected so they
+    aren't split into their own chunk — which would speak them with a spurious 0.5s gap.
+    (Heuristic: a rare initialism that genuinely ends a sentence may merge with the next — a
+    minor pacing nit, far better than the frequent mid-name gaps.)"""
+    sep = "․"  # one-dot leader stands in for a protected period during the split
+    hide = lambda m: m.group(0).replace(".", sep)
+    t = text.replace("\n", " ")
+    t = re.sub(r"\b(?:[A-Za-z]\.){2,}", hide, t)        # O.J., U.S., D.C., I.R.S.
+    t = re.sub(r"\b[A-Z]\.(?=\s*[A-Z][a-z])", hide, t)  # single initial before a name: "J. Smith"
+    t = _ABBR.sub(hide, t)                               # Dr., Mr., No., etc.
+    parts = re.split(r"(?<=[.!?])\s+", t)
+    return [p.replace(sep, ".").strip() for p in parts if p.strip()]

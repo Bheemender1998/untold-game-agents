@@ -107,3 +107,14 @@ def test_clean_short_body_strips_scaffolding():
     assert script.clean_short_body("MOOD: tense\n\nThe hook.") == "The hook."
     assert script.clean_short_body("Preamble line.\n\nMOOD: tense\n\nThe hook.") == "The hook."
     assert script.clean_short_body("The hook, already clean.") == "The hook, already clean."
+
+
+def test_short_keeps_invalid_mood_first_line_as_narration(monkeypatch):
+    # A real hook line that happens to start "MOOD:" (non-mood value) must NOT be dropped.
+    raw = "MOOD: this was the word on every fan's face that night.\nThen everything changed."
+    monkeypatch.setattr(script.ShortScriptWriter, "_call", lambda self, p, **k: raw)
+    out = script.generate_short_script({"title_variants": ["X"], "hook": "h",
+                                        "pillar": "what_if", "sport": "F1",
+                                        "target_audience": "fans", "why_it_works": "w"})
+    assert out["mood"] == ""
+    assert out["script"].startswith("MOOD: this was the word")  # kept as narration

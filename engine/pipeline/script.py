@@ -170,12 +170,13 @@ def _parse_short(raw: str) -> dict:
     if content:
         first_i, first_s = content[0]
         m0 = _mood_value(first_s)
-        if m0 is not None:
-            # First content line is a MOOD header (valid → use it; invalid → drop it anyway:
-            # real narration never starts a line with 'MOOD:').
-            mood = m0 if m0 in _SHORT_MOODS else ""
+        if m0 in _SHORT_MOODS:
+            # First content line is a real MOOD header → consume it.
+            mood = m0
             body_idx = first_i + 1
         else:
+            # Not a valid MOOD header (narration, preamble, or a 'MOOD:'-prefixed sentence
+            # with a non-mood value) — keep it as narration unless a real header follows.
             # First content line is narration or a preamble. If a MOOD:<valid> header
             # follows within the next couple of content lines, the lead lines are a model
             # preamble → drop them; otherwise narration starts at the first content line.

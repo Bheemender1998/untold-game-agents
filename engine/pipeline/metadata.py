@@ -127,7 +127,10 @@ def generate_short_metadata(idea: dict, script: str) -> dict:
     try:
         body, llm_tags = _short_desc_llm(idea, script)
     except Exception:
-        body = next((ln.strip() for ln in script.splitlines() if ln.strip()), title)
+        # Self-stub: first real narration line, skipping any '# heading' / 'MOOD:' scaffolding.
+        body = next((ln.strip() for ln in script.splitlines()
+                     if ln.strip() and not ln.strip().startswith("#")
+                     and not ln.strip().upper().startswith("MOOD:")), title)
         llm_tags = []
     hashtags = "#Shorts" + (f" #{sport.replace(' ', '')}" if sport else "")
     from engine.config import CHANNEL_HANDLE

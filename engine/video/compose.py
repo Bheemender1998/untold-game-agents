@@ -236,8 +236,8 @@ channel). Split a narration script into its natural CHAPTERS (sections). For eac
 - HEADLINE: a punchy on-screen chapter title (2-5 words, uppercase-ready).
 - ANCHOR: the first 4-8 words of that chapter copied VERBATIM from the narration, exactly
   as spoken, so we can find where it starts in the audio.
-- VISUAL: a 2-4 word stock-video search query showing ANONYMOUS {SPORT} action, equipment,
-  venue, or atmosphere that fits this chapter's moment. Examples — F1: "formula 1 car racing",
+- VISUAL: a 2-4 word stock-video search query showing ANONYMOUS action, equipment, venue, or
+  atmosphere FOR THE SPORT named above, that fits this chapter's moment. Examples — F1: "formula 1 car racing",
   "race track aerial", "pit lane", "rain race spray", "checkered flag"; soccer: "soccer ball
   net", "empty football stadium", "stadium floodlights"; cricket: "cricket pitch", "cricket
   stumps", "cricket bat swing"; basketball: "basketball hoop", "empty basketball court".

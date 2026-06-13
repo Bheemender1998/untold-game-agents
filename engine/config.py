@@ -36,7 +36,9 @@ Sports covered: NFL, NBA, Soccer/Football, Cricket, Formula 1, UFC, College Spor
 
 # Channel handle (watermark, end card, description CTA) + default music credit.
 CHANNEL_HANDLE = "@untoldgamemedia"
-MUSIC_CREDIT_DEFAULT = "Music from Pixabay (royalty-free)"
+# Neutral default — the curated library is mixed-source (Pixabay, Tunetank, etc.), so we
+# don't claim a single source. Per-track credits in music/attribution.json override this.
+MUSIC_CREDIT_DEFAULT = "Royalty-free background music"
 
 # ── Video length target ───────────────────────────────────────────────────────
 # Channel-wide narration-length cap. Overrides each idea's `format_suggestion`

@@ -38,6 +38,8 @@ _SPORT_KEYWORD = {
     "NFL": "american football",
     "Cricket": "cricket",
     "College": "college sports",
+    "UFC": "mma",
+    "Multi-sport": "",   # too broad to bias on — leave the query as-is
 }
 
 
