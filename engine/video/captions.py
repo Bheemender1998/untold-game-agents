@@ -139,6 +139,9 @@ def _parse_number_run(toks: list[str]):
             return head * 100
         if len(low) == 3 and low[1] == "oh" and (u := _number_token_value(low[2])) is not None and u < 10:
             return head * 100 + u
+        if (len(low) == 3 and low[1] in _NUM_TENS
+                and (u := _number_token_value(low[2])) is not None and 1 <= u <= 9):
+            return head * 100 + _NUM_TENS[low[1]] + u
         if len(low) == 2 and (lo := _number_token_value(low[1])) is not None and 10 <= lo <= 99:
             return head * 100 + lo
     return None

@@ -164,3 +164,15 @@ def test_apply_pronunciation_is_word_boundary_safe(monkeypatch):
     finally:
         tts._PRONUNCIATION.pop("Lauda", None)
         tts._pronunciation_re.cache_clear()   # restore: remove the injected entry
+
+
+def test_spell_years_handles_ranges():
+    from engine.video import tts
+    out = tts.script_to_narration_text("From 1984-1988 he raced.")
+    assert "nineteen eighty-four to nineteen eighty-eight" in out
+
+
+def test_spell_years_leaves_decades_alone():
+    from engine.video import tts
+    out = tts.script_to_narration_text("The 1990s were wild.")
+    assert "1990s" in out          # not half-converted to 'nineteen ninety s'

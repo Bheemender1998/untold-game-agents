@@ -82,8 +82,15 @@ def _year_to_words(n: int) -> str:
 def _spell_years(text: str) -> str:
     """Spell standalone 4-digit years (1100-2099) the way people say them, so espeak
     doesn't read '1984' as 'nineteen hundred eighty four'. Skips currency/decimals and
-    digits glued to other digits (e.g. '$1,984', '19840')."""
-    return re.sub(r"(?<![\d.$,])(1[1-9]\d{2}|20\d{2})(?!\d)",
+    digits glued to other digits (e.g. '$1,984', '19840'). Year ranges like '1984-1988'
+    are converted to 'nineteen eighty-four to nineteen eighty-eight' before the
+    standalone pass. Decades like '1990s' are left unchanged."""
+    text = re.sub(
+        r"\b(1[1-9]\d{2}|20\d{2})\s*-\s*(1[1-9]\d{2}|20\d{2})\b",
+        lambda m: f"{_year_to_words(int(m.group(1)))} to {_year_to_words(int(m.group(2)))}",
+        text,
+    )
+    return re.sub(r"(?<![\d.$,])(1[1-9]\d{2}|20\d{2})(?![\ds])",
                   lambda m: _year_to_words(int(m.group())), text)
 
 
