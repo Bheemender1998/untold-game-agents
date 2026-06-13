@@ -7,22 +7,12 @@ import type {CaptionWord} from '../types';
 // Word-by-word kinetic captions, synced to the voice. Large, centered, multi-line block:
 // a wider grouping window packs a fuller phrase per page, which wraps into 2-3 big lines
 // that fill the canvas (vs. the old single small phrase at the bottom).
-// Chapter headlines hold 3s then fade 0.6s; suppress captions during that window so the
-// title owns the screen (the original "headline, then captions" intent), then resume.
-const CHAPTER_HEADLINE_MS = 3600;
-
-export const Captions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: number[]}> = ({
-  captions,
-  chapterStartsMs = [],
-}) => {
+// Captions are always shown (including during title cards); anchored to the lower third
+// so they never collide with the top-anchored chapter title card.
+export const Captions: React.FC<{captions: CaptionWord[]}> = ({captions}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const nowMs = (frame / fps) * 1000;
-
-  // Hold for the chapter headline: don't draw captions while a title card is on screen.
-  const inHeadline = chapterStartsMs.some(
-    (s) => nowMs >= s && nowMs < s + CHAPTER_HEADLINE_MS,
-  );
 
   const pages = useMemo(() => {
     const caps: Caption[] = captions.map((w) => ({
@@ -37,7 +27,7 @@ export const Captions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: numb
   }, [captions]);
 
   const page = pages.find((p) => nowMs >= p.startMs && nowMs < p.startMs + p.durationMs);
-  if (!page || inHeadline) return null;
+  if (!page) return null;
 
   // Page-level fade: ease the whole block in/out instead of hard-cutting (matters most at the
   // chapter-headline boundaries, where captions resume/suppress). Kept short so contiguous
@@ -50,7 +40,7 @@ export const Captions: React.FC<{captions: CaptionWord[]; chapterStartsMs?: numb
   );
 
   return (
-    <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', padding: '0 120px'}}>
+    <AbsoluteFill style={{justifyContent: 'flex-end', alignItems: 'center', padding: '0 120px 160px'}}>
       <div
         style={{
           display: 'flex',

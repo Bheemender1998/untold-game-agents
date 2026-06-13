@@ -71,10 +71,7 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
 
       {/* kinetic word-by-word captions, synced to the voice (offset by the intro) */}
       <Sequence from={introF} name="Captions">
-        <Captions
-          captions={props.captions}
-          chapterStartsMs={props.chapters.map((c) => c.startMs)}
-        />
+        <Captions captions={props.captions} />
       </Sequence>
 
       {/* like/comment/subscribe end card after the narration ends */}
