@@ -31,3 +31,24 @@ def test_layout_wraps_to_at_most_three_lines_and_fits_width():
     _, lines, box, _, _, _ = tn._layout_tension("THE NIGHT HE NEVER MADE IT HOME", d)
     assert len(lines) <= 3
     assert (box[2] - box[0]) <= tn.MAX_TEXT_W
+
+
+def test_compose_writes_1280x720_jpeg(tmp_path):
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (900, 1200), (120, 90, 70)).save(subj)   # synthetic portrait
+    out = tmp_path / "thumbnail.jpg"
+    tn.compose(str(subj), "10 DAYS LATER", str(out))
+    assert out.exists()
+    with Image.open(out) as im:
+        assert im.size == (1280, 720)
+        assert im.format == "JPEG"
+    assert out.stat().st_size < 2_000_000   # YouTube's 2 MB limit
+
+
+def test_compose_handles_empty_tension_text(tmp_path):
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1280, 720), (90, 90, 90)).save(subj)
+    out = tmp_path / "thumb2.jpg"
+    tn.compose(str(subj), "", str(out))   # asset layer only, no crash
+    with Image.open(out) as im:
+        assert im.size == (1280, 720)

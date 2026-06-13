@@ -2,7 +2,7 @@
 "Prestige Feed Killer" thumbnail template (asset layer + tension layer)."""
 from __future__ import annotations
 import os
-from PIL import ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
 _FONTS = os.path.join(os.path.dirname(__file__), "assets", "fonts")
 TENSION_FONT = os.path.join(_FONTS, "Anton-Regular.ttf")
@@ -62,3 +62,54 @@ def _layout_tension(text, draw):
     marker_w = min(int(block_w), MARKER_MAX_W)
     marker_rect = (right - marker_w, marker_top, right, marker_top + MARKER_H)
     return font, lines, block_box, marker_rect, line_h, widths
+
+
+def _draw_stamp(draw):
+    """Serif UNTOLD stamp in a bordered box, top-right — the constant brand mark."""
+    font = ImageFont.truetype(STAMP_FONT, 26)
+    text, pad, cream = "UNTOLD", 10, (216, 201, 166)
+    tb = draw.textbbox((0, 0), text, font=font)
+    tw, th = tb[2] - tb[0], tb[3] - tb[1]
+    x2, y0 = W - 28, 22
+    x1, y2 = x2 - tw - 2 * pad, y0 + th + 2 * pad
+    draw.rectangle([x1, y0, x2, y2], outline=cream, width=2)
+    draw.text((x1 + pad - tb[0], y0 + pad - tb[1]), text, font=font, fill=cream)
+
+
+def _draw_tension(draw, text):
+    """Right-aligned condensed withholding text + the text-anchored red marker."""
+    font, lines, box, marker, line_h, widths = _layout_tension(text, draw)
+    right, top = box[2], box[1]
+    for i, ln in enumerate(lines):
+        x, y = right - widths[i], top + i * line_h
+        draw.text((x + 3, y + 3), ln, font=font, fill=(0, 0, 0))      # shadow
+        draw.text((x, y), ln, font=font, fill=(255, 255, 255))
+    draw.rectangle(list(marker), fill=RED)
+
+
+def compose(subject_path: str, tension_text: str, out_path: str) -> None:
+    """Render the 1280x720 'Prestige Feed Killer' thumbnail to out_path (JPEG)."""
+    base = ImageOps.fit(Image.open(subject_path).convert("RGB"), (W, H), Image.LANCZOS)
+    # archival grade: desaturate + warm sepia duotone, then trim brightness / lift contrast
+    desat = ImageEnhance.Color(base).enhance(0.35)
+    sepia = ImageOps.colorize(ImageOps.grayscale(base), black=(26, 18, 10), white=(236, 222, 196))
+    graded = Image.blend(desat, sepia, 0.5)
+    graded = ImageEnhance.Contrast(ImageEnhance.Brightness(graded).enhance(0.92)).enhance(1.08)
+    # warm side-light from the lower-left (subject side)
+    blob = ImageOps.invert(Image.radial_gradient("L")).resize((int(W * 1.4), int(H * 1.4)))
+    light = Image.new("L", (W, H), 0)
+    light.paste(blob, (int(0.28 * W) - blob.width // 2, int(0.62 * H) - blob.height // 2))
+    warm = Image.new("RGB", (W, H), (232, 180, 110))
+    graded = Image.composite(ImageChops.screen(graded, warm), graded, light.point(lambda v: int(v * 0.30)))
+    # film grain
+    noise = Image.effect_noise((W, H), 30).convert("RGB")
+    graded = Image.blend(graded, noise, 0.07)
+    # vignette (bright centre -> dark edges, floored so edges darken to ~0.31)
+    vig = ImageOps.invert(Image.radial_gradient("L")).resize((W, H)).point(lambda v: int(80 + v * 0.69))
+    graded = ImageChops.multiply(graded, Image.merge("RGB", (vig, vig, vig)))
+    # layers on top
+    draw = ImageDraw.Draw(graded)
+    _draw_stamp(draw)
+    if tension_text:
+        _draw_tension(draw, tension_text)
+    graded.save(out_path, "JPEG", quality=88)
