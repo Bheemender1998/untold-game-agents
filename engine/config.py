@@ -22,7 +22,7 @@ CHANNEL_CONTEXT = """
 Channel: The Untold Game
 Niche: Multi-sport history and storytelling (YouTube)
 Brand voice: Cinematic, authoritative, entertaining — like ESPN 30 for 30
-Tagline: "The stories they forgot to tell you"
+Tagline: "The Archive of Lost Sports History"
 Target audience: Sports fans aged 18-45 who want depth beyond the highlights
 Content pillars:
   1. The hidden story — buried moments mainstream media never covered
@@ -36,6 +36,12 @@ Sports covered: NFL, NBA, Soccer/Football, Cricket, Formula 1, UFC, College Spor
 
 # Channel handle (watermark, end card, description CTA) + default music credit.
 CHANNEL_HANDLE = "@untoldgamemedia"
+# Channel positioning (banner + public "About"; source of truth for engine.pipeline.banner).
+CHANNEL_NAME = "The Untold Game"
+CHANNEL_SUBTITLE = "The Archive of Lost Sports History"
+CHANNEL_DESCRIPTION = """The Untold Game — The Archive of Lost Sports History.
+Premium, heavily researched documentaries on the forgotten, buried, and deliberately overlooked stories behind the world's biggest games — F1, football, cricket, the NFL, and beyond. Cinematic, told in a 30-for-30 voice. Every claim verified; nothing sensationalized.
+▶ New untold stories regularly. Subscribe → @untoldgamemedia"""
 # Neutral default — the curated library is mixed-source (Pixabay, Tunetank, etc.), so we
 # don't claim a single source. Per-track credits in music/attribution.json override this.
 MUSIC_CREDIT_DEFAULT = "Royalty-free background music"

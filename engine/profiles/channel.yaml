@@ -3,7 +3,13 @@ channel:
   name: "The Untold Game"
   niche: "Multi-sport history & untold stories"
   voice: "Cinematic, authoritative, entertaining — like ESPN 30 for 30"
-  tagline: "The stories they forgot to tell you"
+  tagline: "The Archive of Lost Sports History"
+  description: >
+    The Untold Game — The Archive of Lost Sports History. Premium, heavily
+    researched documentaries on the forgotten, buried, and deliberately
+    overlooked stories behind the world's biggest games — F1, football, cricket,
+    the NFL, and beyond. Cinematic, told in a 30-for-30 voice. Every claim
+    verified; nothing sensationalized.
   audience: "Sports fans 18-45 who want depth beyond the highlights"
   sports: [NFL, NBA, Soccer, Cricket, F1, UFC, College]
 api:
