@@ -351,3 +351,30 @@ def test_companion_short_guard_fail_flags_needs_review(monkeypatch):
     run_auto._companion_short("x")
     assert seen.get("short_status") == "short_needs_review"
     assert called["render"] is False    # guard failed → never rendered
+
+
+def test_cmd_approve_uploads_long_then_linked_short(monkeypatch):
+    idea = {"id": "x", "status": "awaiting_approval",
+            "metadata_path": "produced/x/long/metadata.json",
+            "video_path": "produced/x/long/video/video.mp4",
+            "short_status": "short_awaiting_approval",
+            "short_metadata_path": "produced/x/short/metadata.json",
+            "short_video_path": "produced/x/short/video/video.mp4"}
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda i: idea)
+    metas = {"produced/x/long/metadata.json": {"title": "Long", "description": "L", "tags": []},
+             "produced/x/short/metadata.json": {"title": "Short", "description": "S", "tags": []}}
+    monkeypatch.setattr(run_auto, "_load_metadata", lambda p: metas[p])
+    import os
+    monkeypatch.setattr(os.path, "exists", lambda p: True)
+    ups = []
+    monkeypatch.setattr(run_auto.uploader, "upload",
+                        lambda **k: ups.append(k) or ("ytLONG" if "Long" in k["title"] else "ytSHORT"))
+    appends = {}
+    monkeypatch.setattr(run_auto.uploader, "append_to_description",
+                        lambda vid, suffix, **k: appends.update(vid=vid, suffix=suffix) or "newdesc")
+    seen = {}
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda i, **f: seen.update(f))
+    run_auto.cmd_approve("x", public=False, dry_run=False)
+    assert ups[0]["title"] == "Long" and ups[1]["title"] == "Short"
+    assert "youtu.be/ytLONG" in ups[1]["description"]   # short desc links the long
+    assert "ytLONG" in seen["long_youtube_url"] and "ytSHORT" in seen["short_youtube_url"]

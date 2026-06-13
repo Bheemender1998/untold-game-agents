@@ -241,6 +241,19 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
     q.update_idea(idea_id, status="published",
                   long_youtube_url=f"https://youtu.be/{yt_id}")
     print(f"✓ published {idea_id} → https://youtu.be/{yt_id} ({privacy})")
+    long_url = f"https://youtu.be/{yt_id}"
+    # Companion short (if produced + clean): upload unlisted with the long URL in its description.
+    if idea.get("short_status") == "short_awaiting_approval" and idea.get("short_video_path"):
+        try:
+            smeta = _load_metadata(idea["short_metadata_path"])
+            svideo = os.path.join(_ROOT, idea["short_video_path"])
+            sdesc = f"{smeta.get('description', '')}\n\n▶ Full story on our channel: {long_url}".strip()
+            short_id = uploader.upload(video_path=svideo, title=smeta["title"],
+                                       description=sdesc, tags=smeta.get("tags"), privacy=privacy)
+            q.update_idea(idea_id, short_youtube_url=f"https://youtu.be/{short_id}")
+            print(f"✓ companion short {idea_id} → https://youtu.be/{short_id} ({privacy})")
+        except Exception as e:                  # short failure must not undo the long
+            print(f"⚠ {idea_id}: long published but companion short upload failed — {e}")
 
 
 def _video_id(url: str) -> str:
