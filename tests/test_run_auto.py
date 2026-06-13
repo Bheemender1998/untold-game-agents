@@ -271,6 +271,40 @@ def test_notify_never_raises(monkeypatch):
     run_auto._notify("anything")  # must not raise
 
 
+def test_notify_passes_text_as_argv_not_interpolated(monkeypatch):
+    """Regression: the default title's em-dash was json.dumps-escaped to \\u2014 and
+    baked into the AppleScript source, which osascript rejects ("-2741: unknown token"),
+    silently dropping the completion banner. Text must travel as argv so any unicode
+    survives verbatim — never interpolated into an -e script fragment."""
+    calls = {}
+    monkeypatch.setattr(run_auto.subprocess, "run",
+                        lambda cmd, **k: calls.setdefault("cmd", cmd))
+    run_auto._notify("3 produced: 2 awaiting_approval")  # default title contains an em-dash
+    cmd = calls["cmd"]
+    # both message and title reach osascript verbatim, each as its own argv element …
+    assert "3 produced: 2 awaiting_approval" in cmd
+    assert "The Untold Game — overnight" in cmd
+    # … and never as a json-escaped \\uXXXX token nor embedded in a notification literal.
+    assert not any("\\u" in str(part) for part in cmd)
+    assert not any("display notification \"" in str(part) for part in cmd)
+
+
+def test_notify_dash_prefixed_text_is_not_an_osascript_flag(monkeypatch):
+    """A message/title starting with '-' must be passed as an operand (after '--'),
+    not parsed by osascript as an option flag — which would silently drop the banner,
+    the same failure class this helper guards against."""
+    calls = {}
+    monkeypatch.setattr(run_auto.subprocess, "run",
+                        lambda cmd, **k: calls.setdefault("cmd", cmd))
+    run_auto._notify("-5 produced: all failed", title="-weird title")
+    cmd = calls["cmd"]
+    # "--" ends option parsing and must precede both operands.
+    assert "--" in cmd
+    sep = cmd.index("--")
+    assert cmd[sep + 1] == "-5 produced: all failed"
+    assert cmd[sep + 2] == "-weird title"
+
+
 def test_cmd_backlink_appends_long_url_to_short(monkeypatch):
     idea = {"id": "x",
             "long_youtube_url": "https://youtu.be/LONGvideoAB",
