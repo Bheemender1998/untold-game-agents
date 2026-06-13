@@ -130,6 +130,9 @@ MOOD_BROLL_POOL = {
              "fast city motion", "abstract energy light", "crowd lights blur", "spinning star trails"],
 }
 
+SHORT_BROLL_BEAT_S = 2.5    # short: a new atmospheric clip every ~2.5s (TikTok energy)
+LONG_BROLL_BEAT_S = 7.0     # long: every ~7s — varied but cinematic, no single-clip loop
+
 # ── Fact-gate (fact_gate.py) ──────────────────────────────────────────────────
 import os as _os  # local alias; config.py is module-level constants
 _FACT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))  # repo root

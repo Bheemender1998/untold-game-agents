@@ -26,6 +26,7 @@ import json
 import os
 import shutil
 
+from engine import config
 from engine import queue_manager as q
 from engine import paths
 from engine.video import captions, compose, tts
@@ -112,6 +113,7 @@ def main() -> None:
             portrait=is_short,
             intro_ms=(0 if is_short else remotion_build.INTRO_MS),
             outro_ms=(2500 if is_short else remotion_build.OUTRO_MS),
+            broll_beat_s=(config.SHORT_BROLL_BEAT_S if is_short else config.LONG_BROLL_BEAT_S),
         )
         with open(os.path.join(video_dir, "props.json"), "w") as f:
             json.dump(props, f, indent=2)
