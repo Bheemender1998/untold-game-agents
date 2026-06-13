@@ -12,6 +12,46 @@ def _patch_heavy(monkeypatch):
                         lambda queries, vd, portrait=False, sport=None: [])
 
 
+def test_build_props_digitizes_captions_but_keeps_raw_words_for_anchors(monkeypatch, tmp_path):
+    """Captions must show digitized text ("1984"), but assign_headline_times must receive
+    the original raw whisper tokens so year-anchored chapter titles can still match."""
+    captured = {}
+
+    def _capture_assign(sections, words, total_dur, narration):
+        captured["words"] = list(words) if words else words
+        return []
+
+    monkeypatch.setattr(remotion_build._tts, "script_to_narration_text", lambda md: "narration text")
+    monkeypatch.setattr(remotion_build._compose, "build_section_headlines", lambda idea, md: [])
+    monkeypatch.setattr(remotion_build._compose, "assign_headline_times", _capture_assign)
+    monkeypatch.setattr(remotion_build._footage, "fetch_clips",
+                        lambda queries, vd, portrait=False, sport=None: [])
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+
+    words = [
+        {"word": "In",          "start": 0.0, "end": 0.2},
+        {"word": "nineteen",    "start": 0.2, "end": 0.6},
+        {"word": "eighty-four", "start": 0.6, "end": 1.1},
+        {"word": "at",          "start": 1.1, "end": 1.3},
+    ]
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, assets, credit = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", words, 1.3)
+
+    # (a) Captions must have the digitized token "1984", not the spelled form.
+    caption_texts = [t["text"] for t in props["captions"]]
+    assert "1984" in caption_texts, (
+        f"Expected '1984' in caption tokens (digitized for display), got: {caption_texts}")
+
+    # (b) assign_headline_times must have received the raw (un-digitized) tokens.
+    assert "words" in captured, "assign_headline_times was never called with a words argument"
+    raw_words = [w["word"] for w in captured["words"]]
+    assert "nineteen" in raw_words, (
+        f"Expected raw token 'nineteen' in words passed to assign_headline_times, got: {raw_words}")
+    assert "eighty-four" in raw_words, (
+        f"Expected raw token 'eighty-four' in words passed to assign_headline_times, got: {raw_words}")
+
+
 def test_build_props_adds_music_for_short(tmp_path, monkeypatch):
     _patch_heavy(monkeypatch)
     monkeypatch.setattr(music, "short_music_props",

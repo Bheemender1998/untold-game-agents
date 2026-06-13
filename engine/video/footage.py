@@ -88,7 +88,7 @@ def _best_file(video: dict, min_width: int, portrait: bool = False) -> str | Non
 
 def _search(query: str, api_key: str, portrait: bool = False) -> list[dict]:
     orientation = "portrait" if portrait else "landscape"
-    params = urllib.parse.urlencode({"query": query, "per_page": 12,
+    params = urllib.parse.urlencode({"query": query, "per_page": 40,
                                      "orientation": orientation, "size": "medium"})
     req = urllib.request.Request(
         f"{_SEARCH}?{params}",
@@ -115,11 +115,21 @@ def _fetch_one(query: str, out_path: str, api_key: str, min_width: int,
                exclude_ids: set, portrait: bool = False) -> tuple[str, int] | None:
     """Pick a RANDOM eligible (unused) clip for the query and download it.
     Returns (out_path, video_id) or None."""
-    videos = _search(query, api_key, portrait=portrait)
+    primary_videos = _search(query, api_key, portrait=portrait)
+    videos = primary_videos
     eligible = [v for v in videos if v.get("id") not in exclude_ids
                 and _best_file(v, min_width, portrait=portrait)]
-    if not eligible:   # everything seen already → allow a repeat rather than a blank chapter
-        eligible = [v for v in videos if _best_file(v, min_width, portrait=portrait)]
+    if not eligible:
+        # No unused clip for this query. Try a broader query (drop the first word, which is
+        # usually the sport keyword or an adjective) to widen the pool before repeating.
+        broader = query.split(" ", 1)[1] if " " in query else query
+        if broader != query:
+            videos = _search(broader, api_key, portrait=portrait)
+            eligible = [v for v in videos if v.get("id") not in exclude_ids
+                        and _best_file(v, min_width, portrait=portrait)]
+    if not eligible:   # genuinely nothing unused → repeat from the widest pool we have, not a blank chapter
+        repeat_pool = videos or primary_videos
+        eligible = [v for v in repeat_pool if _best_file(v, min_width, portrait=portrait)]
     if not eligible:
         return None
     v = random.choice(eligible)

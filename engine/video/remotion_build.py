@@ -35,7 +35,8 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
     # Word-level captions: real whisper timings, else a length-weighted estimate.
     if words:
         cap_words = [{"text": w["word"], "startMs": int(round(w["start"] * 1000)),
-                      "endMs": int(round(w["end"] * 1000))} for w in words]
+                      "endMs": int(round(w["end"] * 1000))}
+                     for w in _captions.digitize_number_words(words)]
     else:
         cap_words = _captions.estimate_word_timings(narration, total_dur)
 

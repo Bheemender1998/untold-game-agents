@@ -82,7 +82,7 @@ def main() -> None:
             if not provider:
                 print(f"{RED}No TTS provider. `pip install kokoro-onnx` or run on macOS "
                       f"(say + ffmpeg).{RESET}"); return
-            narration_text = tts.script_to_narration_text(script_md)
+            narration_text = tts.apply_pronunciation(tts.script_to_narration_text(script_md))
             print(f"{GOLD}▶ Narrating [{args.id}] via {provider}…{RESET}")
             try:
                 voice = tts.narration_voice(idea, override=args.voice, provider=provider)
@@ -94,7 +94,7 @@ def main() -> None:
         total_dur = captions.audio_duration(audio_path)
         glossary = captions.proper_nouns(tts.script_to_narration_text(script_md))
         tx = captions.transcribe(audio_path, initial_prompt=glossary)   # {words, segments} | None
-        words = tx["words"] if tx else None           # downstream wants the word list
+        words = tx["words"] if tx else None           # downstream wants the word list (raw — kept for anchor matching)
         synced = "word-synced (whisper)" if words else "estimated timing (no faster-whisper)"
         print(f"{GREEN}✓ narration {total_dur:.0f}s — captions: {synced}{RESET}")
 
@@ -113,7 +113,7 @@ def main() -> None:
         )
         with open(os.path.join(video_dir, "props.json"), "w") as f:
             json.dump(props, f, indent=2)
-        srt_chunks = (captions.chunk_words_to_captions(words) if words
+        srt_chunks = (captions.chunk_words_to_captions(captions.digitize_number_words(words)) if words
                       else captions.estimate_caption_timings(
                           tts.script_to_narration_text(script_md), total_dur))
         captions.to_srt(srt_chunks, os.path.join(video_dir, "captions.srt"))

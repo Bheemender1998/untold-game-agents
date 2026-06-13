@@ -92,6 +92,91 @@ def chunk_words_to_captions(words: list[dict], max_words: int = 8,
     return chunks
 
 
+# Spoken-number word → value, for collapsing whisper tokens back to digits in captions.
+_NUM_UNIT = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+    "eighteen": 18, "nineteen": 19,
+}
+_NUM_TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+             "seventy": 70, "eighty": 80, "ninety": 90}
+
+
+def _number_token_value(tok: str):
+    """Value of a single lowercased number token, or None. Handles hyphenated tens
+    like 'eighty-four' (84) and bare units/tens. 'hundred'/'thousand'/'oh' handled by
+    the run parser, not here."""
+    tok = tok.strip().lower()
+    if tok in _NUM_UNIT:
+        return _NUM_UNIT[tok]
+    if tok in _NUM_TENS:
+        return _NUM_TENS[tok]
+    if "-" in tok:
+        a, _, b = tok.partition("-")
+        if a in _NUM_TENS and b in _NUM_UNIT and 1 <= _NUM_UNIT.get(b, 0) <= 9:
+            return _NUM_TENS[a] + _NUM_UNIT[b]
+    return None
+
+
+def _parse_number_run(toks: list[str]):
+    """Parse a run of number tokens into an int, conservatively. Recognizes:
+    year pairs ('nineteen eighty-four'→1984, 'nineteen hundred'→1900,
+    'nineteen oh five'→1905), 'twenty NN' (→20NN), and 'two thousand [n]' (→200n).
+    Returns the int or None if the run isn't a confident match."""
+    low = [t.strip().lower() for t in toks]
+    # two thousand [unit]
+    if len(low) >= 2 and low[0] == "two" and low[1] == "thousand":
+        if len(low) == 2:
+            return 2000
+        if len(low) == 3 and (u := _number_token_value(low[2])) is not None and u < 10:
+            return 2000 + u
+        return None
+    # century pair: <unit/teen> ['hundred' | 'oh' <unit> | <tens-or-tens-unit>]
+    head = _number_token_value(low[0])
+    if head is not None and 10 <= head <= 20:
+        if len(low) == 2 and low[1] == "hundred":
+            return head * 100
+        if len(low) == 3 and low[1] == "oh" and (u := _number_token_value(low[2])) is not None and u < 10:
+            return head * 100 + u
+        if (len(low) == 3 and low[1] in _NUM_TENS
+                and (u := _number_token_value(low[2])) is not None and 1 <= u <= 9):
+            return head * 100 + _NUM_TENS[low[1]] + u
+        if len(low) == 2 and (lo := _number_token_value(low[1])) is not None and 10 <= lo <= 99:
+            return head * 100 + lo
+    return None
+
+
+def digitize_number_words(words: list[dict]) -> list[dict]:
+    """Collapse runs of spoken-number tokens in a whisper word list back into a single
+    digit token, merging the run's start/end timing. Conservative — only collapses
+    confident year-ish patterns (see _parse_number_run); leaves everything else as-is.
+    Input/return shape: [{'word','start','end'}]. Trailing punctuation on the run's last
+    token is preserved on the digit token."""
+    out: list[dict] = []
+    i, n = 0, len(words)
+    while i < n:
+        matched = False
+        for run_len in (3, 2):
+            if i + run_len > n:
+                continue
+            chunk = words[i:i + run_len]
+            core = [w["word"].rstrip(".,!?;:") for w in chunk]
+            val = _parse_number_run(core)
+            if val is not None:
+                w_last = chunk[-1]["word"]
+                punct = w_last[len(w_last.rstrip(".,!?;:")):]
+                out.append({"word": f"{val}{punct}",
+                            "start": chunk[0]["start"], "end": chunk[-1]["end"]})
+                i += run_len
+                matched = True
+                break
+        if not matched:
+            out.append(words[i])
+            i += 1
+    return out
+
+
 def estimate_caption_timings(narration_text: str, total_duration: float,
                              max_words: int = 8) -> list[dict]:
     """No-whisper fallback: split narration into short lines and spread them across

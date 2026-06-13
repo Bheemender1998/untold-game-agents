@@ -41,7 +41,7 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
             src={staticFile(props.musicSrc)}
             loop
             volume={(f) => {
-              const peak = props.musicVolume ?? 0.12;
+              const peak = props.musicVolume ?? 0.08;
               const total = ms2f(props.introMs + props.narrationMs + props.outroMs, fps) - introF;
               const fadeIn = Math.round(1.5 * fps);
               const fadeOut = Math.round(2.5 * fps);
@@ -71,10 +71,7 @@ export const UntoldVideo: React.FC<UntoldProps> = (props) => {
 
       {/* kinetic word-by-word captions, synced to the voice (offset by the intro) */}
       <Sequence from={introF} name="Captions">
-        <Captions
-          captions={props.captions}
-          chapterStartsMs={props.chapters.map((c) => c.startMs)}
-        />
+        <Captions captions={props.captions} />
       </Sequence>
 
       {/* like/comment/subscribe end card after the narration ends */}

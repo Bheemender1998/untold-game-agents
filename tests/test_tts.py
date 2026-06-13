@@ -86,9 +86,11 @@ def test_narration_spells_out_comma_grouped_numbers():
 
 
 def test_narration_leaves_plain_numbers_alone():
-    # Plain numbers (years, small counts) already read correctly — don't touch them.
+    # Years are now spelled naturally; small counts (300, 134) are left untouched.
     out = tts.script_to_narration_text("In 1973 he gained 300 yards, 134 votes short.")
-    assert "1973" in out and "300" in out and "134" in out
+    assert "nineteen seventy-three" in out
+    assert "300" in out and "134" in out
+    assert "1973" not in out
 
 
 def test_spell_numbers_handles_millions_and_skips_decimals_currency():
@@ -110,3 +112,67 @@ def test_split_sentences_breaks_after_sentence_end_initialism():
     assert tts._split_sentences("She lives in D.C. She moved.") == ["She lives in D.C.", "She moved."]
     # ...but a name following initials must NOT split (the original O.J. bug).
     assert tts._split_sentences("O.J. Simpson rushed. He scored.") == ["O.J. Simpson rushed.", "He scored."]
+
+
+def test_year_to_words_paired_decades():
+    from engine.video import tts
+    assert tts._year_to_words(1984) == "nineteen eighty-four"
+    assert tts._year_to_words(1973) == "nineteen seventy-three"
+    assert tts._year_to_words(1900) == "nineteen hundred"
+    assert tts._year_to_words(1905) == "nineteen oh five"
+    assert tts._year_to_words(2003) == "two thousand three"
+    assert tts._year_to_words(2000) == "two thousand"
+    assert tts._year_to_words(2026) == "twenty twenty-six"
+    assert tts._year_to_words(2010) == "twenty ten"
+
+
+def test_script_to_narration_spells_years():
+    from engine.video import tts
+    out = tts.script_to_narration_text("In 1984 at Monaco, then 2003 and 2026.")
+    assert "nineteen eighty-four" in out
+    assert "two thousand three" in out
+    assert "twenty twenty-six" in out
+    assert "1984" not in out
+
+
+def test_script_to_narration_leaves_non_years_alone():
+    from engine.video import tts
+    out = tts.script_to_narration_text("He ran 400 meters; the crowd was 2,003 strong.")
+    assert "400" in out
+    assert "two thousand three" in out
+
+
+def test_apply_pronunciation_respells_known_names():
+    from engine.video import tts
+    out = tts.apply_pronunciation("Jacky Ickx and Jean-Marie Balestre argued.")
+    assert "Ickx" not in out
+    assert tts._PRONUNCIATION["Ickx"] in out
+
+
+def test_apply_pronunciation_leaves_unmapped_text_untouched():
+    from engine.video import tts
+    assert tts.apply_pronunciation("Senna led the race.") == "Senna led the race."
+
+
+def test_apply_pronunciation_is_word_boundary_safe(monkeypatch):
+    from engine.video import tts
+    monkeypatch.setitem(tts._PRONUNCIATION, "Lauda", "Lowda")
+    tts._pronunciation_re.cache_clear()       # map changed → rebuild the regex
+    try:
+        out = tts.apply_pronunciation("Laudable Lauda")
+        assert "Laudable" in out
+    finally:
+        tts._PRONUNCIATION.pop("Lauda", None)
+        tts._pronunciation_re.cache_clear()   # restore: remove the injected entry
+
+
+def test_spell_years_handles_ranges():
+    from engine.video import tts
+    out = tts.script_to_narration_text("From 1984-1988 he raced.")
+    assert "nineteen eighty-four to nineteen eighty-eight" in out
+
+
+def test_spell_years_leaves_decades_alone():
+    from engine.video import tts
+    out = tts.script_to_narration_text("The 1990s were wild.")
+    assert "1990s" in out          # not half-converted to 'nineteen ninety s'

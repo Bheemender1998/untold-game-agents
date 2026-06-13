@@ -12,6 +12,7 @@ Two providers, auto-detected (no config needed):
 (captions.py) gives the word timings later — TTS only has to produce clean audio.
 """
 from __future__ import annotations
+import functools
 import os
 import re
 import shutil
@@ -24,6 +25,19 @@ from engine import config
 _ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen "
          "fourteen fifteen sixteen seventeen eighteen nineteen").split()
 _TENS = ("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+
+# Seedable phonetic respellings applied to the NARRATION TEXT ONLY (not the caption
+# glossary), so espeak says tricky names right. Approximate — tune by ear over time.
+# Captions keep the canonical spelling (proper_nouns feeds whisper the real names).
+_PRONUNCIATION = {
+    "Ickx": "Eex",
+    "Balestre": "Balestra",
+    "Bellof": "Bell-off",
+    "Tendulkar": "Ten-dull-car",
+    "Sachin": "Suh-chin",
+    "Médellín": "Meda-yeen",
+    "Medellín": "Meda-yeen",
+}
 
 
 def _int_to_words(n: int) -> str:
@@ -49,6 +63,54 @@ def _spell_grouped_numbers(text: str) -> str:
                   lambda m: _int_to_words(int(m.group().replace(",", ""))), text)
 
 
+def _year_to_words(n: int) -> str:
+    """Spoken form of a 4-digit year. 1100-1999 → paired decades ('nineteen eighty-four',
+    'nineteen hundred', 'nineteen oh five'); 2000-2009 → 'two thousand [n]'; 2010-2099 →
+    'twenty [nn]'. Anything else falls back to the cardinal form."""
+    if not (1100 <= n <= 2099):
+        return _int_to_words(n)
+    hi, lo = n // 100, n % 100
+    if 2000 <= n <= 2009:
+        return "two thousand" + (f" {_ONES[lo]}" if lo else "")
+    if lo == 0:
+        return _int_to_words(hi) + " hundred"
+    if lo < 10:
+        return _int_to_words(hi) + f" oh {_ONES[lo]}"
+    return _int_to_words(hi) + f" {_int_to_words(lo)}"
+
+
+def _spell_years(text: str) -> str:
+    """Spell standalone 4-digit years (1100-2099) the way people say them, so espeak
+    doesn't read '1984' as 'nineteen hundred eighty four'. Skips currency/decimals and
+    digits glued to other digits (e.g. '$1,984', '19840'). Year ranges like '1984-1988'
+    are converted to 'nineteen eighty-four to nineteen eighty-eight' before the
+    standalone pass. Decades like '1990s' are left unchanged."""
+    text = re.sub(
+        r"\b(1[1-9]\d{2}|20\d{2})\s*-\s*(1[1-9]\d{2}|20\d{2})\b",
+        lambda m: f"{_year_to_words(int(m.group(1)))} to {_year_to_words(int(m.group(2)))}",
+        text,
+    )
+    return re.sub(r"(?<![\d.$,])(1[1-9]\d{2}|20\d{2})(?![\ds])",
+                  lambda m: _year_to_words(int(m.group())), text)
+
+
+@functools.lru_cache(maxsize=1)
+def _pronunciation_re():
+    if not _PRONUNCIATION:
+        return None
+    alt = "|".join(re.escape(k) for k in sorted(_PRONUNCIATION, key=len, reverse=True))
+    return re.compile(rf"\b(?:{alt})\b")
+
+
+def apply_pronunciation(text: str) -> str:
+    """Respell mapped names phonetically for TTS (word-boundary, longest-match-first).
+    Applied to the narration text only — the caption glossary keeps canonical names."""
+    pat = _pronunciation_re()
+    if pat is None:
+        return text
+    return pat.sub(lambda m: _PRONUNCIATION[m.group(0)], text)
+
+
 def script_to_narration_text(script_md: str) -> str:
     """Strip production cues ([VISUAL]/[ARCHIVAL]/[MUSIC]) and headers so only the
     spoken narration is sent to TTS."""
@@ -63,6 +125,7 @@ def script_to_narration_text(script_md: str) -> str:
             continue
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
         s = _spell_grouped_numbers(s)        # '2,003' → 'two thousand three' for clean TTS
+        s = _spell_years(s)                  # '1984' → 'nineteen eighty-four' (year form)
         lines.append(s)
     return "\n".join(lines)
 

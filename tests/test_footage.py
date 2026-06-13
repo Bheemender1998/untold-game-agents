@@ -35,3 +35,52 @@ def test_sport_query_unknown_sport_uses_raw_lowercased():
 def test_sport_query_falsy_sport_unchanged():
     assert footage._sport_query("race track", None) == "race track"
     assert footage._sport_query("race track", "") == "race track"
+
+
+def test_fetch_one_prefers_unused_within_video(monkeypatch):
+    from engine.video import footage
+    fake = [{"id": 1, "video_files": [{"file_type": "video/mp4", "link": "a", "width": 1920, "height": 1080}]},
+            {"id": 2, "video_files": [{"file_type": "video/mp4", "link": "b", "width": 1920, "height": 1080}]},
+            {"id": 3, "video_files": [{"file_type": "video/mp4", "link": "c", "width": 1920, "height": 1080}]}]
+    monkeypatch.setattr(footage, "_search", lambda *a, **k: fake)
+    monkeypatch.setattr(footage, "_download", lambda link, out: True)
+    res = footage._fetch_one("q", "/tmp/x.mp4", "key", 1280, exclude_ids={1, 2})
+    assert res is not None and res[1] == 3
+
+
+def test_fetch_one_repeats_only_when_no_unused_left(monkeypatch):
+    from engine.video import footage
+    fake = [{"id": 1, "video_files": [{"file_type": "video/mp4", "link": "a", "width": 1920, "height": 1080}]}]
+    monkeypatch.setattr(footage, "_search", lambda *a, **k: fake)
+    monkeypatch.setattr(footage, "_download", lambda link, out: True)
+    res = footage._fetch_one("q", "/tmp/x.mp4", "key", 1280, exclude_ids={1})
+    assert res is not None and res[1] == 1
+
+
+def test_fetch_one_broadens_query_before_repeating(monkeypatch):
+    from engine.video import footage
+    calls = []
+    def fake_search(query, api_key, portrait=False):
+        calls.append(query)
+        if query == "basketball game":
+            # primary query: only id 1, which is already used
+            return [{"id": 1, "video_files": [{"file_type": "video/mp4", "link": "a", "width": 1920, "height": 1080}]}]
+        # broader "game" query surfaces a fresh, unused clip
+        return [{"id": 9, "video_files": [{"file_type": "video/mp4", "link": "z", "width": 1920, "height": 1080}]}]
+    monkeypatch.setattr(footage, "_search", fake_search)
+    monkeypatch.setattr(footage, "_download", lambda link, out: True)
+    res = footage._fetch_one("basketball game", "/tmp/x.mp4", "key", 1280, exclude_ids={1})
+    assert calls == ["basketball game", "game"]   # broadened to the second word before repeating
+    assert res is not None and res[1] == 9         # picked the fresh broader clip, not a repeat of 1
+
+
+def test_fetch_one_repeats_primary_when_broader_query_empty(monkeypatch):
+    from engine.video import footage
+    def fake_search(query, api_key, portrait=False):
+        if query == "basketball game":
+            return [{"id": 1, "video_files": [{"file_type": "video/mp4", "link": "a", "width": 1920, "height": 1080}]}]
+        return []  # broader "game" query finds nothing
+    monkeypatch.setattr(footage, "_search", fake_search)
+    monkeypatch.setattr(footage, "_download", lambda link, out: True)
+    res = footage._fetch_one("basketball game", "/tmp/x.mp4", "key", 1280, exclude_ids={1})
+    assert res is not None and res[1] == 1   # repeats the primary clip rather than returning None

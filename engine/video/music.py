@@ -16,7 +16,7 @@ MUSIC_DIR = os.path.join(os.path.dirname(__file__), "music")
 MANIFEST = os.path.join(MUSIC_DIR, "manifest.json")
 ATTRIBUTION = os.path.join(MUSIC_DIR, "attribution.json")
 MOODS = ("tense", "triumphant", "somber", "hype")
-MUSIC_VOLUME = 0.12
+MUSIC_VOLUME = 0.08
 _EXTS = (".mp3", ".wav")
 
 
