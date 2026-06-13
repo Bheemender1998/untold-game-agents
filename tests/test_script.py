@@ -208,3 +208,18 @@ def test_title_numbers_within_passes_when_title_has_no_numbers():
     from engine.pipeline import script
     ok, new = script.title_numbers_within("The Goal That Cost Him His Life", "Andres Escobar.")
     assert ok and new == []
+
+
+def test_title_numbers_within_flags_fabricated_decimal():
+    from engine.pipeline import script
+    # title invents '3.5'; script only has the digits '3' and '5' separately -> must flag.
+    ok, new = script.title_numbers_within("The 3.5 Second Secret",
+                                          "He gained 3 yards, then waited 5 long minutes.")
+    assert not ok and new == ["3.5"]
+
+
+def test_title_numbers_within_passes_legit_decimal():
+    from engine.pipeline import script
+    ok, new = script.title_numbers_within("The 1.5 Second Gap That Decided It",
+                                          "The gap was 1.5 seconds at the line.")
+    assert ok and new == []

@@ -309,6 +309,12 @@ def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[s
 
 # ── Short-title digit-containment backstop ────────────────────────────────────
 
+# Title backstop captures decimals as ONE token (1.5, 3.5) so a fabricated decimal can't be
+# decomposed into component digit groups that happen to appear separately in the script. Distinct
+# from _TEASE_NUM_RE (used by tease_within_long), which is intentionally left unchanged.
+_TITLE_NUM_RE = re.compile(r"\b\d[\d,]*(?:\.\d+)?\b")
+
+
 def _norm_num(tok: str) -> str:
     """Normalise a digit token for value comparison: drop thousands-separator commas (global),
     keep everything else. '2,003' -> '2003'; '1,234,567' -> '1234567'. Decimal points are NOT
@@ -326,9 +332,12 @@ def title_numbers_within(title: str, script: str) -> tuple[bool, list[str]]:
     Digit groups ONLY -- the proper-noun half of tease_within_long is intentionally NOT used here:
     titles are Title Case, so every word looks like a proper noun and inflected title words would
     false-flag. Numbers don't inflect or get title-cased, so digit containment is surgical and
-    targets the real risk (a fabricated stat reaching live metadata). Known conservative
-    limitation: a number the title writes as a digit ('6') that the script only spells out ('six')
-    is flagged and falls back -- rare, and a safe false positive (we never ship a fabricated stat)."""
-    script_nums = {_norm_num(n) for n in _TEASE_NUM_RE.findall(script)}
-    new = {_norm_num(n) for n in _TEASE_NUM_RE.findall(title)} - script_nums
+    targets the real risk (a fabricated stat reaching live metadata). Decimals are captured as one
+    token ('3.5') so they can't be decomposed into component digits that appear separately in the
+    script; hyphenated ranges (1969-70) and alphanumerics (3peat) are still split/skipped --
+    an accepted lower-risk residual. Known conservative limitation: a number the title writes as
+    a digit ('6') that the script only spells out ('six') is flagged and falls back -- rare, and
+    a safe false positive (we never ship a fabricated stat)."""
+    script_nums = {_norm_num(n) for n in _TITLE_NUM_RE.findall(script)}
+    new = {_norm_num(n) for n in _TITLE_NUM_RE.findall(title)} - script_nums
     return (not new, sorted(new))
