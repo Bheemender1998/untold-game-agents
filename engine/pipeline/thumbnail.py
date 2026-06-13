@@ -7,6 +7,7 @@ import anthropic
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFont, ImageOps
 from engine.config import MODEL
 from engine.pipeline.script import title_numbers_within
+from engine import paths
 
 _FONTS = os.path.join(os.path.dirname(__file__), "assets", "fonts")
 TENSION_FONT = os.path.join(_FONTS, "Anton-Regular.ttf")
@@ -159,3 +160,25 @@ def _thumbnail_text(idea: dict, script: str) -> str:
         return ""
     ok, _ = title_numbers_within(line, script)
     return line if ok else ""
+
+
+def generate_thumbnail(idea: dict, fmt: str) -> dict:
+    """Composite the thumbnail for an idea+format from its human-supplied subject photo.
+    Self-stubs (logs, returns the idea unchanged, writes nothing) when no subject photo is
+    present — an idea must never crash the run over a missing optional asset."""
+    idea_id = idea["id"]
+    subject = paths.subject_path(idea_id, fmt)
+    if not os.path.exists(subject):
+        print(f"  · thumbnail skipped for [{idea_id}/{fmt}] — no subject photo at {subject}")
+        return idea
+    text = _thumbnail_text(idea, idea.get("script", ""))
+    out = paths.thumbnail_path(idea_id, fmt)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    compose(subject, text, out)
+    print(f"  ✓ thumbnail.jpg for [{idea_id}/{fmt}]" + (f' — "{text}"' if text else " (no tension text)"))
+    return idea
+
+
+def run(idea: dict, fmt: str = "long") -> dict:
+    """Pipeline stage: generate the thumbnail (self-stubbing on a missing subject photo)."""
+    return generate_thumbnail(idea, fmt)

@@ -76,3 +76,30 @@ def test_thumbnail_text_falls_back_to_empty_on_llm_error(monkeypatch):
         raise RuntimeError("down")
     monkeypatch.setattr(tn, "_thumbnail_text_llm", boom)
     assert tn._thumbnail_text({}, "script") == ""
+
+
+import os as _os
+
+
+def test_generate_thumbnail_self_stubs_without_subject(tmp_path, monkeypatch):
+    from engine import paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path))
+    _os.makedirs(paths.artifact_dir("id9", "short"), exist_ok=True)
+    idea = {"id": "id9"}
+    out = tn.generate_thumbnail(idea, "short")   # no subject photo present
+    assert out is idea                            # returned unchanged
+    assert not _os.path.exists(paths.thumbnail_path("id9", "short"))   # no file, no crash
+
+
+def test_generate_thumbnail_composites_when_subject_present(tmp_path, monkeypatch):
+    from engine import paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path))
+    d = paths.artifact_dir("id8", "long")
+    _os.makedirs(d, exist_ok=True)
+    Image.new("RGB", (1000, 1000), (100, 80, 60)).save(_os.path.join(d, "subject.png"))
+    monkeypatch.setattr(tn, "_thumbnail_text", lambda idea, script: "THEN HE VANISHED")
+    idea = {"id": "id8", "script": "He retired one season short."}
+    tn.generate_thumbnail(idea, "long")
+    assert _os.path.exists(paths.thumbnail_path("id8", "long"))
+    with Image.open(paths.thumbnail_path("id8", "long")) as im:
+        assert im.size == (1280, 720)
