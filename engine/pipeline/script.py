@@ -305,3 +305,30 @@ def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[s
         if num not in long_nums:
             new.add(num)
     return (not new, sorted(new))
+
+
+# ── Short-title digit-containment backstop ────────────────────────────────────
+
+def _norm_num(tok: str) -> str:
+    """Normalise a digit token for value comparison: drop thousands-separator commas (global),
+    keep everything else. '2,003' -> '2003'; '1,234,567' -> '1234567'. Decimal points are NOT
+    stripped ('1.5' would corrupt to '15'); note _TEASE_NUM_RE already splits on '.', matching
+    the existing tease-guard behaviour."""
+    return tok.replace(",", "")
+
+
+def title_numbers_within(title: str, script: str) -> tuple[bool, list[str]]:
+    """Backstop for a generated SHORT title: every digit group in `title` must already appear
+    (comma-normalised) as a digit group in the verified `script`. Returns (ok, sorted novel
+    numbers); a non-empty list means the title introduced a number the fact-gated script doesn't
+    contain -> caller self-stubs to title_variants[0].
+
+    Digit groups ONLY -- the proper-noun half of tease_within_long is intentionally NOT used here:
+    titles are Title Case, so every word looks like a proper noun and inflected title words would
+    false-flag. Numbers don't inflect or get title-cased, so digit containment is surgical and
+    targets the real risk (a fabricated stat reaching live metadata). Known conservative
+    limitation: a number the title writes as a digit ('6') that the script only spells out ('six')
+    is flagged and falls back -- rare, and a safe false positive (we never ship a fabricated stat)."""
+    script_nums = {_norm_num(n) for n in _TEASE_NUM_RE.findall(script)}
+    new = {_norm_num(n) for n in _TEASE_NUM_RE.findall(title)} - script_nums
+    return (not new, sorted(new))
