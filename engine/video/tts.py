@@ -49,6 +49,30 @@ def _spell_grouped_numbers(text: str) -> str:
                   lambda m: _int_to_words(int(m.group().replace(",", ""))), text)
 
 
+def _year_to_words(n: int) -> str:
+    """Spoken form of a 4-digit year. 1100-1999 → paired decades ('nineteen eighty-four',
+    'nineteen hundred', 'nineteen oh five'); 2000-2009 → 'two thousand [n]'; 2010-2099 →
+    'twenty [nn]'. Anything else falls back to the cardinal form."""
+    if not (1100 <= n <= 2099):
+        return _int_to_words(n)
+    hi, lo = n // 100, n % 100
+    if 2000 <= n <= 2009:
+        return "two thousand" + (f" {_ONES[lo]}" if lo else "")
+    if lo == 0:
+        return _int_to_words(hi) + " hundred"
+    if lo < 10:
+        return _int_to_words(hi) + f" oh {_ONES[lo]}"
+    return _int_to_words(hi) + f" {_int_to_words(lo)}"
+
+
+def _spell_years(text: str) -> str:
+    """Spell standalone 4-digit years (1100-2099) the way people say them, so espeak
+    doesn't read '1984' as 'nineteen hundred eighty four'. Skips currency/decimals and
+    digits glued to other digits (e.g. '$1,984', '19840')."""
+    return re.sub(r"(?<![\d.$,])(1[1-9]\d{2}|20\d{2})(?!\d)",
+                  lambda m: _year_to_words(int(m.group())), text)
+
+
 def script_to_narration_text(script_md: str) -> str:
     """Strip production cues ([VISUAL]/[ARCHIVAL]/[MUSIC]) and headers so only the
     spoken narration is sent to TTS."""
@@ -63,6 +87,7 @@ def script_to_narration_text(script_md: str) -> str:
             continue
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
         s = _spell_grouped_numbers(s)        # '2,003' → 'two thousand three' for clean TTS
+        s = _spell_years(s)                  # '1984' → 'nineteen eighty-four' (year form)
         lines.append(s)
     return "\n".join(lines)
 

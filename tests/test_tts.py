@@ -86,9 +86,11 @@ def test_narration_spells_out_comma_grouped_numbers():
 
 
 def test_narration_leaves_plain_numbers_alone():
-    # Plain numbers (years, small counts) already read correctly — don't touch them.
+    # Years are now spelled naturally; small counts (300, 134) are left untouched.
     out = tts.script_to_narration_text("In 1973 he gained 300 yards, 134 votes short.")
-    assert "1973" in out and "300" in out and "134" in out
+    assert "nineteen seventy-three" in out
+    assert "300" in out and "134" in out
+    assert "1973" not in out
 
 
 def test_spell_numbers_handles_millions_and_skips_decimals_currency():
@@ -110,3 +112,31 @@ def test_split_sentences_breaks_after_sentence_end_initialism():
     assert tts._split_sentences("She lives in D.C. She moved.") == ["She lives in D.C.", "She moved."]
     # ...but a name following initials must NOT split (the original O.J. bug).
     assert tts._split_sentences("O.J. Simpson rushed. He scored.") == ["O.J. Simpson rushed.", "He scored."]
+
+
+def test_year_to_words_paired_decades():
+    from engine.video import tts
+    assert tts._year_to_words(1984) == "nineteen eighty-four"
+    assert tts._year_to_words(1973) == "nineteen seventy-three"
+    assert tts._year_to_words(1900) == "nineteen hundred"
+    assert tts._year_to_words(1905) == "nineteen oh five"
+    assert tts._year_to_words(2003) == "two thousand three"
+    assert tts._year_to_words(2000) == "two thousand"
+    assert tts._year_to_words(2026) == "twenty twenty-six"
+    assert tts._year_to_words(2010) == "twenty ten"
+
+
+def test_script_to_narration_spells_years():
+    from engine.video import tts
+    out = tts.script_to_narration_text("In 1984 at Monaco, then 2003 and 2026.")
+    assert "nineteen eighty-four" in out
+    assert "two thousand three" in out
+    assert "twenty twenty-six" in out
+    assert "1984" not in out
+
+
+def test_script_to_narration_leaves_non_years_alone():
+    from engine.video import tts
+    out = tts.script_to_narration_text("He ran 400 meters; the crowd was 2,003 strong.")
+    assert "400" in out
+    assert "two thousand three" in out
