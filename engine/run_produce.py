@@ -20,6 +20,7 @@ import os
 import tempfile
 
 from engine import queue_manager as q
+from engine import paths
 from engine.pipeline.script import clean_short_body, generate_script, generate_short_script
 from engine.pipeline.metadata import generate_metadata, generate_short_metadata
 
@@ -55,7 +56,7 @@ def _select(args) -> list[dict]:
 
 
 def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = True,
-            autofix: bool = True, max_claims: int = 25, short: bool = False) -> dict:
+            autofix: bool = True, max_claims: int = 25, fmt: str = "long") -> dict:
     """Generate script + metadata for one idea; write artifacts; update the queue.
 
     The fact-gate is auto-chained: the script is verified (and auto-corrected once,
@@ -64,7 +65,8 @@ def produce(idea: dict, metadata_only: bool = False, factcheck_enabled: bool = T
     """
     idea_id = idea["id"]
     title = idea["title_variants"][0]
-    out_dir = os.path.join(PRODUCED_DIR, idea_id)
+    short = fmt == "short"
+    out_dir = paths.artifact_dir(idea_id, fmt)
     print(f"\n{GOLD}▶ Producing [{idea_id}] {title}{RESET}")
 
     script = idea.get("script", "")
@@ -164,8 +166,10 @@ def main() -> None:
     ap.add_argument("--no-factcheck", action="store_true", help="skip the fact-gate (not recommended)")
     ap.add_argument("--no-autofix", action="store_true", help="fact-check but don't auto-correct")
     ap.add_argument("--max-claims", type=int, default=25)
+    ap.add_argument("--format", choices=["long", "short"], default="long",
+                    help="output format (default: long-form)")
     ap.add_argument("--short", action="store_true",
-                    help="produce a YouTube Short (30-50s) instead of long-form")
+                    help="alias for --format short (back-compat)")
     args = ap.parse_args()
 
     ideas = _select(args)
@@ -178,10 +182,11 @@ def main() -> None:
     done, needs_review, failed = 0, 0, 0
     for idea in ideas:
         try:
+            fmt = "short" if (args.short or args.format == "short") else "long"
             r = produce(idea, metadata_only=args.metadata_only,
                         factcheck_enabled=not args.no_factcheck,
                         autofix=not args.no_autofix, max_claims=args.max_claims,
-                        short=args.short)
+                        fmt=fmt)
             done += 1
             if not r["fact_passed"]:
                 needs_review += 1
