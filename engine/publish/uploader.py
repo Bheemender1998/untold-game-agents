@@ -93,7 +93,7 @@ def upload(
     return video_id
 
 
-def _service(service):
+def _service(service=None):
     if service is not None:
         return service
     from engine.publish.auth import get_service
@@ -105,7 +105,10 @@ def update_description(video_id: str, new_description: str, *, service=None) -> 
     we list the current snippet, swap only the description, and send it all back —
     sending description alone would wipe title/categoryId. Returns the new description."""
     youtube = _service(service)
-    snippet = youtube.videos().list(part="snippet", id=video_id).execute()["items"][0]["snippet"]
+    items = youtube.videos().list(part="snippet", id=video_id).execute().get("items", [])
+    if not items:
+        raise ValueError(f"video {video_id!r} not found or inaccessible")
+    snippet = items[0]["snippet"]
     snippet["description"] = new_description[:5000]
     youtube.videos().update(part="snippet", body={"id": video_id, "snippet": snippet}).execute()
     return snippet["description"]
@@ -115,7 +118,10 @@ def append_to_description(video_id: str, suffix: str, *, service=None) -> str:
     """Append `suffix` (e.g. a companion-long link) to a live video's existing
     description, preserving the rest of the snippet. Returns the new description."""
     youtube = _service(service)
-    snippet = youtube.videos().list(part="snippet", id=video_id).execute()["items"][0]["snippet"]
+    items = youtube.videos().list(part="snippet", id=video_id).execute().get("items", [])
+    if not items:
+        raise ValueError(f"video {video_id!r} not found or inaccessible")
+    snippet = items[0]["snippet"]
     base = (snippet.get("description") or "").rstrip()
     new_desc = (f"{base}\n\n{suffix}" if base else suffix)[:5000]
     snippet["description"] = new_desc

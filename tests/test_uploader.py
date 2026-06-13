@@ -10,7 +10,7 @@ class _FakeVideos:
     def __init__(self, snippet):
         self._snippet = snippet
         self.update_body = None
-    def list(self, part, id):
+    def list(self, *, part, id):
         return _FakeReq({"items": [{"snippet": dict(self._snippet)}]})
     def update(self, part, body):
         self.update_body = body
@@ -39,3 +39,10 @@ def test_append_to_description_appends_suffix():
     assert new_desc.startswith("watch this")
     assert "Full story: https://youtu.be/LLL" in new_desc
     assert yt._videos.update_body["snippet"]["description"] == new_desc
+
+
+def test_append_to_description_truncates_to_5000():
+    yt = _FakeYouTube({"title": "T", "categoryId": "17", "description": "x" * 4999})
+    new_desc = uploader.append_to_description("vid1", "SUFFIX", service=yt)
+    assert len(new_desc) == 5000
+    assert new_desc.startswith("x" * 4999)
