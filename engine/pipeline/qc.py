@@ -9,8 +9,6 @@ import subprocess
 from engine import config
 from engine import paths
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 
 def _ffprobe_duration(path: str) -> float | None:
     if not os.path.exists(path):

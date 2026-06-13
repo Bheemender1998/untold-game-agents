@@ -96,12 +96,12 @@ def test_qc_video_survives_missing_idea_dir(tmp_path, monkeypatch):
     assert os.path.exists(tmp_path / "produced" / "ghost_idea" / "long" / "qc.json")
 
 
-def test_qc_video_uses_format_subdir(monkeypatch, tmp_path):
+def test_qc_video_routes_to_format_subdir(monkeypatch, tmp_path):
     from engine.pipeline import qc
     from engine import paths
     monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
-    vdir = tmp_path / "produced" / "x" / "long" / "video"
-    vdir.mkdir(parents=True)
-    report = qc.qc_video("x", "long")           # no inputs → checks fail, but no crash
+    (tmp_path / "produced" / "x" / "short" / "video").mkdir(parents=True)
+    report = qc.qc_video("x", "short")           # never raises on missing inputs
     assert "passed" in report
-    assert (tmp_path / "produced" / "x" / "long" / "qc.json").exists()
+    assert (tmp_path / "produced" / "x" / "short" / "qc.json").exists()   # routed to <fmt>
+    assert not (tmp_path / "produced" / "x" / "long" / "qc.json").exists()

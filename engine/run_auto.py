@@ -17,6 +17,7 @@ from engine.publish import uploader, auth
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VENV_PY = os.path.join(_ROOT, ".venv-video", "bin", "python")
+_OVERNIGHT_FMT = "long"  # overnight pipeline is long-form only (Phase 2 adds companion shorts)
 
 
 def _run(cmd: list[str], timeout: float | None = None) -> int:
@@ -42,7 +43,7 @@ def _select(count: int) -> list[dict]:
 def _produce_one(idea_id: str) -> str:
     """Run produce as a subprocess; return the idea's resulting status."""
     rc = _run([sys.executable, "-m", "engine.run_produce", "--id", idea_id,
-               "--format", "long"],
+               "--format", _OVERNIGHT_FMT],
               timeout=config.PRODUCE_TIMEOUT_S)
     if rc != 0:
         print(f"· {idea_id}: produce {'timed out' if rc == 124 else f'exit {rc}'} "
@@ -54,7 +55,7 @@ def _produce_one(idea_id: str) -> str:
 def _render_one(idea_id: str) -> bool:
     """Render via the video venv under a hard timeout. On nonzero/timeout → render_failed."""
     rc = _run([_VENV_PY, "-m", "engine.run_video", "--id", idea_id,
-               "--render", "--mode", "narrated", "--format", "long"],
+               "--render", "--mode", "narrated", "--format", _OVERNIGHT_FMT],
               timeout=config.RENDER_TIMEOUT_S)
     if rc != 0:
         why = "render timed out" if rc == 124 else f"render exit {rc}"
@@ -72,7 +73,7 @@ def _render_and_qc(idea_id: str) -> None:
     if not _render_one(idea_id):
         print(f"· {idea_id}: render_failed")
         return
-    report = qc.qc_video(idea_id, "long")
+    report = qc.qc_video(idea_id, _OVERNIGHT_FMT)
     status = "awaiting_approval" if report["passed"] else "qc_failed"
     q.update_idea(idea_id, status=status)
     print(f"· {idea_id}: {status}")
@@ -129,7 +130,7 @@ def _load_metadata(rel_path: str) -> dict:
 
 
 def _qc_summary(idea_id: str) -> str:
-    path = paths.qc_path(idea_id, "long")
+    path = paths.qc_path(idea_id, _OVERNIGHT_FMT)
     try:
         with open(path) as f:
             r = json.load(f)
