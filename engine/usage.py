@@ -61,6 +61,12 @@ def record(resp, stage: str) -> None:
             "cache_read_input_tokens": getattr(u, "cache_read_input_tokens", 0) or 0,
             "cost_usd": round(cost_usd(u, model), 6),
         }
+        # Harden against a fresh checkout / a caller with a different CWD: a
+        # missing logs/ dir would otherwise drop the whole run's telemetry.
+        os.makedirs(os.path.dirname(COST_LEDGER_PATH) or ".", exist_ok=True)
+        # Single small append in "a" (O_APPEND) mode — atomic per write() at the
+        # OS level, so the overnight run's parallel ideation threads don't
+        # interleave rows (each row is well under PIPE_BUF).
         with open(COST_LEDGER_PATH, "a") as f:
             f.write(json.dumps(row) + "\n")
     except Exception as e:  # cost tracking must never crash a run
