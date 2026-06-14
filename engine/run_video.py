@@ -121,9 +121,10 @@ def main() -> None:
                       else captions.estimate_caption_timings(
                           tts.script_to_narration_text(script_md), total_dur))
         captions.to_srt(srt_chunks, os.path.join(video_dir, "captions.srt"))
-        n_bg = sum(1 for c in props["chapters"] if c.get("bClip"))
+        beats = props.get("bBeats", [])
+        n_bg = sum(1 for b in beats if b.get("src"))
         print(f"{GREEN}✓ {len(props['chapters'])} chapters · {len(props['captions'])} caption words · "
-              f"{n_bg}/{len(props['chapters'])} b-roll clips → "
+              f"{n_bg}/{len(beats)} b-roll clips → "
               f"{os.path.relpath(os.path.join(video_dir, 'props.json'), _ROOT)}{RESET}")
         for ch in props["chapters"][:4]:
             print(f"{GRAY}   · {ch['headline']}{RESET}")
