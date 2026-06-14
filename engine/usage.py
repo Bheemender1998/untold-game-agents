@@ -37,3 +37,42 @@ def cost_usd(usage, model: str) -> float:
         + (getattr(usage, "cache_creation_input_tokens", 0) or 0) * rates["cache_write"]
         + (getattr(usage, "cache_read_input_tokens", 0) or 0) * rates["cache_read"]
     )
+
+
+def _run_id() -> str:
+    return os.environ.get("TUG_RUN_ID") or ("adhoc-" + datetime.date.today().isoformat())
+
+
+def record(resp, stage: str) -> None:
+    """Append one priced ledger row for a response. Best-effort; never raises."""
+    try:
+        u = resp.usage
+        model = getattr(resp, "model", "") or ""
+        if model not in PRICING:
+            print(f"cost-track warning: unknown model {model!r}; logged $0")
+        row = {
+            "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+            "run_id": _run_id(),
+            "stage": stage,
+            "model": model,
+            "input_tokens": getattr(u, "input_tokens", 0) or 0,
+            "output_tokens": getattr(u, "output_tokens", 0) or 0,
+            "cache_creation_input_tokens": getattr(u, "cache_creation_input_tokens", 0) or 0,
+            "cache_read_input_tokens": getattr(u, "cache_read_input_tokens", 0) or 0,
+            "cost_usd": round(cost_usd(u, model), 6),
+        }
+        with open(COST_LEDGER_PATH, "a") as f:
+            f.write(json.dumps(row) + "\n")
+    except Exception as e:  # cost tracking must never crash a run
+        print(f"cost-track warning: {e}")
+
+
+def logged_create(client, stage: str, **kwargs):
+    """client.messages.create(**kwargs) with usage recorded to the ledger.
+
+    The API call itself is NOT wrapped — real API errors propagate unchanged.
+    Only the recording is best-effort.
+    """
+    resp = client.messages.create(**kwargs)
+    record(resp, stage)
+    return resp
