@@ -18,7 +18,11 @@ cd "$REPO" || exit 1
 
 # node/npx (Remotion render) + python3 + ffmpeg all live in homebrew on this M2.
 # Render is shelled by run_auto into .venv-video, which inherits this PATH.
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+# IMPORTANT: system dirs (/usr/bin:/bin) MUST precede /usr/local/bin. This machine has
+# copies of Apple platform coreutils (mkdir/ls/cp/…) in /usr/local/bin that AMFI SIGKILLs
+# on exec ("Killed: 9", not in trust cache) — putting /usr/local/bin first made the job die
+# at the first `mkdir`. Homebrew stays first for python3/node/ffmpeg; /usr/local/bin last.
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:$PATH"
 if [ -f .env ]; then set -a; set +u; . ./.env; set -u; set +a; fi
 
 mkdir -p logs
