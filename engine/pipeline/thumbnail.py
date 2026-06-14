@@ -238,7 +238,10 @@ def generate_thumbnail(idea: dict, fmt: str) -> dict:
     text = _thumbnail_text(idea, idea.get("script", ""))
     out = paths.thumbnail_path(idea_id, fmt)
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    compose(subject, text, out)
+    if fmt == "short":
+        compose_vertical(subject, text, out)
+    else:
+        compose(subject, text, out)
     print(f"  ✓ thumbnail.jpg for [{idea_id}/{fmt}]" + (f' — "{text}"' if text else " (no tension text)"))
     return idea
 

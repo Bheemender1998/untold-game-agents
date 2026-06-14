@@ -134,6 +134,35 @@ def test_generate_thumbnail_composites_when_subject_present(tmp_path, monkeypatc
         assert im.size == (1280, 720)
 
 
+def test_generate_thumbnail_short_is_vertical(tmp_path, monkeypatch):
+    from engine import paths
+    # subject + output paths point into tmp
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1500, 2200), (100, 80, 60)).save(subj)
+    out = tmp_path / "thumbnail.jpg"
+    monkeypatch.setattr(paths, "subject_path", lambda i, f: str(subj))
+    monkeypatch.setattr(paths, "thumbnail_path", lambda i, f: str(out))
+    monkeypatch.setattr(tn, "_thumbnail_text", lambda idea, script: "BANNED THEN A DYNASTY")
+
+    tn.generate_thumbnail({"id": "x", "script": ""}, "short")
+    with Image.open(out) as im:
+        assert im.size == (1080, 1920)   # short → vertical
+
+
+def test_generate_thumbnail_long_is_landscape(tmp_path, monkeypatch):
+    from engine import paths
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1500, 1000), (100, 80, 60)).save(subj)
+    out = tmp_path / "thumb_long.jpg"
+    monkeypatch.setattr(paths, "subject_path", lambda i, f: str(subj))
+    monkeypatch.setattr(paths, "thumbnail_path", lambda i, f: str(out))
+    monkeypatch.setattr(tn, "_thumbnail_text", lambda idea, script: "10 DAYS LATER")
+
+    tn.generate_thumbnail({"id": "x", "script": ""}, "long")
+    with Image.open(out) as im:
+        assert im.size == (1280, 720)    # long → unchanged
+
+
 def test_compose_omits_tension_when_text_cannot_fit(tmp_path):
     subj = tmp_path / "subject.png"
     Image.new("RGB", (1280, 720), (90, 90, 90)).save(subj)
