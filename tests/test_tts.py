@@ -282,3 +282,55 @@ def test_script_to_narration_text_leaves_clean_script_unchanged():
     md = "# Title\n\nMOOD: triumphant\n\nA kung-fu kick shook football. The ban built them.\n"
     out = tts.script_to_narration_text(md)
     assert out.strip() == "A kung-fu kick shook football. The ban built them."
+
+
+def test_script_to_narration_text_strips_trailing_horizontal_rule():
+    # A script ending in a bare '---' (markdown thematic break) used to survive into the
+    # narration text and reach Kokoro as a non-speakable '---' chunk, crashing synthesis.
+    md = "# Title\n\nThe payoff lands here.\n\n---"
+    out = tts.script_to_narration_text(md)
+    assert out.strip() == "The payoff lands here."
+    assert "---" not in out
+
+
+def test_script_to_narration_text_strips_horizontal_rules_of_any_length():
+    # Any hyphen-run thematic break (---, -----) is structural, never spoken.
+    for rule in ("---", "----", "-------"):
+        out = tts.script_to_narration_text(f"Beat one ends.\n\n{rule}\n\nBeat two starts.")
+        chunks = tts._split_sentences(out)
+        assert chunks == ["Beat one ends.", "Beat two starts."], rule
+        assert "-" not in out
+
+
+def test_split_sentences_drops_non_speakable_chunks():
+    # Defense in depth: a chunk with no speakable character must never reach kokoro.create.
+    assert tts._split_sentences("The payoff lands here. ---") == ["The payoff lands here."]
+    assert tts._split_sentences("---") == []
+    assert tts._split_sentences("Real words here.") == ["Real words here."]
+
+
+def test_horizontal_rule_strip_leaves_legitimate_narration_intact():
+    # The HR skip and the speakable-chunk filter must not touch real prose: em dashes,
+    # hyphenated words, bare numbers, Unicode letters, or a rule-like '--- NOTE:' prefix.
+    for line in (
+        "He paused — then won.",
+        "A well-known 1980s-era rivalry.",
+        "He gained 42.",
+        "Medellin — Garrincha's city — roared.",
+        "--- NOTE: this line is still spoken.",
+    ):
+        out = tts.script_to_narration_text(f"# T\n\n{line}")
+        # nothing dropped, and every emitted chunk has speakable content
+        assert out.strip(), line
+        chunks = tts._split_sentences(out)
+        assert chunks, line
+        assert all(any(c.isalnum() for c in ch) for ch in chunks), line
+
+
+def test_other_thematic_breaks_yield_no_symbol_only_chunk():
+    # *** and ___ vanish via the markdown-emphasis strip; either way no symbol-only
+    # chunk reaches synthesis.
+    for rule in ("***", "___", "* * *"):
+        out = tts.script_to_narration_text(f"Beat one ends.\n\n{rule}\n\nBeat two starts.")
+        chunks = tts._split_sentences(out)
+        assert chunks == ["Beat one ends.", "Beat two starts."], rule

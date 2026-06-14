@@ -163,6 +163,8 @@ def script_to_narration_text(script_md: str) -> str:
             continue
         if re.match(r"(?i)^MOOD:\s*\w+\s*$", s):  # leaked short-script MOOD header
             continue
+        if re.match(r"^-{3,}$", s):          # markdown horizontal rule (--- between beats) — never spoken
+            continue
         if is_scaffold_line(s):                    # leaked reasoning / word-count / drafts
             continue
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
@@ -347,5 +349,8 @@ def _split_sentences(text: str) -> list[str]:
     out: list[str] = []
     for p in re.split(r"(?<=[.!?])\s+", t):
         p = p.replace(sep, ".")
-        out.extend(s.strip() for s in _INITIALISM_BREAK.split(p) if s.strip())
+        # Defense in depth: a chunk with no speakable character (e.g. a stray '---')
+        # produces no phonemes and crashes kokoro.create — never emit one.
+        out.extend(s.strip() for s in _INITIALISM_BREAK.split(p)
+                   if s.strip() and re.search(r"[^\W_]", s))
     return out
