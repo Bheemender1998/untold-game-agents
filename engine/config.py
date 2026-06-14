@@ -56,8 +56,8 @@ TARGET_SCRIPT_WORDS_MIN = 1600
 TARGET_SCRIPT_WORDS_MAX = 2000
 TARGET_RUNTIME_LABEL = "8-9 minutes"
 
-SHORT_SCRIPT_WORDS_MIN = 150   # YouTube Shorts: ~50-55s of narration at the brisk short pace
-SHORT_SCRIPT_WORDS_MAX = 185
+SHORT_SCRIPT_WORDS_MIN = 110   # YouTube Shorts: ~50-55s at the brisk short pace (~2.3 words/s)
+SHORT_SCRIPT_WORDS_MAX = 135
 
 # ── Viral potential scoring rubric ────────────────────────────────────────────
 VIRAL_RUBRIC = """
