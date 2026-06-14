@@ -74,9 +74,26 @@ retrieval misses) — neither needs the local stack or the M5. A future, much li
 full-page evidence is ever wanted: a `trafilatura` fetch+extract into `gather_evidence` (no
 ScrapeGraphAI, no Ollama).
 
-Sub-projects **A (Fooocus)** and **B (Qwen3)** remain open and unmeasured; A is additionally
-bounded by the integrity gate (ADR-0005) — local SDXL is viable only for atmospheric/abstract
-visuals, never AI-generated portraits of real people.
+**Fooocus (sub-project A) — measured, deferred.** Bounded by the integrity gate (ADR-0005):
+local SDXL is viable only for atmospheric/abstract visuals, never AI-generated portraits of real
+people — so it can only ever touch *b-roll*, not subjects. The one place it could add value is
+beats where Pexels (`engine/video/footage.py`) returns nothing and the render falls back to a
+gradient. Measured the b-roll fill across all 23 produced props.json (443 beats): **100% filled,
+zero gradient fallback.** That gap does not exist. Fooocus would also trade free Pexels *motion*
+stock for generated *stills* (a motion downgrade) and add SDXL setup + per-beat generation. No
+measured pain → defer.
+
+**Qwen3/Ollama (sub-project B) — measured, deferred.** Premise is offloading metadata generation
+off paid Sonnet. From the cost ledger (`logs/api-cost.jsonl`): the offloadable metadata stages
+(headlines/titles/descriptions/tease) are ~37% of a $0.37 sample ≈ **$0.10–0.15/run**, while the
+dominant cost — `fact_check` (63%) — is exactly where a weak local model is unsafe (integrity
+gate). Titles/descriptions also drive CTR (packaging work), so offloading them risks the key
+metric to save cents. (Ledger caveat: one run, no `script_writer` rows captured — a
+metadata/factcheck session, not a full produce — so absolute figures are partial; direction is
+unambiguous.) → defer.
+
+**Net: all three Track B pieces measured → all deferred.** The M5's real near-term payoff is
+faster local renders, not this stack. Revisit any piece only with new data.
 
 *(Housekeeping: the production renderer is **Remotion**, not HyperFrames as tabled above — the
 keystone choice changed during build. This amendment does not re-open that; noted so the table
