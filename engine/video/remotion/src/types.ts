@@ -19,6 +19,7 @@ export type BBeat = {
   endMs: number;
   src?: string | null;   // filename in public/ (atmospheric clip); null/omitted → gradient shows through
   zoomDir: 'in' | 'out'; // Ken-Burns direction for this beat
+  clipMs?: number | null; // source media length, so a clip shorter than the beat tiles (not freezes)
 };
 
 export type UntoldProps = {

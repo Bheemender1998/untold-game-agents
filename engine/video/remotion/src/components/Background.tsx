@@ -54,18 +54,25 @@ const Fade: React.FC<{durationInFrames: number; children: React.ReactNode}> = ({
 
 // A single b-roll beat: hard cut in (tiny 3-frame fade so there's no black flash), looped
 // to fill the beat, with a slow Ken-Burns zoom in the beat's direction.
-const BeatClip: React.FC<{src: string; durationInFrames: number; zoomDir: 'in' | 'out'}> = ({
+const BeatClip: React.FC<{src: string; durationInFrames: number; zoomDir: 'in' | 'out';
+  clipMs?: number | null}> = ({
   src,
   durationInFrames,
   zoomDir,
+  clipMs,
 }) => {
   const f = useCurrentFrame();
+  const {fps} = useVideoConfig();
   const fadeF = Math.min(3, Math.max(1, Math.floor(durationInFrames / 2)));
   const opacity = interpolate(f, [0, fadeF], [0, 1], {extrapolateRight: 'clamp'});
   const p = durationInFrames > 1 ? f / (durationInFrames - 1) : 0;
   const scale = zoomDir === 'in'
     ? interpolate(p, [0, 1], [1.0, 1.08], {extrapolateRight: 'clamp'})
     : interpolate(p, [0, 1], [1.08, 1.0], {extrapolateRight: 'clamp'});
+  // Loop period = the source media length so a clip SHORTER than the beat tiles instead of
+  // freezing on its last frame (matters for the long-form first beat ≈ introMs+beatMs).
+  // Unknown length → fall back to the beat window.
+  const loopF = clipMs ? Math.max(1, ms2f(clipMs, fps)) : durationInFrames;
   return (
     <AbsoluteFill style={{opacity}}>
       <AbsoluteFill
@@ -74,7 +81,7 @@ const BeatClip: React.FC<{src: string; durationInFrames: number; zoomDir: 'in' |
           transform: `scale(${scale})`,
         }}
       >
-        <Loop durationInFrames={durationInFrames}>
+        <Loop durationInFrames={loopF}>
           <OffthreadVideo
             src={staticFile(src)}
             muted
@@ -106,7 +113,7 @@ export const Background: React.FC<{chapters: Chapter[]; introMs: number; bBeats?
             const dur = Math.max(1, to - from);
             return (
               <Sequence key={i} from={from} durationInFrames={dur} name={`beat ${i + 1}`}>
-                <BeatClip src={b.src} durationInFrames={dur} zoomDir={b.zoomDir} />
+                <BeatClip src={b.src} durationInFrames={dur} zoomDir={b.zoomDir} clipMs={b.clipMs} />
               </Sequence>
             );
           })

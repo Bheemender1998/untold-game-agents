@@ -29,7 +29,7 @@ def beat_track(narration_ms: int, beat_s: float) -> list[dict]:
     narration_ms. One clip will be fetched per beat (no single-clip loop)."""
     if narration_ms <= 0 or beat_s <= 0:
         return [{"startMs": 0, "endMs": max(0, narration_ms)}]
-    beat_ms = int(round(beat_s * 1000))
+    beat_ms = max(1, int(round(beat_s * 1000)))   # guard: a tiny beat_s must not round to 0
     n = max(1, math.ceil(narration_ms / beat_ms))
     beats = []
     for i in range(n):
@@ -44,11 +44,12 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
                 width: int = 1920, height: int = 1080,
                 portrait: bool = False,
                 intro_ms: int = INTRO_MS, outro_ms: int = OUTRO_MS,
-                broll_beat_s: float = LONG_BROLL_BEAT_S) -> tuple[dict, list[str]]:
-    """Build (props, asset_paths) for the Remotion render.
+                broll_beat_s: float = LONG_BROLL_BEAT_S) -> tuple[dict, list[str], str]:
+    """Build (props, asset_paths, music_credit) for the Remotion render.
 
     props        → written to props.json and passed to `remotion render --props`.
     asset_paths  → files (narration + b-roll clips) to stage into remotion/public/.
+    music_credit → attribution string for the background bed ("" if none).
     """
     narration = _tts.script_to_narration_text(script_md)
 
@@ -81,11 +82,18 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
 
     b_beats, assets = [], []
     for i, (beat, clip) in enumerate(zip(beats, beat_clips)):
+        clip_ms = None
+        if clip:
+            try:
+                clip_ms = int(_captions.audio_duration(clip) * 1000)  # ffprobe works on video too
+            except Exception:
+                clip_ms = None
         b_beats.append({
             "startMs": beat["startMs"],
             "endMs": beat["endMs"],
             "src": os.path.basename(clip) if clip else None,
             "zoomDir": "in" if i % 2 == 0 else "out",
+            "clipMs": clip_ms,   # source media length → loop a short clip instead of freezing
         })
         if clip:
             assets.append(clip)
