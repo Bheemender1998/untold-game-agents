@@ -46,3 +46,16 @@ def test_nothing_found_returns_none(tmp_path, monkeypatch):
     monkeypatch.setattr(S, "_subject_query", lambda idea, script: ("", ""))
     res = S.source_subject({"id": "idA"}, "short")
     assert res["source"] is None
+
+
+def test_run_subject_main_reports(tmp_path, monkeypatch, capsys):
+    import sys
+    from engine import queue_manager, run_subject
+    from engine.pipeline import subject as S2
+    monkeypatch.setattr(queue_manager, "get_by_id", lambda i: {"id": i})
+    monkeypatch.setattr(S2, "source_subject",
+                        lambda idea, fmt: {"source": "wikipedia", "path": "p", "credit": "Jane / CC"})
+    monkeypatch.setattr(sys, "argv", ["run_subject", "--id", "idA", "--format", "short"])
+    run_subject.main()
+    out = capsys.readouterr().out.lower()
+    assert "wikipedia" in out and "jane" in out
