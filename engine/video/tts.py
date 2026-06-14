@@ -111,6 +111,36 @@ def apply_pronunciation(text: str) -> str:
     return pat.sub(lambda m: _PRONUNCIATION[m.group(0)], text)
 
 
+# Lines a chatty model leaks around the real narration — reasoning preamble, word-count
+# tallies, draft markers. Conservative + line-start anchored so real narration never matches.
+_SCAFFOLD_RE = [
+    re.compile(r"^word count\b", re.I),
+    re.compile(r"^let me\b", re.I),
+    re.compile(r"^now let me\b", re.I),
+    re.compile(r"^here'?s\b", re.I),
+    re.compile(r"^here is\b", re.I),
+    re.compile(r"^good[\s,—-]", re.I),
+    re.compile(r"^i'?ll write\b", re.I),
+    re.compile(r"^i (now )?have\b", re.I),
+    re.compile(r"^\d+\s+words\b", re.I),
+    re.compile(r"\bwords\b\s*[—-].*(within range|slightly under|over)", re.I),
+]
+_TOKEN_TALLY_RE = re.compile(r"\(\d+\)")
+
+
+def is_scaffold_line(line: str) -> bool:
+    """True when a line is leaked model scaffolding (reasoning preamble, word-count tally,
+    draft marker) rather than spoken narration. Strips markdown emphasis first."""
+    s = re.sub(r"[*_`]", "", line).strip()
+    if not s:
+        return False
+    if "✅" in s and len(s.split()) <= 6:
+        return True
+    if len(_TOKEN_TALLY_RE.findall(s)) >= 3:   # "A(1) kung-fu(2) kick(3)…"
+        return True
+    return any(p.search(s) for p in _SCAFFOLD_RE)
+
+
 def script_to_narration_text(script_md: str) -> str:
     """Strip production cues ([VISUAL]/[ARCHIVAL]/[MUSIC]) and headers so only the
     spoken narration is sent to TTS."""
@@ -122,6 +152,8 @@ def script_to_narration_text(script_md: str) -> str:
         if re.match(r"^\[[A-Z].*\]$", s):   # bracketed cue lines
             continue
         if re.match(r"(?i)^MOOD:\s*\w+\s*$", s):  # leaked short-script MOOD header
+            continue
+        if is_scaffold_line(s):                    # leaked reasoning / word-count / drafts
             continue
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
         s = _spell_grouped_numbers(s)        # '2,003' → 'two thousand three' for clean TTS

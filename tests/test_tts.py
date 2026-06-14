@@ -194,3 +194,54 @@ def test_narration_pace_long_uses_calm_defaults():
     assert tts.narration_pace("long") == (config.NARRATION_SPEED, config.NARRATION_GAP_S)
     # unknown/None format defaults to long-form (calm)
     assert tts.narration_pace(None) == (config.NARRATION_SPEED, config.NARRATION_GAP_S)
+
+
+def test_is_scaffold_line_flags_leaked_scaffolding():
+    from engine.video import tts
+    assert tts.is_scaffold_line("**Word count:** Let me count carefully.")
+    assert tts.is_scaffold_line("A(1) kung-fu(2) kick(3) into(4) the(5) stands(6)")
+    assert tts.is_scaffold_line("154 words — within range. ✅")
+    assert tts.is_scaffold_line("137 words — slightly under.")
+    assert tts.is_scaffold_line("Good — I now have solid verified facts. Let me compile:")
+    assert tts.is_scaffold_line("Let me compile what I know:")
+    assert tts.is_scaffold_line("Now let me write the narration and count words carefully.")
+
+
+def test_is_scaffold_line_keeps_real_narration():
+    from engine.video import tts
+    for ln in [
+        "A kung-fu kick into the stands shook English football to its core.",
+        "Eight-month ban. Criminal charges.",
+        "October 1995 — Cantona walks back out at Old Trafford.",
+        "The ban didn't break Manchester United. It built them.",
+        "He was one season from immortality.",
+    ]:
+        assert not tts.is_scaffold_line(ln), f"false positive on: {ln}"
+
+
+def test_script_to_narration_text_strips_leaked_scaffold():
+    from engine.video import tts
+    md = (
+        "# Title\n\n"
+        "Good — I now have solid verified facts. Let me compile:\n"
+        "- January 25, 1995: the kick\n\n"
+        "MOOD: triumphant\n\n"
+        "A kung-fu kick into the stands shook English football.\n"
+        "The ban built them.\n\n"
+        "**Word count:** Let me count carefully.\n"
+        "A(1) kung-fu(2) kick(3) into(4) the(5) stands(6)\n"
+        "154 words — within range. ✅\n"
+    )
+    out = tts.script_to_narration_text(md)
+    assert "kung-fu kick into the stands shook english football" in out.lower()
+    assert "word count" not in out.lower()
+    assert "(1)" not in out and "(2)" not in out
+    assert "let me compile" not in out.lower()
+    assert "✅" not in out
+
+
+def test_script_to_narration_text_leaves_clean_script_unchanged():
+    from engine.video import tts
+    md = "# Title\n\nMOOD: triumphant\n\nA kung-fu kick shook football. The ban built them.\n"
+    out = tts.script_to_narration_text(md)
+    assert out.strip() == "A kung-fu kick shook football. The ban built them."
