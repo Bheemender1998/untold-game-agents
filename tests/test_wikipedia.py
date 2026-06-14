@@ -122,3 +122,24 @@ def test_lead_image_rejects_svg(monkeypatch):
         return _Resp({"query": {"pages": {"1": {"original": {"source": "https://x/logo.svg", "width": 3000}}}}})
     monkeypatch.setattr(wikipedia.requests, "get", fake_get)
     assert wikipedia.lead_image("Logo Page") is None  # SVG → Pillow can't open → reject
+
+
+def test_lead_image_accepts_tall_narrow_portrait(monkeypatch):
+    # Regression: lead portraits are tall+narrow (e.g. Senna 438×584). Gating on width alone
+    # wrongly rejected them; gate on the larger side instead.
+    from engine.ideate import wikipedia
+    class _Resp:
+        def __init__(self, d): self._d = d
+        def json(self): return self._d
+    def fake_get(url, **kw):
+        p = kw.get("params", {})
+        if p.get("list") == "search":
+            return _Resp({"query": {"search": [{"title": "Ayrton Senna"}]}})
+        if p.get("prop") == "pageimages":
+            return _Resp({"query": {"pages": {"1": {
+                "original": {"source": "https://up/senna.jpg", "width": 438, "height": 584},
+                "pageimage": "Senna.jpg"}}}})
+        return _Resp({"query": {"pages": {"1": {"imageinfo": [{"extmetadata": {}}]}}}})
+    monkeypatch.setattr(wikipedia.requests, "get", fake_get)
+    out = wikipedia.lead_image("Ayrton Senna")
+    assert out is not None and out[0] == "https://up/senna.jpg"  # 584 tall ≥ min_dim → accepted
