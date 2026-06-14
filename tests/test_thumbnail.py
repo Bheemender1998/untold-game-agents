@@ -83,6 +83,18 @@ def test_compose_vertical_handles_empty_text(tmp_path):
         assert im.size == (1080, 1920)
 
 
+def test_compose_vertical_omits_text_when_it_cannot_fit(tmp_path):
+    # Pathological text (over-wide single word; very long string) must not draw off-frame —
+    # the band is omitted, the graded photo + stamp stand. Mirrors the 16:9 _draw_tension guard.
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1500, 2200), (100, 80, 60)).save(subj)
+    for bad in ["PNEUMONOULTRAMICROSCOPICSILICOVOLCANOCONIOSIS", "WORD " * 220]:
+        out = tmp_path / "covbad.jpg"
+        tn.compose_vertical(str(subj), bad, str(out))   # must not raise / draw off-frame
+        with Image.open(out) as im:
+            assert im.size == (1080, 1920)
+
+
 def test_thumbnail_text_uses_human_override(monkeypatch):
     # override present -> used verbatim, no LLM call
     monkeypatch.setattr(tn, "_thumbnail_text_llm", lambda i, s: (_ for _ in ()).throw(AssertionError("LLM should not be called")))

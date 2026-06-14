@@ -167,6 +167,11 @@ def compose_vertical(subject_path: str, tension_text: str, out_path: str) -> Non
         font, lines, line_h, widths = _layout_vertical(text, draw)
         block_h = line_h * len(lines)
         top = VH - V_BOTTOM_MARGIN - block_h
+        # Robustness (mirrors _draw_tension): if even the smallest layout can't fit on-canvas
+        # (pathological / over-long text), omit the text band rather than drawing off-frame.
+        # The graded photo + stamp still stand.
+        if max(widths) > MAX_TEXT_W_V or len(lines) > V_MAX_LINES or top < 0:
+            lines = []
         for i, ln in enumerate(lines):
             x = (VW - widths[i]) // 2
             y = top + i * line_h
