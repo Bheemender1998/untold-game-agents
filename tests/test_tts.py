@@ -211,6 +211,12 @@ def test_gap_schedule_none_end_gap_is_uniform():
     assert tts._gap_schedule(4, 0.5, None) == [0.5, 0.5, 0.5, 0.5]
 
 
+def test_gap_schedule_two_sentences_enlarges_before_payoff():
+    from engine.video import tts
+    # hook (s0) → end_gap_s → payoff (s1) → normal gap
+    assert tts._gap_schedule(2, 0.2, 0.6) == [0.6, 0.2]
+
+
 def test_gap_schedule_single_sentence_has_no_preceding_gap():
     from engine.video import tts
     assert tts._gap_schedule(1, 0.2, 0.6) == [0.2]
