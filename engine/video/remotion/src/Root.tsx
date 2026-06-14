@@ -17,7 +17,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={defaultProps}
         calculateMetadata={({props}: {props: UntoldProps}) => {
           const fps = props.fps || 30;
-          const totalMs = props.introMs + props.narrationMs + props.outroMs;
+          const totalMs = props.introMs + props.narrationMs + (props.endHoldMs ?? 0) + props.outroMs;
           return {
             durationInFrames: Math.max(1, Math.round((totalMs / 1000) * fps)),
             fps,
@@ -32,7 +32,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={shortDefaultProps}
         calculateMetadata={({props}: {props: UntoldProps}) => {
           const fps = props.fps || 30;
-          const totalMs = props.introMs + props.narrationMs + props.outroMs;
+          const totalMs = props.introMs + props.narrationMs + (props.endHoldMs ?? 0) + props.outroMs;
           return {
             durationInFrames: Math.max(1, Math.round((totalMs / 1000) * fps)),
             fps,

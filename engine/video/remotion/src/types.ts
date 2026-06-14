@@ -31,6 +31,7 @@ export type UntoldProps = {
   height: number;
   introMs: number;
   outroMs: number;
+  endHoldMs?: number;    // Shorts: hold the final story shot + music this long before the EndCTA (default 0)
   narrationMs: number;   // length of the narration audio
   captions: CaptionWord[];
   chapters: Chapter[];

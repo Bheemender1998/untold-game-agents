@@ -170,3 +170,22 @@ def test_build_props_bbeats_mood_falls_back_to_pillar(tmp_path, monkeypatch):
     assert set(grabbed["queries"]) <= set(config.MOOD_BROLL_POOL[expected_mood])
     # beats with no clip omit src but keep timing (gradient shows through, never crashes)
     assert props["bBeats"][0]["src"] is None
+
+
+def test_build_props_sets_end_hold_for_short(tmp_path, monkeypatch):
+    _patch_heavy(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0,
+        portrait=True, end_hold_ms=1000)
+    assert props["endHoldMs"] == 1000
+
+
+def test_build_props_end_hold_defaults_to_zero(tmp_path, monkeypatch):
+    _patch_heavy(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0)
+    assert props["endHoldMs"] == 0

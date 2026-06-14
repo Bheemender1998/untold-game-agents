@@ -26,7 +26,7 @@ export const UntoldShort: React.FC<UntoldProps> = (props) => {
             loop
             volume={(f) => {
               const peak = props.musicVolume ?? 0.08;
-              const total = ms2f(props.introMs + props.narrationMs + props.outroMs, fps);
+              const total = ms2f(props.introMs + props.narrationMs + (props.endHoldMs ?? 0) + props.outroMs, fps);
               const fadeIn = Math.round(1.5 * fps);
               const fadeOut = Math.round(2.5 * fps);
               return interpolate(
@@ -44,7 +44,7 @@ export const UntoldShort: React.FC<UntoldProps> = (props) => {
           captions={props.captions}
         />
       </Sequence>
-      <Sequence from={introF + ms2f(props.narrationMs, fps)} name="EndCTA">
+      <Sequence from={introF + ms2f(props.narrationMs + (props.endHoldMs ?? 0), fps)} name="EndCTA">
         <EndCTA vertical />
       </Sequence>
       <Watermark vertical />
