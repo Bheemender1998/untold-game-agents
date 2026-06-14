@@ -4,6 +4,47 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 15 (2026-06-14) — Operational skills + tracking/laptop-migration decision
+
+Tooling/process session. Codified four day-to-day workflows as skills (no engine code), then
+discussed how we track state and what the new **M5 Pro** laptop changes. Full
+brainstorm→spec→plan→subagent-driven rail; docs/config-only so no review trailer.
+
+### Shipped to main
+- **#44 (MERGED, `78df646`)** — four operational playbook skills under `.claude/skills/` that wrap the
+  existing CLI (no `engine/*.py` touched; 302 tests green):
+  - `build-video` (`run_auto`/`run_video` — produce→render→QC→**compose-preview** before the 45-min render)
+  - `thumbnail-assets` (`run_subject`→`run_thumbnail`, + channel `run_banner`)
+  - `publish-video` (`run_auto --approve/--render` — publish unlisted-by-default / re-render; integrity gate)
+  - `cost-report` (`run_cost_report` — spend summary + $10-alert triage)
+  - Docs synced: **CLAUDE.md** skills table + **README** skills note. Spec/plan:
+    `docs/superpowers/{specs,plans}/2026-06-14-operational-skills*`.
+
+### Decision — how we track (affirmed)
+- **HANDOFF.md = canonical, git-tracked session ledger** (portable via clone, reviewable). This file.
+- **Auto-memory** (`~/.claude/projects/.../memory/`) = *lean* behavioral facts the agent auto-applies — NOT a log.
+- Per-feature design → `docs/specs|plans|adr`. Test: "should it change agent behavior automatically?" → memory; "is it a record?" → HANDOFF/docs.
+
+### Open / next (Track B — deferred, as sequenced)
+1. **Revive the set-aside local stack on the M5 Pro** — the M5 overturns ADR-0004's "decisive" M2/8GB constraint,
+   so **Fooocus** (local SDXL imagery), **Qwen3 via Ollama** (offload metadata/research from paid Sonnet), and
+   **ScrapeGraphAI** are back on the table. Do its **own brainstorm → ADR-0004 update → plan**, with M5 benchmarking
+   — don't blind-install. Memory: `m5-pro-local-stack-revival.md`.
+2. **⚠️ Laptop-migration catch:** auto-memory and the claude-mem DB live under `~/.claude` — **machine-local, they do
+   NOT travel with `git clone`.** When setting up the M5 Pro, hand-copy
+   `~/.claude/projects/-Users-bheemendergurram-untold-game-agents/memory/` (and the claude-mem DB if history is wanted).
+
+### Carry-overs still open (from S14)
+- The 3 re-rendered shorts (`050d8550`, `9bbd24cd`, `bb8585d1`) are **local files only** — pushing to YouTube is a
+  manual step (`publish-video` skill now wraps it).
+- Open engine bug: a script ending in a bare `---` crashes Kokoro TTS (`script_to_narration_text`) — fix via ship rail.
+
+### Suggested skills next session
+For Track B: `superpowers:brainstorming` → `writing-plans` (+ an ADR-0004 update). For video work: `build-video`,
+`thumbnail-assets`, `publish-video`, `cost-report`, `ship-video-change`, `fact-review`.
+
+---
+
 ## Session 14 (2026-06-14) — Short-form pacing: "let it breathe"
 
 Triggered by human feedback on two freshly-rendered shorts: *"good, but very hurried, narration too fast,
