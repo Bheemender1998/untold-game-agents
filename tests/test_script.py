@@ -120,6 +120,38 @@ def test_short_keeps_invalid_mood_first_line_as_narration(monkeypatch):
     assert out["script"].startswith("MOOD: this was the word")  # kept as narration
 
 
+def test_parse_short_keeps_final_draft_and_strips_scaffold():
+    from engine.pipeline import script
+    raw = (
+        "Good — I now have solid verified facts. Let me compile:\n"
+        "- January 25, 1995: the kick\n\n"
+        "MOOD: triumphant\n\n"
+        "First draft narration that is wrong length.\n\n"
+        "**Word count:** Let me count carefully.\n"
+        "First(1) draft(2) narration(3)\n"
+        "137 words — slightly under.\n\n"
+        "MOOD: triumphant\n\n"
+        "A kung-fu kick into the stands shook English football. The ban built them.\n\n"
+        "154 words — within range. ✅\n"
+    )
+    out = script._parse_short(raw)
+    assert out["mood"] == "triumphant"
+    assert out["script"] == (
+        "A kung-fu kick into the stands shook English football. The ban built them."
+    )
+    assert "First draft" not in out["script"]
+    assert "word count" not in out["script"].lower()
+    assert "(1)" not in out["script"]
+
+
+def test_parse_short_clean_single_draft_unchanged():
+    from engine.pipeline import script
+    raw = "MOOD: somber\n\nThe own goal cost him everything. He never played again."
+    out = script._parse_short(raw)
+    assert out["mood"] == "somber"
+    assert out["script"] == "The own goal cost him everything. He never played again."
+
+
 def test_tease_within_long_passes_when_subset():
     from engine.pipeline import script
     long = "In 1984 Ayrton Senna chased Alain Prost at Monaco. The gap was seven seconds."

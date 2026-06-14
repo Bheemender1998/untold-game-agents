@@ -10,6 +10,7 @@ import re
 
 from engine.ideate.base_agent import BaseAgent
 from engine import config
+from engine.video import tts as _tts
 
 SCRIPT_SYSTEM = """You are the lead documentary scriptwriter for "The Untold Game",
 a YouTube channel telling forgotten sports-history stories in a cinematic, authoritative,
@@ -167,49 +168,28 @@ def _mood_value(s: str) -> str | None:
 
 
 def _parse_short(raw: str) -> dict:
-    """Split a short-writer response into {'script', 'mood'}.
+    """Return {'script', 'mood'} — the spoken narration only.
 
-    The header is a `MOOD: <valid mood>` line near the top. A *valid* mood
-    (tense/triumphant/somber/hype) is what makes a line a header — so a chatty model
-    preamble that precedes it (e.g. 'All facts confirmed. Now writing the script.') is
-    dropped, while a 'MOOD:'-prefixed sentence deeper in the narration (an invalid mood
-    value) is kept as narration. Unknown/absent mood → '' (caller falls back to the
-    pillar-derived mood); the MOOD line, any preamble before it, and leading rules are
-    stripped from the spoken script."""
+    Robust to a chatty model: the narration is the block after the LAST valid `MOOD:`
+    header (each leaked draft carries its own MOOD line, so the final draft follows the
+    last one). Leading preamble, earlier drafts, stray MOOD lines, noise, and scaffold
+    (word-count tallies, 'let me…', token counts) are dropped. No MOOD header → narration
+    starts at the top, still scaffold-filtered."""
     lines = raw.splitlines()
-    content = [(i, lines[i].strip()) for i in range(len(lines)) if not _is_noise(lines[i].strip())]
 
     mood = ""
-    body_idx = len(lines)
-    if content:
-        first_i, first_s = content[0]
-        m0 = _mood_value(first_s)
-        if m0 in _SHORT_MOODS:
-            # First content line is a real MOOD header → consume it.
-            mood = m0
-            body_idx = first_i + 1
-        else:
-            # Not a valid MOOD header (narration, preamble, or a 'MOOD:'-prefixed sentence
-            # with a non-mood value) — keep it as narration unless a real header follows.
-            # First content line is narration or a preamble. If a MOOD:<valid> header
-            # follows within the next couple of content lines, the lead lines are a model
-            # preamble → drop them; otherwise narration starts at the first content line.
-            header = next(((i, _mood_value(s)) for (i, s) in content[1:3]
-                           if _mood_value(s) in _SHORT_MOODS), None)
-            if header:
-                mood = header[1]
-                body_idx = header[0] + 1
-            else:
-                body_idx = first_i
+    start = 0
+    for i, ln in enumerate(lines):
+        mv = _mood_value(ln.strip())
+        if mv in _SHORT_MOODS:
+            mood = mv
+            start = i + 1
 
-    # Drop any leading noise / duplicate valid-MOOD lines right before the narration.
-    while body_idx < len(lines):
-        s = lines[body_idx].strip()
-        if _is_noise(s) or (_mood_value(s) in _SHORT_MOODS):
-            body_idx += 1
-        else:
-            break
-    return {"script": "\n".join(lines[body_idx:]).strip(), "mood": mood}
+    body = [ln for ln in lines[start:]
+            if not _is_noise(ln.strip())
+            and _mood_value(ln.strip()) not in _SHORT_MOODS
+            and not _tts.is_scaffold_line(ln)]
+    return {"script": "\n".join(body).strip(), "mood": mood}
 
 
 def clean_short_body(raw: str) -> str:
