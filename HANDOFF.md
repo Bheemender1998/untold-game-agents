@@ -4,6 +4,43 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 13 (2026-06-14) — API cost tracking for automation runs
+
+Triggered by "is our automation kicked off?": the 1am run **was** firing (PATH fix from #33 held) but
+**production failed on `Anthropic credit balance too low`** with zero cost telemetry. User topped up credits
+and asked for per-run cost tracking + a budget alert. Built brainstorm→spec→plan→subagent-driven-development,
+dual adversarial review (Claude `af14de3560b7157b2` + Codex `a0ffb0cc25fcf4027`, 0 Critical / 0 Important).
+
+### Shipped to main
+- **#37 (MERGED)** — API cost tracking. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-14-api-cost-tracking*`.
+  - `engine/usage.py` — `logged_create(client, stage, **kwargs)` wraps every `messages.create`, prices
+    `resp.usage` (Sonnet 4.6 table, incl. cache rates), appends a row to `logs/api-cost.jsonl`. **Self-stubbing**:
+    `record()` never raises; the API call sits *outside* the try so real API errors still propagate.
+  - `engine/run_cost_report.py` — aggregates the ledger by `TUG_RUN_ID`, prints a per-stage summary, emits a
+    `⚠️ BUDGET` line (warn-only, never aborts) when a run exceeds `config.COST_ALERT_USD` (**$10**).
+  - All **8 Anthropic call sites** routed through `logged_create` (stage = `self.name` in `base_agent._call`,
+    so `script_writer` shows as the cost driver; explicit labels elsewhere).
+  - `scripts/overnight.sh` stamps `TUG_RUN_ID` once + prints the cost summary into the daily log (`|| true`).
+
+### Open / next
+1. **Verify tonight's run** (`logs/overnight-2026-06-15.log`): production actually produced (credits topped) AND
+   the `── API cost — run … ──` summary appears. That's the real proof the original failure is closed.
+2. **Tune `COST_ALERT_USD`** (`engine/config.py`, currently $10) after ~a week of baseline. Observed: a normal
+   3-video run ≈ **$0.42**; a 20-script runaway hits ~$15 (trips the alert).
+3. No code pending — feature complete.
+
+### Watch-outs
+- The Session 12 "parallel api-cost-tracking worktree" item is now **resolved & merged**. The shared-checkout
+  tangle bit again mid-session: `feat/subject-autosource` **merged to `main`** while this work was isolated, so
+  the branch had to be **rebased onto the moved `main`** before the PR (else the diff looked like it deleted the
+  just-merged subject files). Both features are cleanly on `main`, no cross-contamination. Reinforces
+  [[parallel-agents-use-worktrees]] **and** the corollary: rebase onto current `main` before opening the PR.
+
+### Suggested skills next session
+`diagnose` (if tonight's run misbehaves), `ship-video-change` (threshold tuning / any engine change).
+
+---
+
 ## Session 12 (2026-06-14) — Short-form v2 · vertical thumbnails · subject autosource · docs-sync hook
 
 8 PRs merged via the `ship-video-change` rail (dual adversarial: Claude + Codex, 0 Critical / 0 Important
