@@ -87,9 +87,9 @@ def main() -> None:
             print(f"{GOLD}▶ Narrating [{args.id}] via {provider}…{RESET}")
             try:
                 voice = tts.narration_voice(idea, override=args.voice, provider=provider)
-                speed, gap_s = tts.narration_pace(args.format)
+                speed, gap_s, end_gap_s = tts.narration_pace(args.format)
                 tts.synthesize(narration_text, audio_path, provider=args.tts, voice=voice,
-                               speed=speed, gap_s=gap_s)
+                               speed=speed, gap_s=gap_s, end_gap_s=end_gap_s)
             except Exception as e:
                 print(f"{RED}TTS failed: {e}{RESET}"); return
             audio_ref = "narration.wav"
@@ -113,6 +113,7 @@ def main() -> None:
             portrait=is_short,
             intro_ms=(0 if is_short else remotion_build.INTRO_MS),
             outro_ms=(2500 if is_short else remotion_build.OUTRO_MS),
+            end_hold_ms=(config.SHORT_END_HOLD_MS if is_short else 0),
             broll_beat_s=(config.SHORT_BROLL_BEAT_S if is_short else config.LONG_BROLL_BEAT_S),
         )
         with open(os.path.join(video_dir, "props.json"), "w") as f:

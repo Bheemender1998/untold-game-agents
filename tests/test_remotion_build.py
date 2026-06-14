@@ -170,3 +170,79 @@ def test_build_props_bbeats_mood_falls_back_to_pillar(tmp_path, monkeypatch):
     assert set(grabbed["queries"]) <= set(config.MOOD_BROLL_POOL[expected_mood])
     # beats with no clip omit src but keep timing (gradient shows through, never crashes)
     assert props["bBeats"][0]["src"] is None
+
+
+def test_build_props_sets_end_hold_for_short(tmp_path, monkeypatch):
+    _patch_heavy(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0,
+        portrait=True, end_hold_ms=1000)
+    assert props["endHoldMs"] == 1000
+
+
+def test_build_props_end_hold_defaults_to_zero(tmp_path, monkeypatch):
+    _patch_heavy(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0)
+    assert props["endHoldMs"] == 0
+
+
+def _patch_heavy_with_clips(monkeypatch):
+    """Like _patch_heavy but fetch_clips returns one clip per beat, so b_beats is non-empty."""
+    _patch_heavy(monkeypatch)
+    monkeypatch.setattr(remotion_build._footage, "fetch_clips",
+                        lambda queries, vd, portrait=False, sport=None:
+                            [f"bg_{i:02d}.mp4" for i in range(len(queries))])
+
+
+def test_build_props_extends_final_beat_for_end_hold(tmp_path, monkeypatch):
+    _patch_heavy_with_clips(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0,
+        portrait=True, end_hold_ms=1000)
+    beats = props["bBeats"]
+    assert beats, "expected at least one b-roll beat"
+    # final beat stretched to cover the hold (robust to beat cadence/rounding)
+    assert beats[-1]["endMs"] == props["narrationMs"] + 1000
+
+
+def test_build_props_no_beat_extension_without_end_hold(tmp_path, monkeypatch):
+    _patch_heavy_with_clips(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0, portrait=True)
+    beats = props["bBeats"]
+    # default end_hold_ms=0 → final beat ends at narration end (no extension)
+    assert beats[-1]["endMs"] == props["narrationMs"]
+
+
+def test_build_props_end_hold_carried_by_last_clipped_beat(tmp_path, monkeypatch):
+    """If the FINAL beat's clip fetch missed (src=None), the breath must still be carried by
+    the last beat that HAS a clip — not the null final beat (which would show the gradient)."""
+    _patch_heavy(monkeypatch)
+    # A clip for every beat EXCEPT the last → final beat has src=None, an earlier beat has a clip.
+    monkeypatch.setattr(remotion_build._footage, "fetch_clips",
+                        lambda queries, vd, portrait=False, sport=None:
+                            [f"bg_{i:02d}.mp4" for i in range(len(queries) - 1)] + [None])
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0,
+        portrait=True, end_hold_ms=1000)
+    beats = props["bBeats"]
+    assert len(beats) >= 2, "fixture needs >=2 beats so the last clipped beat differs from the null final"
+    # (sanity) the final beat really has no clip
+    assert beats[-1]["src"] is None
+    # the breath is carried by the last beat WITH a clip, stretched through the hold window
+    clipped = [b for b in beats if b.get("src")]
+    assert clipped, "fixture must leave at least one clipped beat"
+    assert clipped[-1]["endMs"] == props["narrationMs"] + 1000
+    # the null final beat's timing is untouched (still ends at narration end)
+    assert beats[-1]["endMs"] == props["narrationMs"]

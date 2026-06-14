@@ -292,3 +292,13 @@ def test_derive_tease_prompt_front_loads_conflict():
     assert "eight words" in s or "8 words" in s
     assert "atmosphere" in s or "scene-setting" in s
     assert "pronoun" in s
+
+
+def test_short_writers_ask_for_a_resolving_two_sentence_payoff():
+    # Both short writers must call for a fuller, resolving close (1-2 sentences),
+    # not a single clipped line, so the ending lands.
+    for prompt in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM):
+        low = prompt.lower()
+        assert "one to two sentences" in low
+        # the old single-line wording must be gone
+        assert "one resonant closing line" not in low

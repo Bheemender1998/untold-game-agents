@@ -44,6 +44,7 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
                 width: int = 1920, height: int = 1080,
                 portrait: bool = False,
                 intro_ms: int = INTRO_MS, outro_ms: int = OUTRO_MS,
+                end_hold_ms: int = 0,
                 broll_beat_s: float = LONG_BROLL_BEAT_S) -> tuple[dict, list[str], str]:
     """Build (props, asset_paths, music_credit) for the Remotion render.
 
@@ -98,6 +99,16 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
         if clip:
             assets.append(clip)
 
+    # End breath: stretch the last b-roll beat THAT HAS A CLIP to cover the hold, so real story
+    # footage (not the gradient) carries the pause before the subscribe card. A clip shorter than
+    # the window is looped by BeatClip. If no beat has a clip, the gradient carries it (graceful).
+    # No-op when end_hold_ms=0 (long-form).
+    if end_hold_ms and b_beats:
+        hold_end = b_beats[-1]["endMs"] + end_hold_ms
+        target = next((b for b in reversed(b_beats) if b.get("src")), None)
+        if target is not None:
+            target["endMs"] = hold_end
+
     props = {
         "title": idea["title_variants"][0],
         "kicker": "THE UNTOLD GAME",
@@ -107,6 +118,7 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
         "height": height,
         "introMs": intro_ms,
         "outroMs": outro_ms,
+        "endHoldMs": end_hold_ms,
         "narrationMs": narration_ms,
         "captions": cap_words,
         "chapters": chapters,

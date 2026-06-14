@@ -12,6 +12,7 @@ export const shortDefaultProps: UntoldProps = {
   height: 1920,
   introMs: 0,         // Shorts: no intro delay — captions start at frame 0
   outroMs: 0,
+  endHoldMs: 0,       // still-preview neutral; real renders pass SHORT_END_HOLD_MS
   narrationMs: 9000,
   captions: [
     {text: 'July', startMs: 0, endMs: 500},

@@ -184,12 +184,14 @@ def mood_for_pillar(pillar: str | None) -> str:
     return config.PILLAR_MOOD.get(pillar or "", "")
 
 
-def narration_pace(fmt: str | None) -> tuple[float, float]:
-    """(speed, gap_s) for kokoro narration by output format. 'short' is brisk + tight;
-    anything else (long/None) keeps the calm cinematic defaults."""
+def narration_pace(fmt: str | None) -> tuple[float, float, float | None]:
+    """(speed, gap_s, end_gap_s) for kokoro narration by output format. 'short' is brisk +
+    tight with a longer pause before the payoff; long/None keep the calm cinematic defaults
+    and a uniform gap (end_gap_s=None)."""
     if fmt == "short":
-        return config.SHORT_NARRATION_SPEED, config.SHORT_NARRATION_GAP_S
-    return config.NARRATION_SPEED, config.NARRATION_GAP_S
+        return (config.SHORT_NARRATION_SPEED, config.SHORT_NARRATION_GAP_S,
+                config.SHORT_END_GAP_S)
+    return config.NARRATION_SPEED, config.NARRATION_GAP_S, None
 
 
 def narration_voice(idea: dict, override: str | None = None,
@@ -222,15 +224,15 @@ def available_provider() -> str:
 
 def synthesize(text: str, out_path: str, provider: str | None = None,
                voice: str | None = None, speed: float | None = None,
-               gap_s: float | None = None) -> str:
+               gap_s: float | None = None, end_gap_s: float | None = None) -> str:
     """Render narration `text` to a wav at out_path. Returns out_path.
 
     provider: 'kokoro' | 'say' | None (auto). Raises if the chosen provider can't run.
-    speed/gap_s: kokoro only (None → config defaults).
+    speed/gap_s/end_gap_s: kokoro only (None → config defaults).
     """
     provider = provider or available_provider()
     if provider == "kokoro":
-        return _synth_kokoro(text, out_path, voice, speed, gap_s)
+        return _synth_kokoro(text, out_path, voice, speed, gap_s, end_gap_s)
     if provider == "say":
         return _synth_say(text, out_path, voice)
     raise RuntimeError(
@@ -274,8 +276,20 @@ _KOKORO_MODEL = os.environ.get("KOKORO_MODEL", os.path.join(_MODELS_DIR, "kokoro
 _KOKORO_VOICES = os.environ.get("KOKORO_VOICES", os.path.join(_MODELS_DIR, "voices.bin"))
 
 
+def _gap_schedule(n: int, gap_s: float, end_gap_s: float | None) -> list[float]:
+    """Silence (seconds) to append AFTER each of `n` sentences. When `end_gap_s` is set
+    and there are >=2 sentences, the gap that PRECEDES the final sentence (i.e. the one
+    after sentence n-2) is enlarged to `end_gap_s` so the payoff lands set apart from the
+    facts. `end_gap_s=None` (long-form) keeps every gap uniform — no behavior change."""
+    gaps = [gap_s] * n
+    if end_gap_s is not None and n >= 2:
+        gaps[n - 2] = end_gap_s
+    return gaps
+
+
 def _synth_kokoro(text: str, out_path: str, voice: str | None,
-                  speed: float | None = None, gap_s: float | None = None) -> str:
+                  speed: float | None = None, gap_s: float | None = None,
+                  end_gap_s: float | None = None) -> str:
     """kokoro-onnx narration. Splits long text into sentences and concatenates so we
     don't blow the per-call length limit; writes a 24kHz wav."""
     import numpy as np
@@ -294,13 +308,14 @@ def _synth_kokoro(text: str, out_path: str, voice: str | None,
     kokoro = Kokoro(_KOKORO_MODEL, _KOKORO_VOICES)
 
     sample_rate = 24000
-    gap = np.zeros(int(gap_s * sample_rate), dtype=np.float32)   # pause between sentences
+    sents = _split_sentences(text)
+    gaps = _gap_schedule(len(sents), gap_s, end_gap_s)   # longer pause before the payoff (short only)
     chunks: list = []
-    for sent in _split_sentences(text):
+    for sent, g in zip(sents, gaps):
         samples, sr = kokoro.create(sent, voice=voice, speed=speed, lang="en-us")
         sample_rate = sr
         chunks.append(np.asarray(samples, dtype=np.float32))
-        chunks.append(gap)
+        chunks.append(np.zeros(int(g * sample_rate), dtype=np.float32))
     audio = np.concatenate(chunks) if chunks else np.zeros(1, dtype=np.float32)
 
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)

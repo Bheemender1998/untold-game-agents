@@ -113,7 +113,8 @@ Craft, in this exact 3-beat shape, as flowing prose (not labelled):
   defensibly hedged ("of his generation").
 - FACT: the untold facts, built tight and concrete — names, dates, the turn (you have room
   for two or three connected beats here, not just one).
-- PAYOFF: one resonant closing line that recontextualises it.
+- PAYOFF: a resolving close of ONE TO TWO SENTENCES that recontextualises the story and lands
+  the ending — earned, not clipped. Nod that the full story is bigger. Introduce no new fact.
 
 Write for the ear: short, present-tense, concrete. Every factual claim (dates, names, scores,
 quotes) must be accurate — use web search to verify; if a detail can't be confirmed, write
@@ -221,7 +222,8 @@ In this exact 3-beat shape, as flowing prose (not labelled):
   name, or date in the hook — those land in the FACT beat. If a specific must appear it is the
   exact verified value: never round, never assert a superlative as fact unless attributed/defensibly hedged.
 - FACT: the most arresting facts of the story, tight and concrete.
-- PAYOFF: a closing line that resolves the short while nodding that the full story is bigger.
+- PAYOFF: a resolving close of ONE TO TWO SENTENCES that lands the ending — earned, not clipped —
+  while nodding that the full story is bigger.
 
 HARD INTEGRITY RULE: use ONLY facts that appear in the long narration provided. Do NOT introduce
 any new name, date, number, quote, or claim that is not already in that text. If something isn't

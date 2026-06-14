@@ -181,19 +181,46 @@ def test_spell_years_leaves_decades_alone():
 def test_narration_pace_short_is_brisk_and_tight():
     from engine.video import tts
     from engine import config
-    speed, gap = tts.narration_pace("short")
+    speed, gap, end_gap = tts.narration_pace("short")
     assert speed == config.SHORT_NARRATION_SPEED
     assert gap == config.SHORT_NARRATION_GAP_S
+    assert end_gap == config.SHORT_END_GAP_S
     assert speed > config.NARRATION_SPEED      # brisker than long-form
     assert gap < config.NARRATION_GAP_S        # tighter pauses than long-form
+    assert end_gap > gap                        # payoff gets a longer lead-in than the facts
 
 
 def test_narration_pace_long_uses_calm_defaults():
     from engine.video import tts
     from engine import config
-    assert tts.narration_pace("long") == (config.NARRATION_SPEED, config.NARRATION_GAP_S)
-    # unknown/None format defaults to long-form (calm)
-    assert tts.narration_pace(None) == (config.NARRATION_SPEED, config.NARRATION_GAP_S)
+    assert tts.narration_pace("long") == (config.NARRATION_SPEED, config.NARRATION_GAP_S, None)
+    # unknown/None format defaults to long-form (calm, uniform gaps)
+    assert tts.narration_pace(None) == (config.NARRATION_SPEED, config.NARRATION_GAP_S, None)
+
+
+def test_gap_schedule_enlarges_pause_before_final_sentence():
+    from engine.video import tts
+    # 4 sentences, normal gap 0.2, end gap 0.6 → the gap AFTER sentence index 2
+    # (i.e. the one that PRECEDES the final sentence index 3) is the long one.
+    assert tts._gap_schedule(4, 0.2, 0.6) == [0.2, 0.2, 0.6, 0.2]
+
+
+def test_gap_schedule_none_end_gap_is_uniform():
+    from engine.video import tts
+    # long-form (end_gap_s=None) keeps every gap identical — no behavior change.
+    assert tts._gap_schedule(4, 0.5, None) == [0.5, 0.5, 0.5, 0.5]
+
+
+def test_gap_schedule_two_sentences_enlarges_before_payoff():
+    from engine.video import tts
+    # hook (s0) → end_gap_s → payoff (s1) → normal gap
+    assert tts._gap_schedule(2, 0.2, 0.6) == [0.6, 0.2]
+
+
+def test_gap_schedule_single_sentence_has_no_preceding_gap():
+    from engine.video import tts
+    assert tts._gap_schedule(1, 0.2, 0.6) == [0.2]
+    assert tts._gap_schedule(0, 0.2, 0.6) == []
 
 
 def test_is_scaffold_line_flags_leaked_scaffolding():
