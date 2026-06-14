@@ -228,6 +228,20 @@ def _thumbnail_text(idea: dict, script: str) -> str:
     return line if ok else ""
 
 
+def _load_script(idea_id: str, fmt: str) -> str:
+    """Read the produced script for the headline LLM. The queue idea carries only a
+    script_path, so the headline must be derived from the script on disk (fmt first,
+    then the other format as a fallback). '' if none is readable."""
+    for f in (fmt, "long", "short"):
+        p = paths.script_path(idea_id, f)
+        if os.path.exists(p):
+            try:
+                return open(p).read()
+            except OSError:
+                continue   # unreadable (race/perms) — try the next format candidate
+    return ""
+
+
 def generate_thumbnail(idea: dict, fmt: str) -> dict:
     """Composite the thumbnail for an idea+format from its human-supplied subject photo.
     Self-stubs (logs, returns the idea unchanged, writes nothing) when no subject photo is
@@ -245,7 +259,7 @@ def generate_thumbnail(idea: dict, fmt: str) -> dict:
         except OSError as e:
             print(f"  · thumbnail self-stub: could not remove stale thumbnail for [{idea_id}/{fmt}] ({e})")
         return idea
-    text = _thumbnail_text(idea, idea.get("script", ""))
+    text = _thumbnail_text(idea, idea.get("script") or _load_script(idea_id, fmt))
     out = paths.thumbnail_path(idea_id, fmt)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     if fmt == "short":

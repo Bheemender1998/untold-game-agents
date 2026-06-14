@@ -250,3 +250,29 @@ def test_wrap_no_newline_unchanged():
     d = ImageDraw.Draw(Image.new("RGB", (tn.W, tn.H)))
     # plain text still greedy-wraps within width (no spurious breaks)
     assert tn._wrap("GONE", f, d, tn.MAX_TEXT_W) == ["GONE"]
+
+
+def test_generate_thumbnail_feeds_real_script_to_headline(tmp_path, monkeypatch):
+    # Bug: generate_thumbnail derived the headline from idea.get("script") — but the queue
+    # idea carries only script_path, so the headline LLM always saw an empty string and
+    # produced generic copy. It must read the produced script.md from disk.
+    from engine import paths
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path))
+    idea_id, fmt = "headlinebug", "long"
+    d = paths.artifact_dir(idea_id, fmt)
+    os.makedirs(d)
+    with open(paths.script_path(idea_id, fmt), "w") as f:
+        f.write("A nation's football dream, stolen by war at Euro 1992.")
+    Image.new("RGB", (900, 1200), (80, 60, 50)).save(paths.subject_path(idea_id, fmt))
+
+    captured = {}
+    monkeypatch.setattr(tn, "_thumbnail_text",
+                        lambda idea, script: captured.setdefault("script", script) or "X")
+    monkeypatch.setattr(tn, "compose", lambda *a, **k: None)
+    monkeypatch.setattr(tn, "compose_vertical", lambda *a, **k: None)
+
+    # Exact queue regression shape: idea carries an empty "script" plus a script_path.
+    tn.generate_thumbnail(
+        {"id": idea_id, "script": "", "script_path": paths.script_path(idea_id, fmt)}, fmt)
+    assert "football dream" in captured.get("script", ""), \
+        "headline must be derived from the real script.md, not an empty string"
