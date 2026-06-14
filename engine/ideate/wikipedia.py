@@ -5,6 +5,8 @@ Pattern borrowed from anthropics/claude-cookbooks (Wikipedia-RAG). See docs/exte
 """
 from __future__ import annotations
 
+import re
+
 import requests
 
 _API = "https://en.wikipedia.org/w/api.php"
@@ -67,3 +69,43 @@ def extract(title: str) -> str:
         return (next(iter(pages.values()), {}) or {}).get("extract", "") or ""
     except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError):
         return ""
+
+
+def lead_image(query: str, min_width: int = 600) -> tuple[str, str] | None:
+    """The lead/infobox image URL + attribution for the best-matching Wikipedia page, or None.
+    Rejects SVGs (Pillow can't open them) and images narrower than `min_width`. Never raises."""
+    try:
+        title = search_title(query)
+        if not title:
+            return None
+        headers = {"User-Agent": _UA}
+        r = requests.get(_API, timeout=_TIMEOUT, headers=headers, params={
+            "action": "query", "titles": title, "prop": "pageimages",
+            "piprop": "original|name", "format": "json"})
+        page = next(iter(r.json().get("query", {}).get("pages", {}).values()), {}) or {}
+        original = page.get("original") or {}
+        url = original.get("source")
+        if not url or url.lower().endswith(".svg") or (original.get("width") or 0) < min_width:
+            return None
+        return url, _image_credit(page.get("pageimage"), headers)
+    except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def _image_credit(file_name: str | None, headers: dict) -> str:
+    """'<artist> / <license> via Wikimedia Commons' for a File: name; best-effort, never raises."""
+    base = "via Wikimedia Commons"
+    if not file_name:
+        return base
+    try:
+        r = requests.get(_API, timeout=_TIMEOUT, headers=headers, params={
+            "action": "query", "titles": f"File:{file_name}", "prop": "imageinfo",
+            "iiprop": "extmetadata", "format": "json"})
+        page = next(iter(r.json().get("query", {}).get("pages", {}).values()), {}) or {}
+        meta = (page.get("imageinfo") or [{}])[0].get("extmetadata", {}) or {}
+        artist = re.sub(r"<[^>]+>", "", (meta.get("Artist", {}) or {}).get("value", "")).strip()
+        lic = ((meta.get("LicenseShortName", {}) or {}).get("value", "")).strip()
+        parts = [p for p in (artist, lic) if p]
+        return (" / ".join(parts) + " " + base) if parts else base
+    except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError):
+        return base

@@ -65,3 +65,60 @@ def test_lookup_trims_to_sentence_budget(monkeypatch):
     }))
     out = wikipedia.lookup("q", sentences=3)
     assert out.count("Sentence") == 3
+
+
+def test_lead_image_returns_url_and_credit(monkeypatch):
+    from engine.ideate import wikipedia
+
+    class _Resp:
+        def __init__(self, data): self._d = data
+        def json(self): return self._d
+
+    calls = {"n": 0}
+    def fake_get(url, **kw):
+        params = kw.get("params", {})
+        if params.get("list") == "search":   # search_title
+            return _Resp({"query": {"search": [{"title": "Felipe Massa"}]}})
+        if params.get("prop") == "pageimages":
+            return _Resp({"query": {"pages": {"1": {
+                "original": {"source": "https://up.wikimedia.org/massa.jpg", "width": 2000},
+                "pageimage": "Felipe_Massa.jpg"}}}})
+        if params.get("prop") == "imageinfo":
+            return _Resp({"query": {"pages": {"1": {"imageinfo": [{"extmetadata": {
+                "Artist": {"value": "<a href='x'>Jane Doe</a>"},
+                "LicenseShortName": {"value": "CC BY 2.0"}}}]}}}})
+        return _Resp({})
+    monkeypatch.setattr(wikipedia.requests, "get", fake_get)
+
+    out = wikipedia.lead_image("Felipe Massa")
+    assert out is not None
+    url, credit = out
+    assert url == "https://up.wikimedia.org/massa.jpg"
+    assert "Jane Doe" in credit and "CC BY 2.0" in credit and "Wikimedia Commons" in credit
+    assert "<a" not in credit  # HTML stripped
+
+
+def test_lead_image_none_when_no_image(monkeypatch):
+    from engine.ideate import wikipedia
+    class _Resp:
+        def __init__(self, d): self._d = d
+        def json(self): return self._d
+    def fake_get(url, **kw):
+        if kw.get("params", {}).get("list") == "search":
+            return _Resp({"query": {"search": [{"title": "Obscure Thing"}]}})
+        return _Resp({"query": {"pages": {"1": {}}}})  # no 'original'
+    monkeypatch.setattr(wikipedia.requests, "get", fake_get)
+    assert wikipedia.lead_image("Obscure Thing") is None
+
+
+def test_lead_image_rejects_svg(monkeypatch):
+    from engine.ideate import wikipedia
+    class _Resp:
+        def __init__(self, d): self._d = d
+        def json(self): return self._d
+    def fake_get(url, **kw):
+        if kw.get("params", {}).get("list") == "search":
+            return _Resp({"query": {"search": [{"title": "Logo Page"}]}})
+        return _Resp({"query": {"pages": {"1": {"original": {"source": "https://x/logo.svg", "width": 3000}}}}})
+    monkeypatch.setattr(wikipedia.requests, "get", fake_get)
+    assert wikipedia.lead_image("Logo Page") is None  # SVG → Pillow can't open → reject

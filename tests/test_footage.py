@@ -113,3 +113,29 @@ def test_mood_beat_queries_unknown_mood_falls_back():
     from engine.video import footage
     qs = footage.mood_beat_queries("", 4)         # empty/unknown mood
     assert len(qs) == 4 and all(isinstance(q, str) and q for q in qs)
+
+
+def test_fetch_photo_returns_credit(monkeypatch, tmp_path):
+    import io, json as _json
+    from engine.video import footage
+    monkeypatch.setenv("PEXELS_API_KEY", "k")
+
+    class _R:
+        def __init__(self, payload): self._b = _json.dumps(payload).encode()
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return self._b
+    payload = {"photos": [{"photographer": "Ann Lee",
+                           "src": {"large2x": "https://img/x.jpg", "original": "https://img/o.jpg"}}]}
+    monkeypatch.setattr(footage.urllib.request, "urlopen", lambda req, timeout=30: _R(payload))
+    monkeypatch.setattr(footage, "_download", lambda link, out: True)
+
+    out = tmp_path / "subject.png"
+    credit = footage.fetch_photo("fifa world cup trophy", str(out))
+    assert credit and "Ann Lee" in credit and "Pexels" in credit
+
+
+def test_fetch_photo_none_without_key(monkeypatch, tmp_path):
+    from engine.video import footage
+    monkeypatch.delenv("PEXELS_API_KEY", raising=False)
+    assert footage.fetch_photo("anything", str(tmp_path / "s.png")) is None
