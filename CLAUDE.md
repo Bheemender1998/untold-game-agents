@@ -52,6 +52,23 @@ python3 -m engine.run_banner              # generate channel/banner.png + descri
 python3 -m engine.run_cost_report [--run <id>]  # per-run API cost summary from logs/api-cost.jsonl (overnight.sh runs this automatically; warns if a run exceeds COST_ALERT_USD=$10)
 ```
 
+## Skills (`.claude/skills/`)
+
+Operational playbooks that wrap the entrypoints above — invoke by name instead of
+re-deriving flags each session:
+
+| Skill | Wraps |
+|-------|-------|
+| `run-pipeline` | `run_pipeline` — generate ideas / review the queue |
+| `review-ideas` | non-interactive queue triage readout |
+| `build-video` | `run_auto` / `run_video` — produce → render → QC → preview |
+| `thumbnail-assets` | `run_subject` → `run_thumbnail` (+ `run_banner`) |
+| `publish-video` | `run_auto --approve/--render` — publish or re-render |
+| `cost-report` | `run_cost_report` — API spend summary + triage |
+| `fact-review` | human-grade re-check of a `needs_review` script |
+| `ship-video-change` | the release rail for `engine/*.py` changes |
+| `handoff` | append a session wrap to `HANDOFF.md` |
+
 ## Gate discipline
 
 Stage 1 (idea generation) is proven LIVE. Do **not** build Stage 2 (publishing)
