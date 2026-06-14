@@ -96,19 +96,22 @@ def run(idea: dict) -> dict:
 # ── YouTube Shorts script writer ──────────────────────────────────────────────
 
 SHORT_SYSTEM = """You are the scriptwriter for "The Untold Game" YouTube SHORTS — vertical
-30-50 second sports-history hooks. You write ONE continuous block of voiceover narration a
+~50-second sports-history hooks. You write ONE continuous block of voiceover narration a
 single narrator reads. No section headers, no markdown, no bracketed production cues.
 
 Craft, in this exact 3-beat shape, as flowing prose (not labelled):
 - HOOK: the FIRST line must hit the central conflict or mystery in EIGHT WORDS OR FEWER,
-  payoff-forward — the turn, the loss, the vanishing ("Then he just walked away."). It is the
-  scroll-stopper; the viewer gives you ~2 seconds. NO atmosphere or scene-setting opener
-  ("He was a king in exile…", "It was a cold night…"), no throat-clearing, no "in this video".
+  payoff-forward — the turn, the loss, the vanishing. It is the scroll-stopper; the viewer
+  gives you ~2 seconds. Do NOT open on a pronoun (He/She/It/They/We/You/There) — open on a
+  vivid ACTION, image, place, or the raw stakes ("A kung-fu kick into the stands ended a
+  career — and built a dynasty."). NO atmosphere or scene-setting opener ("He was a king in
+  exile…", "It was a cold night…"), no throat-clearing, no "in this video".
   Carry NO specific number, name, or date in the hook — those land in the FACT beat one line
   later. If a specific must appear it is the exact verified value: never round (1,457, never
   ~1,500), never assert a superlative as fact ("the greatest ... ever") unless attributed or
   defensibly hedged ("of his generation").
-- FACT: one untold fact, built tight and concrete — names, dates, the turn.
+- FACT: the untold facts, built tight and concrete — names, dates, the turn (you have room
+  for two or three connected beats here, not just one).
 - PAYOFF: one resonant closing line that recontextualises it.
 
 Write for the ear: short, present-tense, concrete. Every factual claim (dates, names, scores,
@@ -145,7 +148,7 @@ WHY IT WORKS: {idea['why_it_works']}
 Use web search to verify the key facts before writing.
 
 LENGTH — HARD constraint: {config.SHORT_SCRIPT_WORDS_MIN}-{config.SHORT_SCRIPT_WORDS_MAX} spoken
-words total (~30-50 seconds). Hook + one fact + payoff. Count your words; if long, cut.
+words total (~50-55 seconds). Hook + the key facts + payoff. Count your words; stay in range.
 
 Remember: first line `MOOD: <tense|triumphant|somber|hype>`, then the narration only."""
         return _parse_short(self._call(prompt, use_search=True))
@@ -223,17 +226,18 @@ def generate_short_script(idea: dict) -> dict:
 
 # ── Companion tease writer (derived from the verified long script) ─────────────
 
-DERIVE_TEASE_SYSTEM = """You write a YouTube SHORT (vertical, 30-50s) that is a condensed,
+DERIVE_TEASE_SYSTEM = """You write a YouTube SHORT (vertical, ~50s) that is a condensed,
 high-retention cut of a LONGER video whose full narration is given to you. Same craft as our
 shorts: write for the ear, present-tense, concrete, scroll-stopping.
 
 In this exact 3-beat shape, as flowing prose (not labelled):
 - HOOK: the FIRST line must hit the central conflict or mystery in EIGHT WORDS OR FEWER,
-  payoff-forward — the scroll-stopper, since the viewer gives you ~2 seconds. NO atmosphere or
-  scene-setting opener, no throat-clearing. Carry NO specific number, name, or date in the hook
-  — those land in the FACT beat. If a specific must appear it is the exact verified value: never
-  round, never assert a superlative as fact unless attributed/defensibly hedged.
-- FACT: the single most arresting fact of the story, tight and concrete.
+  payoff-forward — the scroll-stopper, since the viewer gives you ~2 seconds. Do NOT open on a
+  pronoun (He/She/It/They/We/You/There) — open on a vivid ACTION, image, place, or the raw
+  stakes. NO atmosphere or scene-setting opener, no throat-clearing. Carry NO specific number,
+  name, or date in the hook — those land in the FACT beat. If a specific must appear it is the
+  exact verified value: never round, never assert a superlative as fact unless attributed/defensibly hedged.
+- FACT: the most arresting facts of the story, tight and concrete.
 - PAYOFF: a closing line that resolves the short while nodding that the full story is bigger.
 
 HARD INTEGRITY RULE: use ONLY facts that appear in the long narration provided. Do NOT introduce
@@ -259,7 +263,7 @@ TITLE:  {title}
 SPORT:  {idea.get('sport', '')}
 
 LENGTH — HARD constraint: {config.SHORT_SCRIPT_WORDS_MIN}-{config.SHORT_SCRIPT_WORDS_MAX} spoken
-words total (~30-50 seconds). Hook + one fact + payoff. Count your words; if long, cut.
+words total (~50-55 seconds). Hook + the key facts + payoff. Count your words; stay in range.
 
 Use ONLY facts present in the LONG NARRATION below — introduce nothing new.
 

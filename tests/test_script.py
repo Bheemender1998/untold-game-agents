@@ -238,6 +238,8 @@ def test_short_system_prompt_front_loads_conflict():
     assert "fact beat" in s
     # explicit ban on atmosphere/scene-setting openers
     assert "atmosphere" in s or "scene-setting" in s
+    # must not open on a bare pronoun — open on action/image/stakes
+    assert "pronoun" in s
     # integrity preserved (no rounding)
     assert "never round" in s
 
@@ -248,3 +250,4 @@ def test_derive_tease_prompt_front_loads_conflict():
     assert "first line" in s
     assert "eight words" in s or "8 words" in s
     assert "atmosphere" in s or "scene-setting" in s
+    assert "pronoun" in s

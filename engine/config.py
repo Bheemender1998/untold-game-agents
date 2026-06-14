@@ -56,8 +56,8 @@ TARGET_SCRIPT_WORDS_MIN = 1600
 TARGET_SCRIPT_WORDS_MAX = 2000
 TARGET_RUNTIME_LABEL = "8-9 minutes"
 
-SHORT_SCRIPT_WORDS_MIN = 90    # YouTube Shorts: ~30-50s of narration
-SHORT_SCRIPT_WORDS_MAX = 130
+SHORT_SCRIPT_WORDS_MIN = 150   # YouTube Shorts: ~50-55s of narration at the brisk short pace
+SHORT_SCRIPT_WORDS_MAX = 185
 
 # ── Viral potential scoring rubric ────────────────────────────────────────────
 VIRAL_RUBRIC = """
@@ -130,7 +130,7 @@ MOOD_BROLL_POOL = {
              "fast city motion", "abstract energy light", "crowd lights blur", "spinning star trails"],
 }
 
-SHORT_BROLL_BEAT_S = 2.5    # short: a new atmospheric clip every ~2.5s (TikTok energy)
+SHORT_BROLL_BEAT_S = 4.0    # short: a new atmospheric clip every ~4s (energetic but breathing)
 LONG_BROLL_BEAT_S = 7.0     # long: every ~7s — varied but cinematic, no single-clip loop
 
 # ── Fact-gate (fact_gate.py) ──────────────────────────────────────────────────
