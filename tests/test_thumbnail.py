@@ -234,3 +234,19 @@ def test_run_thumbnail_main_errors_without_subject(tmp_path, monkeypatch, capsys
     assert e.value.code != 0
     out, err = capsys.readouterr()
     assert "no subject photo" in (out + err).lower()
+
+
+def test_wrap_honors_explicit_newline():
+    # An explicit '\n' forces a hard line break (so a cover can be hand-split:
+    # "RED FLAG" on line 1, "NO EXPLANATION" on line 2 → last line is the red accent).
+    f = ImageFont.truetype(tn.TENSION_FONT, 120)
+    d = ImageDraw.Draw(Image.new("RGB", (tn.VW, tn.VH)))
+    lines = tn._wrap("RED FLAG\nNO EXPLANATION", f, d, tn.MAX_TEXT_W_V)
+    assert lines == ["RED FLAG", "NO EXPLANATION"]
+
+
+def test_wrap_no_newline_unchanged():
+    f = ImageFont.truetype(tn.TENSION_FONT, 60)
+    d = ImageDraw.Draw(Image.new("RGB", (tn.W, tn.H)))
+    # plain text still greedy-wraps within width (no spurious breaks)
+    assert tn._wrap("GONE", f, d, tn.MAX_TEXT_W) == ["GONE"]

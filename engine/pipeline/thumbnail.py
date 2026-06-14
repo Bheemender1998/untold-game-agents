@@ -32,17 +32,21 @@ V_BOTTOM_MARGIN = 150        # px from the frame bottom to the text block's base
 
 
 def _wrap(text, font, draw, max_w):
-    """Greedy word-wrap to fit max_w; a single over-wide word stays on its own line."""
-    lines, cur = [], ""
-    for word in text.split():
-        trial = (cur + " " + word).strip()
-        if not cur or draw.textlength(trial, font=font) <= max_w:
-            cur = trial
-        else:
+    """Greedy word-wrap to fit max_w; a single over-wide word stays on its own line.
+    Explicit newlines are honored as hard line breaks (so a tension line can be authored
+    as e.g. 'RED FLAG\\nNO EXPLANATION' to force the split)."""
+    lines = []
+    for para in text.split("\n"):
+        cur = ""
+        for word in para.split():
+            trial = (cur + " " + word).strip()
+            if not cur or draw.textlength(trial, font=font) <= max_w:
+                cur = trial
+            else:
+                lines.append(cur)
+                cur = word
+        if cur:
             lines.append(cur)
-            cur = word
-    if cur:
-        lines.append(cur)
     return lines
 
 
