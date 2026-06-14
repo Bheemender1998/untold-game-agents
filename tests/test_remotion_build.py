@@ -221,3 +221,28 @@ def test_build_props_no_beat_extension_without_end_hold(tmp_path, monkeypatch):
     beats = props["bBeats"]
     # default end_hold_ms=0 → final beat ends at narration end (no extension)
     assert beats[-1]["endMs"] == props["narrationMs"]
+
+
+def test_build_props_end_hold_carried_by_last_clipped_beat(tmp_path, monkeypatch):
+    """If the FINAL beat's clip fetch missed (src=None), the breath must still be carried by
+    the last beat that HAS a clip — not the null final beat (which would show the gradient)."""
+    _patch_heavy(monkeypatch)
+    # A clip for every beat EXCEPT the last → final beat has src=None, an earlier beat has a clip.
+    monkeypatch.setattr(remotion_build._footage, "fetch_clips",
+                        lambda queries, vd, portrait=False, sport=None:
+                            [f"bg_{i:02d}.mp4" for i in range(len(queries) - 1)] + [None])
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0,
+        portrait=True, end_hold_ms=1000)
+    beats = props["bBeats"]
+    assert len(beats) >= 2, "fixture needs >=2 beats so the last clipped beat differs from the null final"
+    # (sanity) the final beat really has no clip
+    assert beats[-1]["src"] is None
+    # the breath is carried by the last beat WITH a clip, stretched through the hold window
+    clipped = [b for b in beats if b.get("src")]
+    assert clipped, "fixture must leave at least one clipped beat"
+    assert clipped[-1]["endMs"] == props["narrationMs"] + 1000
+    # the null final beat's timing is untouched (still ends at narration end)
+    assert beats[-1]["endMs"] == props["narrationMs"]
