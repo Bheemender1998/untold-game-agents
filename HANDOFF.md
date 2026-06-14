@@ -4,6 +4,49 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 14 (2026-06-14) — Short-form pacing: "let it breathe"
+
+Triggered by human feedback on two freshly-rendered shorts: *"good, but very hurried, narration too fast,
+and it came to a conclusion abruptly."* Built brainstorm→spec→plan→subagent-driven-development, dual
+adversarial review (Claude whole-impl `a1e845ffc2242e05a` + Codex `aadd28ba964ce8a94`, 0 Critical / 0 Important
+after fix rounds). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-14-shortform-pacing-breathe*`.
+
+### Shipped to main
+- **#42 (MERGED, `815d91e`)** — short pacing, all gated to `format == short` (long-form byte-identical):
+  - `engine/config.py`: `SHORT_NARRATION_SPEED` 1.12→**1.05**, `SHORT_NARRATION_GAP_S` 0.12→**0.20**, new
+    `SHORT_END_GAP_S=0.6`, `SHORT_END_HOLD_MS=1000`.
+  - `engine/video/tts.py`: pure `_gap_schedule(n, gap_s, end_gap_s)` helper + threaded `end_gap_s` through
+    `narration_pace` (now a **3-tuple**) → `synthesize` → `_synth_kokoro` — longer silence **before the final
+    (payoff) sentence**. `end_gap_s=None` (long-form default) is behavior-preserving.
+  - Remotion: new optional `endHoldMs` prop (default 0) threaded config→`run_video`→`build_props`→props→
+    `types.ts`/`Root.tsx`/`UntoldShort.tsx`/`shortDefaultProps.ts`. EndCTA pushed later by `endHoldMs`.
+    **Key gotcha (fixed):** Remotion `Sequence`s *unmount* at duration-end (they don't freeze), and b-roll beats
+    are capped at `narration_ms` — so `build_props` now **stretches the last beat THAT HAS A CLIP** to
+    `narration_ms + end_hold_ms` so real story footage (looped by `BeatClip`), not the gradient, carries the breath.
+  - `engine/pipeline/script.py`: both short writers' PAYOFF beat → **1–2 resolving sentences** (integrity rule intact).
+- All three existing shorts **re-rendered with the new pacing** (verified `endHoldMs=1000` + stretched final beat):
+  `050d8550` (preview, human-approved), `9bbd24cd`, `bb8585d1`.
+
+### Open / next
+1. **Re-renders reuse existing scripts** → they carry pacing + end-breath but **not** the fuller-payoff *wording*
+   (Task 4 only affects a fresh `run_produce`). Regenerate scripts if the new payoff wording is wanted on these three.
+2. The 3 re-rendered shorts are **local files only** — pushing to YouTube is a separate manual step.
+3. **Minor, intentionally not fixed** (see PR #42 body): 2-sentence payoff makes the pre-payoff pause land before
+   the *last* line (not the payoff block); `endHoldMs:0` emitted for long-form too (render byte-identical). QC note:
+   `endHoldMs`+`outroMs` are video-only, so the short QC duration-drift floor moved ~25s→~35s of narration (passes
+   at the ~50–55s target, ~6–7% drift vs 10% tol).
+
+### Watch-outs
+- **Don't wait on renders with `pgrep -f "run_video --id X"`** — the waiter shell's own argv contains that string,
+  so the loop self-matches and deadlocks. Use `kill -0 $PID` on the captured render PID instead.
+- Render path: `.venv-video/bin/python -m engine.run_video --id <id> --render --mode narrated --format short`
+  (the canonical invocation `engine/run_auto.py` uses; never run a render in a hook/CI).
+
+### Suggested skills next session
+`ship-video-change` (any engine change), `run-pipeline`/`review-ideas` (queue work), `fact-review` (if a produce flags).
+
+---
+
 ## Session 13 (2026-06-14) — API cost tracking for automation runs
 
 Triggered by "is our automation kicked off?": the 1am run **was** firing (PATH fix from #33 held) but
