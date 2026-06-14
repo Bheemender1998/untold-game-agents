@@ -4,6 +4,62 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 12 (2026-06-14) — Short-form v2 · vertical thumbnails · subject autosource · docs-sync hook
+
+8 PRs merged via the `ship-video-change` rail (dual adversarial: Claude + Codex, 0 Critical / 0 Important
+after fix rounds). Specs/plans in `docs/superpowers/{specs,plans}/2026-06-1{3,4}-*`. Memory: [[shortform-v2-pacing-broll]],
+[[subject-autosource]], [[keep-docs-in-sync]].
+
+### Shipped to main
+- **#31** — short-form v2: conflict-first **no-pronoun** hook (open on action/image/stakes), ~50-55s length
+  (`SHORT_SCRIPT_WORDS` 110-135), brisk pace (`SHORT_NARRATION_SPEED` 1.12 / gap 0.12), mood-driven b-roll
+  **beat track** (`bBeats`, a fresh deduped clip every 4s short / 7s long, Ken-Burns zoom, no single-clip loop,
+  both formats), caption punch-in, **+ scaffold-leak fix** (`tts.is_scaffold_line` + `_parse_short` last-MOOD →
+  clean `script.md`, no hand-editing).
+- **#32** — vertical 9:16 thumbnail `thumbnail.compose_vertical` (real photo + bold bottom-stacked Anton, last
+  line red accent); `generate_thumbnail`/`run_thumbnail --format short` route to it. **#38** added explicit-`\n`
+  line breaks in `_wrap` (hand-authored splits via persisted `thumbnail_text`).
+- **#35** — **subject autosource**: `run_subject --id --format` → `wikipedia.lead_image` (lead portrait +
+  CC/PD credit) → `footage.fetch_photo` (Pexels fallback) → none; human `subject.png` always wins; writes
+  `subject_credit.txt`. **#36** fixed `lead_image` to gate on `max(w,h)≥400` (was width≥600 → rejected tall-narrow
+  portraits like Senna 438×584).
+- **#33** — overnight launchd fix: `scripts/overnight.sh` PATH puts `/usr/bin:/bin` before `/usr/local/bin`.
+  Root cause (kernel AMFI log): `/usr/local/bin` holds Apple platform coreutils copies that get `Killed: 9`
+  (not in trust cache) — the 1am job died at the first `mkdir` and had **never once completed**.
+- **#34** — `scripts/docs-staleness-gate.sh` PreToolUse hook on `gh pr create`: blocks a PR when `engine/**`
+  changed but no docs did; bypass with `Docs-Synced: <reason>`. Enforces [[keep-docs-in-sync]].
+
+### Done (assets ready, on disk — produced/ is gitignored)
+- All **8 published shorts** have a reviewed subject photo (6 auto Wikipedia/Pexels + credit, 2 human) and an
+  **8/8 generated 1080×1920 cover** (`run_thumbnail --format short`). Senna/Prost cover uses persisted
+  `thumbnail_text="RED FLAG\nNO EXPLANATION"`.
+
+### Decisions
+- **Thumbnails = REAL photos only, NO AI** (user confirmed; ADR-0005). The reference-grid AI-deepfake style is
+  off-brand + platform-risky. Will iterate on thumbnail *design* later (richer composition).
+- Short-form punch comes from structure/pacing/visuals, **integrity held** (no rounding, no unverified superlatives).
+
+### Open / next
+1. **Push the 8 covers to the LIVE Shorts** — `run_thumbnail` only writes local `thumbnail.jpg`. Check whether
+   `engine/publish/uploader` can set thumbnails on already-published videos, else set in Studio.
+2. **Overnight reliability** — PATH fixed, but a full render still needs **AC power** + the scheduled wake aligned
+   to the job (`sudo pmset repeat wakeorpoweron MTWRFSU 00:59:00`; user ran a pmset change this session).
+3. **Railway ideate cron is declared (`railway.toml`) but NOT deployed** — no Untold Game Railway project, so
+   cloud idea-gen isn't running. (Docs corrected to stop implying it runs.)
+4. 🐛 **docs-staleness-gate reads only inline `--body`, not `--body-file`** — a `Docs-Synced:` marker in a body
+   file is missed. Quick patch: parse `--body-file <path>` too.
+5. **Slice 2 (deferred):** SFX/whoosh/impact audio layer for shorts (needs a licensed sound library).
+
+### Watch-outs
+- **Parallel `api-cost-tracking` session** runs in its own worktree (`/Users/bheemendergurram/tug-cost-tracking`,
+  branch `feat/api-cost-tracking-clean`, adds `engine/usage.py`). An early shared-checkout tangle (commits
+  interleaved across both features) was resolved by rebuilding each feature cleanly in a worktree — reinforces
+  [[parallel-agents-use-worktrees]]: **every concurrent session MUST use its own worktree.**
+
+### Suggested skills next session
+`ship-video-change` (engine PRs), `superpowers:brainstorming` (thumbnail-design v2 / uploader thumbnail-set),
+`fact-review` (when produce flags `needs_review`).
+
 ## Session 11 (2026-06-13) — Packaging feedback → 3 slices shipped (text · thumbnails · positioning)
 
 External "make it viral / fix the identity crisis" feedback decomposed into slices ([[packaging-feedback-slices]]
