@@ -26,6 +26,8 @@ export const UntoldShort: React.FC<UntoldProps> = (props) => {
             loop
             volume={(f) => {
               const peak = props.musicVolume ?? 0.08;
+              // total is composition-length; correct here because introMs=0 for Shorts (so introF=0).
+              // If introMs ever becomes nonzero, subtract introF as UntoldVideo does.
               const total = ms2f(props.introMs + props.narrationMs + (props.endHoldMs ?? 0) + props.outroMs, fps);
               const fadeIn = Math.round(1.5 * fps);
               const fadeOut = Math.round(2.5 * fps);
