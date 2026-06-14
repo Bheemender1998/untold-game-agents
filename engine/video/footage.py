@@ -23,6 +23,7 @@ import urllib.parse
 import urllib.request
 
 _SEARCH = "https://api.pexels.com/videos/search"
+_PHOTO_SEARCH = "https://api.pexels.com/v1/search"
 # Pexels sits behind Cloudflare, which 403s (error 1010) the default python-urllib
 # User-Agent. A browser UA is required on BOTH the API call and the CDN download.
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -158,6 +159,31 @@ def fetch_clip(query: str, out_path: str, api_key: str | None = None,
         return None
     res = _fetch_one(query, out_path, api_key, min_width, set(), portrait=portrait)
     return res[0] if res else None
+
+
+def fetch_photo(query: str, out_path: str, api_key: str | None = None,
+                min_width: int = 1080) -> str | None:
+    """Download one high-res Pexels PHOTO for `query` to out_path. Returns a photographer
+    credit on success, else None (missing key / no result / download fail). Never raises."""
+    api_key = api_key or os.environ.get("PEXELS_API_KEY")
+    if not api_key:
+        return None
+    params = urllib.parse.urlencode({"query": query, "per_page": 15,
+                                     "orientation": "portrait", "size": "large"})
+    req = urllib.request.Request(
+        f"{_PHOTO_SEARCH}?{params}",
+        headers={"Authorization": api_key, "User-Agent": _UA, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            photos = json.load(r).get("photos") or []
+    except Exception:
+        return None
+    for p in photos:
+        src = p.get("src") or {}
+        link = src.get("large2x") or src.get("original")
+        if link and _download(link, out_path):
+            return f"Photo by {p.get('photographer', 'Pexels')} on Pexels"
+    return None
 
 
 def _load_used() -> set:
