@@ -56,8 +56,8 @@ TARGET_SCRIPT_WORDS_MIN = 1600
 TARGET_SCRIPT_WORDS_MAX = 2000
 TARGET_RUNTIME_LABEL = "8-9 minutes"
 
-SHORT_SCRIPT_WORDS_MIN = 90    # YouTube Shorts: ~30-50s of narration
-SHORT_SCRIPT_WORDS_MAX = 130
+SHORT_SCRIPT_WORDS_MIN = 110   # YouTube Shorts: ~50-55s at the brisk short pace (~2.3 words/s)
+SHORT_SCRIPT_WORDS_MAX = 135
 
 # ── Viral potential scoring rubric ────────────────────────────────────────────
 VIRAL_RUBRIC = """
@@ -92,6 +92,10 @@ PRODUCE_TIMEOUT_S = 1800       # 30 min cap on one produce (script + sequential 
 # Kokoro voices (see engine/video/tts.py).
 NARRATION_SPEED = 0.9            # kokoro speed; <1.0 = slower, calmer
 NARRATION_GAP_S = 0.5           # silence between sentences (seconds)
+# Short-form is brisker and tighter than the cinematic long-form pace above — TikTok/Reels
+# give you ~2s before a swipe, so we cut the calm. Long-form keeps the values above.
+SHORT_NARRATION_SPEED = 1.12     # noticeably brisk, still clear (vs 0.9 long-form)
+SHORT_NARRATION_GAP_S = 0.12     # near-eliminate the dramatic pauses (vs 0.5)
 # Only two voices in rotation: af_sarah (warm, well-proportioned) carries the
 # emotional/somber stories; bm_george (authoritative British male) anchors the rest.
 NARRATION_VOICE_DEFAULT = "bm_george"
@@ -110,6 +114,24 @@ PILLAR_MOOD = {
     "sport_vs_world":                  "tense",
     "what_if":                         "hype",
 }
+
+# Atmospheric b-roll search terms per mood. Purely symbolic/abstract (nature, sky, weather,
+# space, texture) — zero integrity risk (never implies real event footage). Each pool has
+# enough terms that beat-level selection + the global used_clips.json dedup yields a fresh
+# clip per beat. Keys match the four canonical MOODS (tense/triumphant/somber/hype).
+MOOD_BROLL_POOL = {
+    "somber": ["rain on window", "grey ocean waves", "dusk fog forest", "empty road night",
+               "falling snow slow", "still misty lake", "dark clouds drifting", "candle flame dark"],
+    "triumphant": ["sunrise over clouds", "light rays forest", "open blue sky", "mountain summit",
+                   "golden hour ocean", "soaring birds sky", "sun flare horizon", "aurora night sky"],
+    "tense": ["storm clouds timelapse", "lightning strike", "crashing waves rocks", "dark smoke",
+              "fast moving clouds", "flickering light dark", "rough sea storm", "wind grass field"],
+    "hype": ["city lights night", "neon lights motion", "fireworks night", "highway traffic timelapse",
+             "fast city motion", "abstract energy light", "crowd lights blur", "spinning star trails"],
+}
+
+SHORT_BROLL_BEAT_S = 4.0    # short: a new atmospheric clip every ~4s (energetic but breathing)
+LONG_BROLL_BEAT_S = 7.0     # long: every ~7s — varied but cinematic, no single-clip loop
 
 # ── Fact-gate (fact_gate.py) ──────────────────────────────────────────────────
 import os as _os  # local alias; config.py is module-level constants

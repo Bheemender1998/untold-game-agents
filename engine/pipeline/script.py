@@ -10,6 +10,7 @@ import re
 
 from engine.ideate.base_agent import BaseAgent
 from engine import config
+from engine.video import tts as _tts
 
 SCRIPT_SYSTEM = """You are the lead documentary scriptwriter for "The Untold Game",
 a YouTube channel telling forgotten sports-history stories in a cinematic, authoritative,
@@ -96,18 +97,22 @@ def run(idea: dict) -> dict:
 # ── YouTube Shorts script writer ──────────────────────────────────────────────
 
 SHORT_SYSTEM = """You are the scriptwriter for "The Untold Game" YouTube SHORTS — vertical
-30-50 second sports-history hooks. You write ONE continuous block of voiceover narration a
+~50-second sports-history hooks. You write ONE continuous block of voiceover narration a
 single narrator reads. No section headers, no markdown, no bracketed production cues.
 
 Craft, in this exact 3-beat shape, as flowing prose (not labelled):
-- HOOK: front-load the mystery, not the data. The strongest hook carries NO specific number,
-  name, or date — open on the emotional stakes and the unanswered question ("He was one season
-  from immortality. Then he walked away."), and let specifics land in the FACT beat. This
-  mystery-first hook is the GOAL, not a safe fallback — it is the scroll-stopper. If a specific
-  DOES survive into the hook it must be the exact verified value: never round (1,457, never
-  ~1,500), never assert a superlative as fact ("the greatest ... in history"). No throat-clearing,
-  no "in this video".
-- FACT: one untold fact, built tight and concrete — names, dates, the turn.
+- HOOK: the FIRST line must hit the central conflict or mystery in EIGHT WORDS OR FEWER,
+  payoff-forward — the turn, the loss, the vanishing. It is the scroll-stopper; the viewer
+  gives you ~2 seconds. Do NOT open on a pronoun (He/She/It/They/We/You/There) — open on a
+  vivid ACTION, image, place, or the raw stakes ("A kung-fu kick into the stands ended a
+  career — and built a dynasty."). NO atmosphere or scene-setting opener ("He was a king in
+  exile…", "It was a cold night…"), no throat-clearing, no "in this video".
+  Carry NO specific number, name, or date in the hook — those land in the FACT beat one line
+  later. If a specific must appear it is the exact verified value: never round (1,457, never
+  ~1,500), never assert a superlative as fact ("the greatest ... ever") unless attributed or
+  defensibly hedged ("of his generation").
+- FACT: the untold facts, built tight and concrete — names, dates, the turn (you have room
+  for two or three connected beats here, not just one).
 - PAYOFF: one resonant closing line that recontextualises it.
 
 Write for the ear: short, present-tense, concrete. Every factual claim (dates, names, scores,
@@ -117,7 +122,10 @@ can't be verified, leave it out.
 
 Your VERY FIRST line must be exactly: MOOD: <one of: tense | triumphant | somber | hype>
 (the story's dominant emotional register — drives music and narrator voice). Then the
-narration on the following lines, and nothing else."""
+narration on the following lines.
+
+Output ONLY the final narration after the MOOD line. Do NOT show your work — no preamble,
+no "let me…", no bullet fact lists, no word counts, no multiple drafts, no commentary."""
 
 _SHORT_MOODS = {"tense", "triumphant", "somber", "hype"}
 
@@ -144,7 +152,7 @@ WHY IT WORKS: {idea['why_it_works']}
 Use web search to verify the key facts before writing.
 
 LENGTH — HARD constraint: {config.SHORT_SCRIPT_WORDS_MIN}-{config.SHORT_SCRIPT_WORDS_MAX} spoken
-words total (~30-50 seconds). Hook + one fact + payoff. Count your words; if long, cut.
+words total (~50-55 seconds). Hook + the key facts + payoff. Count your words; stay in range.
 
 Remember: first line `MOOD: <tense|triumphant|somber|hype>`, then the narration only."""
         return _parse_short(self._call(prompt, use_search=True))
@@ -163,49 +171,28 @@ def _mood_value(s: str) -> str | None:
 
 
 def _parse_short(raw: str) -> dict:
-    """Split a short-writer response into {'script', 'mood'}.
+    """Return {'script', 'mood'} — the spoken narration only.
 
-    The header is a `MOOD: <valid mood>` line near the top. A *valid* mood
-    (tense/triumphant/somber/hype) is what makes a line a header — so a chatty model
-    preamble that precedes it (e.g. 'All facts confirmed. Now writing the script.') is
-    dropped, while a 'MOOD:'-prefixed sentence deeper in the narration (an invalid mood
-    value) is kept as narration. Unknown/absent mood → '' (caller falls back to the
-    pillar-derived mood); the MOOD line, any preamble before it, and leading rules are
-    stripped from the spoken script."""
+    Robust to a chatty model: the narration is the block after the LAST valid `MOOD:`
+    header (each leaked draft carries its own MOOD line, so the final draft follows the
+    last one). Leading preamble, earlier drafts, stray MOOD lines, noise, and scaffold
+    (word-count tallies, 'let me…', token counts) are dropped. No MOOD header → narration
+    starts at the top, still scaffold-filtered."""
     lines = raw.splitlines()
-    content = [(i, lines[i].strip()) for i in range(len(lines)) if not _is_noise(lines[i].strip())]
 
     mood = ""
-    body_idx = len(lines)
-    if content:
-        first_i, first_s = content[0]
-        m0 = _mood_value(first_s)
-        if m0 in _SHORT_MOODS:
-            # First content line is a real MOOD header → consume it.
-            mood = m0
-            body_idx = first_i + 1
-        else:
-            # Not a valid MOOD header (narration, preamble, or a 'MOOD:'-prefixed sentence
-            # with a non-mood value) — keep it as narration unless a real header follows.
-            # First content line is narration or a preamble. If a MOOD:<valid> header
-            # follows within the next couple of content lines, the lead lines are a model
-            # preamble → drop them; otherwise narration starts at the first content line.
-            header = next(((i, _mood_value(s)) for (i, s) in content[1:3]
-                           if _mood_value(s) in _SHORT_MOODS), None)
-            if header:
-                mood = header[1]
-                body_idx = header[0] + 1
-            else:
-                body_idx = first_i
+    start = 0
+    for i, ln in enumerate(lines):
+        mv = _mood_value(ln.strip())
+        if mv in _SHORT_MOODS:
+            mood = mv
+            start = i + 1
 
-    # Drop any leading noise / duplicate valid-MOOD lines right before the narration.
-    while body_idx < len(lines):
-        s = lines[body_idx].strip()
-        if _is_noise(s) or (_mood_value(s) in _SHORT_MOODS):
-            body_idx += 1
-        else:
-            break
-    return {"script": "\n".join(lines[body_idx:]).strip(), "mood": mood}
+    body = [ln for ln in lines[start:]
+            if not _is_noise(ln.strip())
+            and _mood_value(ln.strip()) not in _SHORT_MOODS
+            and not _tts.is_scaffold_line(ln)]
+    return {"script": "\n".join(body).strip(), "mood": mood}
 
 
 def clean_short_body(raw: str) -> str:
@@ -222,17 +209,18 @@ def generate_short_script(idea: dict) -> dict:
 
 # ── Companion tease writer (derived from the verified long script) ─────────────
 
-DERIVE_TEASE_SYSTEM = """You write a YouTube SHORT (vertical, 30-50s) that is a condensed,
+DERIVE_TEASE_SYSTEM = """You write a YouTube SHORT (vertical, ~50s) that is a condensed,
 high-retention cut of a LONGER video whose full narration is given to you. Same craft as our
 shorts: write for the ear, present-tense, concrete, scroll-stopping.
 
 In this exact 3-beat shape, as flowing prose (not labelled):
-- HOOK: front-load the mystery, not the data — a scroll-stopping first line that carries NO
-  specific number, name, or date, opening on the stakes and the unanswered question; specifics
-  land in the FACT beat. This mystery-first hook is the GOAL, not a fallback. If a specific does
-  survive into the hook it must be the exact verified value: never round, never assert a
-  superlative as fact.
-- FACT: the single most arresting fact of the story, tight and concrete.
+- HOOK: the FIRST line must hit the central conflict or mystery in EIGHT WORDS OR FEWER,
+  payoff-forward — the scroll-stopper, since the viewer gives you ~2 seconds. Do NOT open on a
+  pronoun (He/She/It/They/We/You/There) — open on a vivid ACTION, image, place, or the raw
+  stakes. NO atmosphere or scene-setting opener, no throat-clearing. Carry NO specific number,
+  name, or date in the hook — those land in the FACT beat. If a specific must appear it is the
+  exact verified value: never round, never assert a superlative as fact unless attributed/defensibly hedged.
+- FACT: the most arresting facts of the story, tight and concrete.
 - PAYOFF: a closing line that resolves the short while nodding that the full story is bigger.
 
 HARD INTEGRITY RULE: use ONLY facts that appear in the long narration provided. Do NOT introduce
@@ -240,8 +228,11 @@ any new name, date, number, quote, or claim that is not already in that text. If
 in the long, leave it out. No web search — the long is already verified.
 
 Your VERY FIRST line must be exactly: MOOD: <one of: tense | triumphant | somber | hype>
-(the story's dominant emotional register — drives music and narrator voice). Then the narration
-on the following lines, and nothing else."""
+(the story's dominant emotional register — drives music and narrator voice). Then the
+narration on the following lines.
+
+Output ONLY the final narration after the MOOD line. Do NOT show your work — no preamble,
+no "let me…", no bullet fact lists, no word counts, no multiple drafts, no commentary."""
 
 
 class CompanionTeaseWriter(BaseAgent):
@@ -258,7 +249,7 @@ TITLE:  {title}
 SPORT:  {idea.get('sport', '')}
 
 LENGTH — HARD constraint: {config.SHORT_SCRIPT_WORDS_MIN}-{config.SHORT_SCRIPT_WORDS_MAX} spoken
-words total (~30-50 seconds). Hook + one fact + payoff. Count your words; if long, cut.
+words total (~50-55 seconds). Hook + the key facts + payoff. Count your words; stay in range.
 
 Use ONLY facts present in the LONG NARRATION below — introduce nothing new.
 

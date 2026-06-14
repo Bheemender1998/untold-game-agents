@@ -1,4 +1,29 @@
+import math
+
 from engine.video import remotion_build, music
+
+
+def test_beat_track_covers_narration_contiguously():
+    beats = remotion_build.beat_track(10_000, 2.5)   # 10s narration, 2.5s beats
+    assert len(beats) == 4
+    assert beats[0]["startMs"] == 0
+    # contiguous, non-overlapping
+    for a, b in zip(beats, beats[1:]):
+        assert a["endMs"] == b["startMs"]
+    # last beat reaches the end of the narration
+    assert beats[-1]["endMs"] == 10_000
+
+
+def test_beat_track_rounds_up_partial_final_beat():
+    beats = remotion_build.beat_track(9_000, 2.5)     # 9 / 2.5 = 3.6 → 4 beats
+    assert len(beats) == math.ceil(9_000 / 2_500)
+    assert beats[-1]["endMs"] == 9_000                # clamped to narration end
+
+
+def test_beat_track_long_cadence_is_coarser():
+    short_beats = remotion_build.beat_track(60_000, 2.5)
+    long_beats = remotion_build.beat_track(60_000, 7.0)
+    assert len(short_beats) > len(long_beats)         # short cuts more often
 
 
 def _patch_heavy(monkeypatch):
@@ -82,3 +107,66 @@ def test_build_props_adds_music_for_longform(tmp_path, monkeypatch):
     props, assets, credit = remotion_build.build_props(
         idea, "# s\nb", str(tmp_path), "n.wav", None, 10.0, portrait=False)
     assert props["musicSrc"] == "m.mp3" and "/lib/m.mp3" in assets and credit == "Music"
+
+
+def test_build_props_emits_bbeats_from_mood_pool(tmp_path, monkeypatch):
+    from engine.video import remotion_build, footage, music
+    from engine import config
+
+    # Neutralize heavy/network helpers; capture the queries footage receives.
+    captured = {}
+    def _fake_fetch(queries, vd, portrait=False, sport=None):
+        captured["queries"] = list(queries)
+        captured["sport"] = sport
+        return [f"bg_{i:02d}.mp4" for i in range(len(queries))]   # every beat gets a clip
+
+    monkeypatch.setattr(remotion_build._tts, "script_to_narration_text", lambda md: "w w w")
+    monkeypatch.setattr(remotion_build._captions, "estimate_word_timings",
+                        lambda text, dur: [{"text": "w", "startMs": 0, "endMs": 500}])
+    monkeypatch.setattr(remotion_build._compose, "build_section_headlines", lambda idea, md: [])
+    monkeypatch.setattr(remotion_build._compose, "assign_headline_times", lambda s, w, d, n: [])
+    monkeypatch.setattr(remotion_build._footage, "fetch_clips", _fake_fetch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+
+    idea = {"id": "i1", "mood": "somber", "pillar": "hidden_story", "title_variants": ["T"],
+            "sport": "Soccer"}
+    props, assets, credit = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0, broll_beat_s=2.5)
+
+    # 10s / 2.5s = 4 beats → 4 bBeats, each with a src + contiguous timing + alternating zoom.
+    beats = props["bBeats"]
+    assert len(beats) == 4
+    assert [b["zoomDir"] for b in beats] == ["in", "out", "in", "out"]
+    assert all(b["src"] for b in beats)
+    assert beats[0]["startMs"] == 0 and beats[-1]["endMs"] == 10_000
+    # queries came from the somber mood pool, generic (sport not biased in)
+    assert set(captured["queries"]) <= set(config.MOOD_BROLL_POOL["somber"])
+    assert captured["sport"] is None
+
+
+def test_build_props_bbeats_mood_falls_back_to_pillar(tmp_path, monkeypatch):
+    from engine.video import remotion_build, footage, music
+    from engine import config
+
+    monkeypatch.setattr(remotion_build._tts, "script_to_narration_text", lambda md: "w")
+    monkeypatch.setattr(remotion_build._captions, "estimate_word_timings",
+                        lambda text, dur: [{"text": "w", "startMs": 0, "endMs": 500}])
+    monkeypatch.setattr(remotion_build._compose, "build_section_headlines", lambda idea, md: [])
+    monkeypatch.setattr(remotion_build._compose, "assign_headline_times", lambda s, w, d, n: [])
+    grabbed = {}
+    def _fake_fetch(queries, vd, portrait=False, sport=None):
+        grabbed["queries"] = list(queries)
+        return [None for _ in queries]      # no clips available → graceful
+    monkeypatch.setattr(remotion_build._footage, "fetch_clips", _fake_fetch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+
+    # No idea["mood"] → derive from pillar via tts.mood_for_pillar.
+    pillar = next(iter(config.PILLAR_MOOD))
+    expected_mood = config.PILLAR_MOOD[pillar]
+    idea = {"id": "i2", "pillar": pillar, "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 5.0, broll_beat_s=7.0)
+
+    assert set(grabbed["queries"]) <= set(config.MOOD_BROLL_POOL[expected_mood])
+    # beats with no clip omit src but keep timing (gradient shows through, never crashes)
+    assert props["bBeats"][0]["src"] is None

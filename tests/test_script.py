@@ -120,6 +120,47 @@ def test_short_keeps_invalid_mood_first_line_as_narration(monkeypatch):
     assert out["script"].startswith("MOOD: this was the word")  # kept as narration
 
 
+def test_short_prompts_forbid_shown_work():
+    from engine.pipeline import script
+    for p in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM):
+        s = p.lower()
+        assert "word count" in s            # explicitly bans the word-count tally
+        assert "draft" in s                 # bans multiple drafts
+        assert "no preamble" in s or "do not show your work" in s
+
+
+def test_parse_short_keeps_final_draft_and_strips_scaffold():
+    from engine.pipeline import script
+    raw = (
+        "Good — I now have solid verified facts. Let me compile:\n"
+        "- January 25, 1995: the kick\n\n"
+        "MOOD: triumphant\n\n"
+        "First draft narration that is wrong length.\n\n"
+        "**Word count:** Let me count carefully.\n"
+        "First(1) draft(2) narration(3)\n"
+        "137 words — slightly under.\n\n"
+        "MOOD: triumphant\n\n"
+        "A kung-fu kick into the stands shook English football. The ban built them.\n\n"
+        "154 words — within range. ✅\n"
+    )
+    out = script._parse_short(raw)
+    assert out["mood"] == "triumphant"
+    assert out["script"] == (
+        "A kung-fu kick into the stands shook English football. The ban built them."
+    )
+    assert "First draft" not in out["script"]
+    assert "word count" not in out["script"].lower()
+    assert "(1)" not in out["script"]
+
+
+def test_parse_short_clean_single_draft_unchanged():
+    from engine.pipeline import script
+    raw = "MOOD: somber\n\nThe own goal cost him everything. He never played again."
+    out = script._parse_short(raw)
+    assert out["mood"] == "somber"
+    assert out["script"] == "The own goal cost him everything. He never played again."
+
+
 def test_tease_within_long_passes_when_subset():
     from engine.pipeline import script
     long = "In 1984 Ayrton Senna chased Alain Prost at Monaco. The gap was seven seconds."
@@ -172,10 +213,14 @@ def test_tease_within_long_flags_new_acronym():
 
 
 def test_hook_rule_present_in_all_hook_prompts():
-    # Regression firewall: the mystery-first hook rule must survive future prompt edits.
+    # Regression firewall: the conflict/mystery-first hook rule + integrity guard must
+    # survive future prompt edits. (Long-form keeps the "front-load the mystery" phrasing;
+    # shorts use the sharper conflict-first ≤8-word wording.)
     from engine.pipeline import script
+    assert "front-load the mystery" in script.SCRIPT_SYSTEM
+    for prompt in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM):
+        assert "central conflict or mystery" in prompt
     for prompt in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM, script.SCRIPT_SYSTEM):
-        assert "front-load the mystery" in prompt
         assert "exact verified value" in prompt
 
 
@@ -223,3 +268,27 @@ def test_title_numbers_within_passes_legit_decimal():
     ok, new = script.title_numbers_within("The 1.5 Second Gap That Decided It",
                                           "The gap was 1.5 seconds at the line.")
     assert ok and new == []
+
+
+def test_short_system_prompt_front_loads_conflict():
+    from engine.pipeline import script
+    s = script.SHORT_SYSTEM.lower()
+    # conflict-first, with specifics deferred to the FACT beat
+    assert "first line" in s
+    assert "eight words" in s or "≤ 8" in s or "8 words" in s
+    assert "fact beat" in s
+    # explicit ban on atmosphere/scene-setting openers
+    assert "atmosphere" in s or "scene-setting" in s
+    # must not open on a bare pronoun — open on action/image/stakes
+    assert "pronoun" in s
+    # integrity preserved (no rounding)
+    assert "never round" in s
+
+
+def test_derive_tease_prompt_front_loads_conflict():
+    from engine.pipeline import script
+    s = script.DERIVE_TEASE_SYSTEM.lower()
+    assert "first line" in s
+    assert "eight words" in s or "8 words" in s
+    assert "atmosphere" in s or "scene-setting" in s
+    assert "pronoun" in s

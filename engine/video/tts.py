@@ -111,6 +111,46 @@ def apply_pronunciation(text: str) -> str:
     return pat.sub(lambda m: _PRONUNCIATION[m.group(0)], text)
 
 
+# Lines a chatty model leaks around the real narration — reasoning preamble, word-count
+# tallies, draft markers. Every pattern requires SCAFFOLD-SPECIFIC context (a process word
+# like draft/count/verified), never just a sentence that happens to start with a common word,
+# so real story narration is never matched. (Hardened after adversarial review found broad
+# openers like ^here's / ^good / ^i have / ^N words deleting real narration.)
+_SCAFFOLD_RE = [
+    re.compile(r"^word count\b", re.I),                                      # "Word count: ..."
+    re.compile(r"^let me (count|recount|compile|expand|draft|rewrite|revise)\b", re.I),
+    re.compile(r"^let me (now )?write (the|my|this) (narration|script|draft)\b", re.I),
+    re.compile(r"^now let me (count|recount|compile|expand|draft|write|rewrite|revise)\b", re.I),
+    re.compile(r"^here'?s (the|my) (final |revised |updated )?(script|draft|narration|version)\b", re.I),
+    re.compile(r"^here is (the|my) (final |revised |updated )?(script|draft|narration|version)\b", re.I),
+    re.compile(r"^i'?ll (now )?(write|draft|compile)\b", re.I),
+    re.compile(r"\bi (now )?have (solid|verified|enough|the|all the|my) [\w\s]*\b"
+               r"(facts|sources|info|information|details|research)\b", re.I),
+    re.compile(r"^\d+\s+words\b\s*([—–-]|\.|$)", re.I),                       # "137 words —" / "154 words."
+    re.compile(r"^\d+\s+words\s*[—–-]\s*(within range|slightly under|slightly over|over|total|exactly)\b", re.I),
+]
+# A token-count tally — a word IMMEDIATELY followed by "(n)" ("A(1) kung-fu(2) kick(3)"),
+# distinct from prose like "Ferrari (1), McLaren (2)" which has a space before the paren.
+_TOKEN_TALLY_RE = re.compile(r"\S\(\d+\)")
+_BULLET_RE = re.compile(r"^\s*[-•]\s+\S")   # markdown fact-list bullet ("- January 25, 1995: …")
+
+
+def is_scaffold_line(line: str) -> bool:
+    """True when a line is leaked model scaffolding (reasoning preamble, word-count tally,
+    bullet fact-list, draft marker) rather than spoken narration. Strips markdown emphasis
+    first. Every rule requires scaffold-specific context so real narration never matches."""
+    s = re.sub(r"[*_`]", "", line).strip()
+    if not s:
+        return False
+    if "✅" in s and len(s.split()) <= 6:
+        return True
+    if len(_TOKEN_TALLY_RE.findall(s)) >= 3:   # "A(1) kung-fu(2) kick(3)…"
+        return True
+    if _BULLET_RE.match(s):                     # compiled fact-list bullet leaked into the script
+        return True
+    return any(p.search(s) for p in _SCAFFOLD_RE)
+
+
 def script_to_narration_text(script_md: str) -> str:
     """Strip production cues ([VISUAL]/[ARCHIVAL]/[MUSIC]) and headers so only the
     spoken narration is sent to TTS."""
@@ -122,6 +162,8 @@ def script_to_narration_text(script_md: str) -> str:
         if re.match(r"^\[[A-Z].*\]$", s):   # bracketed cue lines
             continue
         if re.match(r"(?i)^MOOD:\s*\w+\s*$", s):  # leaked short-script MOOD header
+            continue
+        if is_scaffold_line(s):                    # leaked reasoning / word-count / drafts
             continue
         s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
         s = _spell_grouped_numbers(s)        # '2,003' → 'two thousand three' for clean TTS
@@ -140,6 +182,14 @@ def resolve_voice(mood: str | None) -> str:
 def mood_for_pillar(pillar: str | None) -> str:
     """Mood for a content pillar (long-form has no per-script mood). '' if unknown."""
     return config.PILLAR_MOOD.get(pillar or "", "")
+
+
+def narration_pace(fmt: str | None) -> tuple[float, float]:
+    """(speed, gap_s) for kokoro narration by output format. 'short' is brisk + tight;
+    anything else (long/None) keeps the calm cinematic defaults."""
+    if fmt == "short":
+        return config.SHORT_NARRATION_SPEED, config.SHORT_NARRATION_GAP_S
+    return config.NARRATION_SPEED, config.NARRATION_GAP_S
 
 
 def narration_voice(idea: dict, override: str | None = None,

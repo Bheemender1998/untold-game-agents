@@ -84,3 +84,32 @@ def test_fetch_one_repeats_primary_when_broader_query_empty(monkeypatch):
     monkeypatch.setattr(footage, "_download", lambda link, out: True)
     res = footage._fetch_one("basketball game", "/tmp/x.mp4", "key", 1280, exclude_ids={1})
     assert res is not None and res[1] == 1   # repeats the primary clip rather than returning None
+
+
+def test_mood_beat_queries_draws_from_the_mood_pool():
+    from engine.video import footage
+    from engine import config
+    qs = footage.mood_beat_queries("somber", 3)
+    assert len(qs) == 3
+    assert set(qs) <= set(config.MOOD_BROLL_POOL["somber"])
+
+
+def test_mood_beat_queries_varies_no_immediate_repeat():
+    from engine.video import footage
+    qs = footage.mood_beat_queries("triumphant", 5)
+    assert len(qs) == 5
+    assert all(qs[i] != qs[i + 1] for i in range(len(qs) - 1)), f"immediate repeat: {qs}"
+
+
+def test_mood_beat_queries_cycles_when_n_exceeds_pool():
+    from engine.video import footage
+    from engine import config
+    n = len(config.MOOD_BROLL_POOL["tense"]) + 2
+    qs = footage.mood_beat_queries("tense", n)
+    assert len(qs) == n  # cycles the pool rather than running out
+
+
+def test_mood_beat_queries_unknown_mood_falls_back():
+    from engine.video import footage
+    qs = footage.mood_beat_queries("", 4)         # empty/unknown mood
+    assert len(qs) == 4 and all(isinstance(q, str) and q for q in qs)
