@@ -13,6 +13,11 @@
             "type": "command",
             "if": "Bash(gh pr create *)",
             "command": "bash \"${CLAUDE_PROJECT_DIR:-/Users/bheemendergurram/untold_game_agents}/scripts/pr-review-gate.sh\""
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr create *)",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-/Users/bheemendergurram/untold_game_agents}/scripts/docs-staleness-gate.sh\""
           }
         ]
       }
