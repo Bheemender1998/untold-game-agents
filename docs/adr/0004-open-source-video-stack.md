@@ -39,3 +39,45 @@ in the design for a larger machine.
   to execute the `hyperframes` npm package (downloads + runs third-party code + Chrome).
 - Most of the stack is free; the only likely paid pieces are a TTS voice (optional) and
   cloud image gen (optional if using CC stock).
+
+## Amendment (2026-06-14) — M5 Pro arrives; sub-project C (research depth) measured & deferred
+
+The "decisive" M2/8GB hardware constraint above is **lifted**: the dev box is now an Apple
+**M5 Pro, 24 GB**. The three set-aside local-stack pieces (Fooocus, Qwen3/Ollama,
+ScrapeGraphAI) are independent sub-projects, each to be proven on its own merits before
+adoption — not installed wholesale.
+
+**ScrapeGraphAI / "research depth" (sub-project C) — evaluated with data, deferred.**
+Brainstormed against the *actual* pipeline rather than the ADR's framing. Current research
+and the fact-gate both rest on the same primitive — DuckDuckGo **snippets**
+(`engine/ideate/web_search.py`); ScrapeGraphAI's value is turning a URL into extracted page
+content. Targeted the **verification** path (the fact-gate has a concrete recurring human
+cost; "thin scripts" has no demonstrated pain). Measured the 20 stored `produced/**/factcheck.json`
+shadow runs (377 checked claims):
+
+- Only **15 claims (4%)** are `web + unverified` — the sole bucket page-extraction could help.
+  (`web + contradicted` = the gate *correctly* catching real script errors; better evidence
+  wouldn't change those.)
+- Reading all 15: ~5 are genuinely snippet-thin/retrieval misses, ~5 partial/contested, ~5 are
+  real over-claims, source conflicts, flourishes, or **judge-reasoning** gaps (e.g. date
+  arithmetic it already had the inputs for). Realistic recovery ≈ **1.5–2% of claims** — and the
+  gate runs in **shadow** (`config.FACT_GATE_SHADOW`), so a human reviews all of them regardless.
+- Encyclopedic (Wikipedia) `unverified` failures (13) are **as large as** web ones (15), so
+  "better web extraction" isn't even the dominant lever.
+
+**Decision:** do not build C now. The heavy framework (langchain + browser) plus its hidden
+LLM-backend dependency (Ollama → pulls sub-project B forward, or Sonnet → recurring per-page
+cost, against the cost-conscious stance) is unjustified by the data. If the fact-gate is worth
+investment, the higher-leverage work the measurement surfaced is **graduating the gate out of
+shadow** and **tightening the judge** (date arithmetic, wording tolerance, the blank-correction
+retrieval misses) — neither needs the local stack or the M5. A future, much lighter option if
+full-page evidence is ever wanted: a `trafilatura` fetch+extract into `gather_evidence` (no
+ScrapeGraphAI, no Ollama).
+
+Sub-projects **A (Fooocus)** and **B (Qwen3)** remain open and unmeasured; A is additionally
+bounded by the integrity gate (ADR-0005) — local SDXL is viable only for atmospheric/abstract
+visuals, never AI-generated portraits of real people.
+
+*(Housekeeping: the production renderer is **Remotion**, not HyperFrames as tabled above — the
+keystone choice changed during build. This amendment does not re-open that; noted so the table
+isn't read as current.)*
