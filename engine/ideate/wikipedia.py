@@ -71,9 +71,11 @@ def extract(title: str) -> str:
         return ""
 
 
-def lead_image(query: str, min_width: int = 600) -> tuple[str, str] | None:
+def lead_image(query: str, min_dim: int = 400) -> tuple[str, str] | None:
     """The lead/infobox image URL + attribution for the best-matching Wikipedia page, or None.
-    Rejects SVGs (Pillow can't open them) and images narrower than `min_width`. Never raises."""
+    Rejects SVGs (Pillow can't open them) and images whose LARGER side is below `min_dim`.
+    Lead portraits are tall and narrow (e.g. 438×584), so gate on max(width, height), not
+    width alone. Never raises."""
     try:
         title = search_title(query)
         if not title:
@@ -85,7 +87,8 @@ def lead_image(query: str, min_width: int = 600) -> tuple[str, str] | None:
         page = next(iter(r.json().get("query", {}).get("pages", {}).values()), {}) or {}
         original = page.get("original") or {}
         url = original.get("source")
-        if not url or url.lower().endswith(".svg") or (original.get("width") or 0) < min_width:
+        largest = max(original.get("width") or 0, original.get("height") or 0)
+        if not url or url.lower().endswith(".svg") or largest < min_dim:
             return None
         return url, _image_credit(page.get("pageimage"), headers)
     except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError):

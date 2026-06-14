@@ -15,9 +15,10 @@ from engine.video import footage
 
 _SUBJECT_SYSTEM = """Identify the single best on-screen SUBJECT for a sports-history video
 thumbnail. Return JSON {"person": <the one real person to show, exact full name for a Wikipedia
-search, or "" if the story has no single person>, "concept": <a short generic stock-photo query
-for the topic when there is no person, e.g. "fifa world cup trophy", "formula 1 car", "cricket
-stadium">}. Use only what the script supports; never invent a person."""
+search, or "" if the story has no single person>, "concept": <ALWAYS a short generic stock-photo
+query depicting the topic, e.g. "fifa world cup trophy", "formula 1 car", "cricket stadium" —
+this is the fallback used when no person is given OR the person's photo can't be fetched, so
+never leave it empty>}. Use only what the script supports; never invent a person."""
 
 _SUBJECT_SCHEMA = {"type": "object",
                    "properties": {"person": {"type": "string"}, "concept": {"type": "string"}},
