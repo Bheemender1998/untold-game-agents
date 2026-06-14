@@ -54,6 +54,47 @@ def test_compose_handles_empty_tension_text(tmp_path):
         assert im.size == (1280, 720)
 
 
+def test_layout_vertical_wraps_and_fits():
+    d = ImageDraw.Draw(Image.new("RGB", (tn.VW, tn.VH)))
+    font, lines, line_h, widths = tn._layout_vertical("BANNED THEN A DYNASTY", d)
+    assert 1 <= len(lines) <= 4
+    assert max(widths) <= tn.MAX_TEXT_W_V
+    assert tn.V_MIN_FONT <= font.size <= tn.V_MAX_FONT
+
+
+def test_compose_vertical_writes_1080x1920_jpeg(tmp_path):
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1500, 2200), (110, 80, 60)).save(subj)
+    out = tmp_path / "cover.jpg"
+    tn.compose_vertical(str(subj), "BANNED THEN A DYNASTY", str(out))
+    assert out.exists()
+    with Image.open(out) as im:
+        assert im.size == (1080, 1920)
+        assert im.format == "JPEG"
+    assert out.stat().st_size < 2_000_000
+
+
+def test_compose_vertical_handles_empty_text(tmp_path):
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1080, 1920), (80, 80, 80)).save(subj)
+    out = tmp_path / "cover2.jpg"
+    tn.compose_vertical(str(subj), "", str(out))   # subject + stamp only, no crash
+    with Image.open(out) as im:
+        assert im.size == (1080, 1920)
+
+
+def test_compose_vertical_omits_text_when_it_cannot_fit(tmp_path):
+    # Pathological text (over-wide single word; very long string) must not draw off-frame —
+    # the band is omitted, the graded photo + stamp stand. Mirrors the 16:9 _draw_tension guard.
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1500, 2200), (100, 80, 60)).save(subj)
+    for bad in ["PNEUMONOULTRAMICROSCOPICSILICOVOLCANOCONIOSIS", "WORD " * 220]:
+        out = tmp_path / "covbad.jpg"
+        tn.compose_vertical(str(subj), bad, str(out))   # must not raise / draw off-frame
+        with Image.open(out) as im:
+            assert im.size == (1080, 1920)
+
+
 def test_thumbnail_text_uses_human_override(monkeypatch):
     # override present -> used verbatim, no LLM call
     monkeypatch.setattr(tn, "_thumbnail_text_llm", lambda i, s: (_ for _ in ()).throw(AssertionError("LLM should not be called")))
@@ -103,6 +144,35 @@ def test_generate_thumbnail_composites_when_subject_present(tmp_path, monkeypatc
     assert _os.path.exists(paths.thumbnail_path("id8", "long"))
     with Image.open(paths.thumbnail_path("id8", "long")) as im:
         assert im.size == (1280, 720)
+
+
+def test_generate_thumbnail_short_is_vertical(tmp_path, monkeypatch):
+    from engine import paths
+    # subject + output paths point into tmp
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1500, 2200), (100, 80, 60)).save(subj)
+    out = tmp_path / "thumbnail.jpg"
+    monkeypatch.setattr(paths, "subject_path", lambda i, f: str(subj))
+    monkeypatch.setattr(paths, "thumbnail_path", lambda i, f: str(out))
+    monkeypatch.setattr(tn, "_thumbnail_text", lambda idea, script: "BANNED THEN A DYNASTY")
+
+    tn.generate_thumbnail({"id": "x", "script": ""}, "short")
+    with Image.open(out) as im:
+        assert im.size == (1080, 1920)   # short → vertical
+
+
+def test_generate_thumbnail_long_is_landscape(tmp_path, monkeypatch):
+    from engine import paths
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1500, 1000), (100, 80, 60)).save(subj)
+    out = tmp_path / "thumb_long.jpg"
+    monkeypatch.setattr(paths, "subject_path", lambda i, f: str(subj))
+    monkeypatch.setattr(paths, "thumbnail_path", lambda i, f: str(out))
+    monkeypatch.setattr(tn, "_thumbnail_text", lambda idea, script: "10 DAYS LATER")
+
+    tn.generate_thumbnail({"id": "x", "script": ""}, "long")
+    with Image.open(out) as im:
+        assert im.size == (1280, 720)    # long → unchanged
 
 
 def test_compose_omits_tension_when_text_cannot_fit(tmp_path):

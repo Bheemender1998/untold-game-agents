@@ -23,6 +23,12 @@ MARKER_H = 8
 MARKER_MAX_W = 170
 RED = (224, 48, 30)
 
+VW, VH = 1080, 1920
+MAX_TEXT_W_V = int(VW * 0.88)
+V_MAX_FONT, V_MIN_FONT = 170, 56
+V_MAX_LINES = 4
+V_BOTTOM_MARGIN = 150        # px from the frame bottom to the text block's baseline area
+
 
 def _wrap(text, font, draw, max_w):
     """Greedy word-wrap to fit max_w; a single over-wide word stays on its own line."""
@@ -69,13 +75,13 @@ def _layout_tension(text, draw):
     return font, lines, block_box, marker_rect, line_h, widths
 
 
-def _draw_stamp(draw):
+def _draw_stamp(draw, w=W):
     """Serif UNTOLD stamp in a bordered box, top-right — the constant brand mark."""
     font = ImageFont.truetype(STAMP_FONT, 26)
     text, pad, cream = "UNTOLD", 10, (216, 201, 166)
     tb = draw.textbbox((0, 0), text, font=font)
     tw, th = tb[2] - tb[0], tb[3] - tb[1]
-    x2, y0 = W - 28, 22
+    x2, y0 = w - 28, 22
     x1, y2 = x2 - tw - 2 * pad, y0 + th + 2 * pad
     draw.rectangle([x1, y0, x2, y2], outline=cream, width=2)
     draw.text((x1 + pad - tb[0], y0 + pad - tb[1]), text, font=font, fill=cream)
@@ -96,32 +102,82 @@ def _draw_tension(draw, text):
     draw.rectangle(list(marker), fill=RED)
 
 
-def compose(subject_path: str, tension_text: str, out_path: str) -> None:
-    """Render the 1280x720 'Prestige Feed Killer' thumbnail to out_path (JPEG)."""
-    base = ImageOps.fit(Image.open(subject_path).convert("RGB"), (W, H), Image.LANCZOS)
-    # archival grade: desaturate + warm sepia duotone, then trim brightness / lift contrast
+def _grade(base, w, h):
+    """Archival cinematic grade (desaturate + sepia duotone + warm side-light + grain +
+    vignette) for a w×h RGB image. Shared by the 16:9 and 9:16 compositors."""
     desat = ImageEnhance.Color(base).enhance(0.35)
     sepia = ImageOps.colorize(ImageOps.grayscale(base), black=(26, 18, 10), white=(236, 222, 196))
     graded = Image.blend(desat, sepia, 0.5)
     graded = ImageEnhance.Contrast(ImageEnhance.Brightness(graded).enhance(0.92)).enhance(1.08)
-    # warm side-light from the lower-left (subject side)
-    blob = ImageOps.invert(Image.radial_gradient("L")).resize((int(W * 1.4), int(H * 1.4)))
-    light = Image.new("L", (W, H), 0)
-    light.paste(blob, (int(0.28 * W) - blob.width // 2, int(0.62 * H) - blob.height // 2))
-    warm = Image.new("RGB", (W, H), (232, 180, 110))
+    blob = ImageOps.invert(Image.radial_gradient("L")).resize((int(w * 1.4), int(h * 1.4)))
+    light = Image.new("L", (w, h), 0)
+    light.paste(blob, (int(0.28 * w) - blob.width // 2, int(0.62 * h) - blob.height // 2))
+    warm = Image.new("RGB", (w, h), (232, 180, 110))
     graded = Image.composite(ImageChops.screen(graded, warm), graded, light.point(lambda v: int(v * 0.30)))
-    # film grain
-    noise = Image.effect_noise((W, H), 30).convert("RGB")
+    noise = Image.effect_noise((w, h), 30).convert("RGB")
     graded = Image.blend(graded, noise, 0.07)
-    # vignette (bright centre -> dark edges, floored so edges darken to ~0.31)
-    vig = ImageOps.invert(Image.radial_gradient("L")).resize((W, H)).point(lambda v: int(80 + v * 0.69))
-    graded = ImageChops.multiply(graded, Image.merge("RGB", (vig, vig, vig)))
-    # layers on top
+    vig = ImageOps.invert(Image.radial_gradient("L")).resize((w, h)).point(lambda v: int(80 + v * 0.69))
+    return ImageChops.multiply(graded, Image.merge("RGB", (vig, vig, vig)))
+
+
+def compose(subject_path: str, tension_text: str, out_path: str) -> None:
+    """Render the 1280x720 'Prestige Feed Killer' thumbnail to out_path (JPEG)."""
+    base = ImageOps.fit(Image.open(subject_path).convert("RGB"), (W, H), Image.LANCZOS)
+    graded = _grade(base, W, H)
     text = (tension_text or "").strip()
     draw = ImageDraw.Draw(graded)
     _draw_stamp(draw)
     if text:
         _draw_tension(draw, text)
+    graded.save(out_path, "JPEG", quality=88)
+
+
+def _layout_vertical(text, draw):
+    """Largest Anton font (V_MAX_FONT..V_MIN_FONT) whose wrapped text fits MAX_TEXT_W_V in
+    <= V_MAX_LINES lines. Returns (font, lines, line_h, widths)."""
+    font = ImageFont.truetype(TENSION_FONT, V_MIN_FONT)
+    lines = _wrap(text, font, draw, MAX_TEXT_W_V)
+    for size in range(V_MAX_FONT, V_MIN_FONT - 1, -2):
+        font = ImageFont.truetype(TENSION_FONT, size)
+        lines = _wrap(text, font, draw, MAX_TEXT_W_V)
+        if len(lines) > V_MAX_LINES:
+            continue
+        widths = [draw.textlength(ln, font=font) for ln in lines]
+        if max(widths) <= MAX_TEXT_W_V:
+            break
+    ascent, descent = font.getmetrics()
+    line_h = ascent + descent
+    widths = [draw.textlength(ln, font=font) for ln in lines]
+    return font, lines, line_h, widths
+
+
+def compose_vertical(subject_path: str, tension_text: str, out_path: str) -> None:
+    """Render the 1080×1920 vertical cover (shorts / TikTok / Reels) to out_path (JPEG):
+    real subject photo, cinematic grade, a dark bottom scrim, and giant bottom-stacked Anton
+    text with the LAST line in channel red."""
+    base = ImageOps.fit(Image.open(subject_path).convert("RGB"), (VW, VH), Image.LANCZOS)
+    graded = _grade(base, VW, VH)
+    # bottom-weighted dark scrim so text stays legible on bright photos (top stays clear)
+    scrim = Image.linear_gradient("L").resize((VW, VH)).point(lambda v: int(255 - v * 0.78))
+    graded = ImageChops.multiply(graded, Image.merge("RGB", (scrim, scrim, scrim)))
+    draw = ImageDraw.Draw(graded)
+    _draw_stamp(draw, VW)
+    text = (tension_text or "").strip()
+    if text:
+        font, lines, line_h, widths = _layout_vertical(text, draw)
+        block_h = line_h * len(lines)
+        top = VH - V_BOTTOM_MARGIN - block_h
+        # Robustness (mirrors _draw_tension): if even the smallest layout can't fit on-canvas
+        # (pathological / over-long text), omit the text band rather than drawing off-frame.
+        # The graded photo + stamp still stand.
+        if max(widths) > MAX_TEXT_W_V or len(lines) > V_MAX_LINES or top < 0:
+            lines = []
+        for i, ln in enumerate(lines):
+            x = (VW - widths[i]) // 2
+            y = top + i * line_h
+            fill = RED if i == len(lines) - 1 else (255, 255, 255)   # last line = accent
+            draw.text((x + 4, y + 4), ln, font=font, fill=(0, 0, 0))   # shadow
+            draw.text((x, y), ln, font=font, fill=fill)
     graded.save(out_path, "JPEG", quality=88)
 
 
@@ -187,7 +243,10 @@ def generate_thumbnail(idea: dict, fmt: str) -> dict:
     text = _thumbnail_text(idea, idea.get("script", ""))
     out = paths.thumbnail_path(idea_id, fmt)
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    compose(subject, text, out)
+    if fmt == "short":
+        compose_vertical(subject, text, out)
+    else:
+        compose(subject, text, out)
     print(f"  ✓ thumbnail.jpg for [{idea_id}/{fmt}]" + (f' — "{text}"' if text else " (no tension text)"))
     return idea
 
