@@ -4,6 +4,62 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 16 (2026-06-14) — TTS HR crash fixed · Track B fully deferred · thumbnails fixed + 3 pushed live
+
+Worked the open list end-to-end: a TTS crash bug, the M5 migration + Track B disposition, and the
+thumbnail gap (which uncovered a real engine bug + a stale published URL).
+
+### Shipped to main
+- **#46** — `fix(tts)`: a script ending in a bare `---` crashed Kokoro (non-speakable chunk). Two
+  layers: strip HR lines in `script_to_narration_text`; drop no-speakable chunks in
+  `_split_sentences`. Dual review 0/0. (Deleted the now-resolved `tts-trailing-hr-crash` memory.)
+- **#47 + #48** — `docs(adr-0004)`: **all three Track B pieces measured & deferred** (see the
+  ADR-0004 amendment for the data). A (Fooocus): 443 beats = 100% Pexels fill, 0 gradient → no gap
+  to fill. B (Qwen3): metadata offload ≈ $0.10–0.15/run, big cost (fact_check 63%) unsafe for a weak
+  local model. C (ScrapeGraphAI): ~1.5–2% of claims recoverable, all human-reviewed in shadow.
+- **#49** — `fix(thumbnail)`: headlines were built from `idea.get("script","")` (always empty →
+  generic "WHAT HAPPENED NEXT"). Now reads the real `script.md` via `_load_script`. Restores
+  story-specific headlines ("RED FLAG / NO EXPLANATION"). Dual review 0/0.
+
+### M5 migration (item closed)
+We are **on the M5 Pro (24 GB)**; memory + `~/.claude-mem/` DB already present and verified (no copy
+needed). Corrected the old migration note's wrong path (`~/.claude` → `~/.claude-mem`). Details in
+memory `m5-pro-local-stack-revival.md`.
+
+### Thumbnails
+- **Root cause of "no thumbnails":** generation is a **manual step** (`run_subject`→`run_thumbnail`),
+  NOT auto-chained in produce/render/run_auto; `run_auto` silently uploads with no custom thumbnail
+  when `thumbnail.jpg` is absent.
+- **3 published-long covers regenerated + pushed LIVE** (hand-sourced Wikimedia subjects):
+  `648d57e6` Massa→h9j1Uhlx1Og, `0c76c4c4` Senna→UFCfq-kla7M, `bdffcdb7` Escobar→**fL8XA6D8NvQ**
+  (the queue's `OubjZSOTh68` was a **phantom/stale ID** — corrected in the queue).
+- **Recent 3 generated locally (unlisted), long+short:** `9bbd24cd` Senna (clean); `050d8550`
+  Stojković (right person, but a 2024 suit photo — era/tone off); `bb8585d1` Dana White (face crop
+  too high). All correct-person; photo *selection* is the only gap.
+
+### Open / next
+1. **Period-correct subjects before publishing the recent 3** — hand-drop a 1990s Stojković photo
+   (`050d8550`) and a better-framed Dana White shot (`bb8585d1`), re-run `run_thumbnail`. The 3 are
+   still **unlisted/local** — pushing them is a separate manual step (`publish-video`).
+2. **Auto-subject sourcing is unreliable** — Wikipedia entity resolution + era/tone is hit-or-miss;
+   hand-sourcing remains necessary for publish-quality covers.
+3. **Possible engine work (not yet scoped):** chain `run_subject`/`run_thumbnail` into the build
+   pipeline so thumbnails aren't silently skipped; handle legacy `video/`-only layouts (e.g.
+   `bdffcdb7` had no `long/script.md` — reconstructed from `captions.srt` this session).
+
+### Watch-outs (harness)
+- `gh pr create` gates (`pr-review-gate`, `docs-staleness-gate`) grep the **literal command text**
+  for `Adversarial-Reviewed:` / `Docs-Synced:` — `--body-file` and `--body "$var"` hide them. Put
+  markers inline in the command, then `gh pr edit --body-file` for the rich body.
+- The **push-guard blocks any command containing `git push` while on `main`** even if it `checkout`s
+  first (it evaluates the branch at hook time). Branch in a **separate** command, then push.
+
+### Suggested skills next session
+`thumbnail-assets` + `publish-video` (finish/publish the recent 3), `ship-video-change` (if chaining
+thumbnails into the pipeline), `build-video` (any new produce).
+
+---
+
 ## Session 15 (2026-06-14) — Operational skills + tracking/laptop-migration decision
 
 Tooling/process session. Codified four day-to-day workflows as skills (no engine code), then
