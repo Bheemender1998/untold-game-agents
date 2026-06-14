@@ -49,6 +49,7 @@ python3 -m engine.run_produce --id <id> [--format short] [--metadata-only]  # sc
 python3 -m engine.run_thumbnail --id <id> [--format short]  # composite thumbnail from produced/<id>/<fmt>/subject.png
 python3 -m engine.run_subject --id <id> [--format short]   # auto-source subject.png (Wikipedia lead image → Pexels fallback; human photo wins)
 python3 -m engine.run_banner              # generate channel/banner.png + description.txt (manual upload to Studio)
+python3 -m engine.run_cost_report [--run <id>]  # per-run API cost summary from logs/api-cost.jsonl (overnight.sh runs this automatically; warns if a run exceeds COST_ALERT_USD=$10)
 ```
 
 ## Gate discipline

@@ -6,6 +6,7 @@ import os
 import anthropic
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFont, ImageOps
 from engine.config import MODEL
+from engine.usage import logged_create
 from engine.pipeline.script import title_numbers_within
 from engine import paths
 
@@ -198,7 +199,7 @@ _THUMB_TEXT_SCHEMA = {
 def _thumbnail_text_llm(idea: dict, script: str) -> str:
     """One structured call -> a 2-4 word withholding tension line. Raises on failure."""
     client = anthropic.Anthropic(max_retries=5)
-    resp = client.messages.create(
+    resp = logged_create(client, "thumbnail",
         model=MODEL, max_tokens=32, system=_THUMB_TEXT_SYSTEM,
         messages=[{"role": "user", "content": f"SCRIPT:\n{script}\n\nWrite the tension line."}],
         output_config={"format": {"type": "json_schema", "schema": _THUMB_TEXT_SCHEMA}},

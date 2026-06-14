@@ -25,6 +25,9 @@ cd "$REPO" || exit 1
 export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:$PATH"
 if [ -f .env ]; then set -a; set +u; . ./.env; set -u; set +a; fi
 
+# One id ties every API call in tonight's run together for the cost report.
+export TUG_RUN_ID="$(date +%Y-%m-%dT%H:%M:%S)"
+
 mkdir -p logs
 LOG="logs/overnight-$(date +%Y-%m-%d).log"
 
@@ -34,5 +37,7 @@ LOG="logs/overnight-$(date +%Y-%m-%d).log"
   python3 -m engine.run_pipeline --no-review || echo "(ideate failed — non-fatal, continuing)"
   echo "-- produce + render + QC (count=3) --"
   python3 -m engine.run_auto --count 3 || echo "(run_auto exited $? — see above)"
+  echo "-- API cost summary for this run --"
+  python3 -m engine.run_cost_report --run "$TUG_RUN_ID" || true
   echo "=== done $(date) ==="
 } >>"$LOG" 2>&1

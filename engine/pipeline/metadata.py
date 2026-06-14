@@ -12,6 +12,7 @@ import anthropic
 
 from engine.ideate.base_agent import BaseAgent
 from engine.config import MODEL, MAX_TOKENS
+from engine.usage import logged_create
 from engine.pipeline.script import title_numbers_within
 
 METADATA_SYSTEM = """You are a YouTube SEO and packaging strategist for "The Untold Game"
@@ -73,7 +74,7 @@ SEO KEYWORDS: {', '.join(idea['seo_keywords'])}
 
 SCRIPT:
 {script}"""
-        response = self.client.messages.create(
+        response = logged_create(self.client, "metadata",
             model=MODEL,
             max_tokens=MAX_TOKENS,
             system=self.system_prompt,
@@ -115,7 +116,7 @@ def _short_title_llm(idea: dict, script: str) -> str:
     client = anthropic.Anthropic(max_retries=5)
     prompt = (f"SPORT: {idea.get('sport', '')}  PILLAR: {idea.get('pillar', '')}\n\n"
               f"SCRIPT:\n{script}\n\nWrite the Short title.")
-    resp = client.messages.create(
+    resp = logged_create(client, "short_title",
         model=MODEL, max_tokens=64, system=_SHORT_TITLE_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": _SHORT_TITLE_SCHEMA}},
@@ -161,7 +162,7 @@ def _short_desc_llm(idea: dict, script: str) -> tuple[str, list[str]]:
     prompt = (f"TITLE: {idea['title_variants'][0]}\n"
               f"SPORT: {idea.get('sport', '')}  PILLAR: {idea.get('pillar', '')}\n\n"
               f"SCRIPT:\n{script}\n\nWrite the Short description and tags.")
-    resp = client.messages.create(
+    resp = logged_create(client, "short_desc",
         model=MODEL, max_tokens=512, system=_SHORT_DESC_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": _SHORT_DESC_SCHEMA}},
