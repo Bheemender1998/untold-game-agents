@@ -179,6 +179,10 @@ def fetch_photo(query: str, out_path: str, api_key: str | None = None,
     except Exception:
         return None
     for p in photos:
+        if not isinstance(p, dict):            # malformed element → skip (never raise)
+            continue
+        if p.get("width") and p["width"] < min_width:   # honor min_width when present
+            continue
         src = p.get("src") or {}
         link = src.get("large2x") or src.get("original")
         if link and _download(link, out_path):
