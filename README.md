@@ -45,6 +45,12 @@ python3 -m engine.run_subject --id <id> [--format short]   # auto-source subject
 Ideas are stored in `queue/idea_queue.json` (gitignored). The review dashboard is
 interactive — approve / reject / skip each idea in your terminal.
 
+Day-to-day, drive the engine through the **skills** in `.claude/skills/` rather than
+raw flags: `build-video` (produce → render → QC → preview), `thumbnail-assets`
+(subject → thumbnail → banner), `publish-video` (publish / re-render), `cost-report`
+(API spend), plus `run-pipeline`, `review-ideas`, `fact-review`, `ship-video-change`,
+and `handoff`.
+
 ## Layout
 
 See [`CLAUDE.md`](CLAUDE.md) for the full map and conventions, [`HANDOFF.md`](HANDOFF.md)
