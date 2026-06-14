@@ -112,31 +112,41 @@ def apply_pronunciation(text: str) -> str:
 
 
 # Lines a chatty model leaks around the real narration — reasoning preamble, word-count
-# tallies, draft markers. Conservative + line-start anchored so real narration never matches.
+# tallies, draft markers. Every pattern requires SCAFFOLD-SPECIFIC context (a process word
+# like draft/count/verified), never just a sentence that happens to start with a common word,
+# so real story narration is never matched. (Hardened after adversarial review found broad
+# openers like ^here's / ^good / ^i have / ^N words deleting real narration.)
 _SCAFFOLD_RE = [
-    re.compile(r"^word count\b", re.I),
-    re.compile(r"^let me\b", re.I),
-    re.compile(r"^now let me\b", re.I),
-    re.compile(r"^here'?s\b", re.I),
-    re.compile(r"^here is\b", re.I),
-    re.compile(r"^good[\s,—-]", re.I),
-    re.compile(r"^i'?ll write\b", re.I),
-    re.compile(r"^i (now )?have\b", re.I),
-    re.compile(r"^\d+\s+words\b", re.I),
-    re.compile(r"\bwords\b\s*[—-].*(within range|slightly under|over)", re.I),
+    re.compile(r"^word count\b", re.I),                                      # "Word count: ..."
+    re.compile(r"^let me (count|recount|compile|expand|draft|rewrite|revise)\b", re.I),
+    re.compile(r"^let me (now )?write (the|my|this) (narration|script|draft)\b", re.I),
+    re.compile(r"^now let me (count|recount|compile|expand|draft|write|rewrite|revise)\b", re.I),
+    re.compile(r"^here'?s (the|my) (final |revised |updated )?(script|draft|narration|version)\b", re.I),
+    re.compile(r"^here is (the|my) (final |revised |updated )?(script|draft|narration|version)\b", re.I),
+    re.compile(r"^i'?ll (now )?(write|draft|compile)\b", re.I),
+    re.compile(r"\bi (now )?have (solid|verified|enough|the|all the|my) [\w\s]*\b"
+               r"(facts|sources|info|information|details|research)\b", re.I),
+    re.compile(r"^\d+\s+words\b\s*([—–-]|\.|$)", re.I),                       # "137 words —" / "154 words."
+    re.compile(r"^\d+\s+words\s*[—–-]\s*(within range|slightly under|slightly over|over|total|exactly)\b", re.I),
 ]
-_TOKEN_TALLY_RE = re.compile(r"\(\d+\)")
+# A token-count tally — a word IMMEDIATELY followed by "(n)" ("A(1) kung-fu(2) kick(3)"),
+# distinct from prose like "Ferrari (1), McLaren (2)" which has a space before the paren.
+_TOKEN_TALLY_RE = re.compile(r"\S\(\d+\)")
+_BULLET_RE = re.compile(r"^\s*[-•]\s+\S")   # markdown fact-list bullet ("- January 25, 1995: …")
 
 
 def is_scaffold_line(line: str) -> bool:
     """True when a line is leaked model scaffolding (reasoning preamble, word-count tally,
-    draft marker) rather than spoken narration. Strips markdown emphasis first."""
+    bullet fact-list, draft marker) rather than spoken narration. Strips markdown emphasis
+    first. Every rule requires scaffold-specific context so real narration never matches."""
     s = re.sub(r"[*_`]", "", line).strip()
     if not s:
         return False
     if "✅" in s and len(s.split()) <= 6:
         return True
     if len(_TOKEN_TALLY_RE.findall(s)) >= 3:   # "A(1) kung-fu(2) kick(3)…"
+        return True
+    if _BULLET_RE.match(s):                     # compiled fact-list bullet leaked into the script
         return True
     return any(p.search(s) for p in _SCAFFOLD_RE)
 

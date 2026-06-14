@@ -215,6 +215,16 @@ def test_is_scaffold_line_keeps_real_narration():
         "October 1995 — Cantona walks back out at Old Trafford.",
         "The ban didn't break Manchester United. It built them.",
         "He was one season from immortality.",
+        # Adversarial-review false-positive regressions — real narration that the
+        # broad first draft of the patterns wrongly deleted. These MUST stay narration:
+        "Here's the part everyone forgets: the ban built the dynasty.",
+        "Good teams survive scandal. Great teams turn it into a dynasty.",
+        "I have never seen a champion vanish that fast.",
+        "I now have nothing left to prove, he said.",
+        "3 words ended his Olympic dream: not medically cleared.",
+        "Ferrari (1), McLaren (2), Williams (3) — then one ruling changed the podium.",
+        "Let me tell you about the night it all ended.",
+        "Here is where the legend truly begins.",
     ]:
         assert not tts.is_scaffold_line(ln), f"false positive on: {ln}"
 
