@@ -122,7 +122,10 @@ can't be verified, leave it out.
 
 Your VERY FIRST line must be exactly: MOOD: <one of: tense | triumphant | somber | hype>
 (the story's dominant emotional register — drives music and narrator voice). Then the
-narration on the following lines, and nothing else."""
+narration on the following lines.
+
+Output ONLY the final narration after the MOOD line. Do NOT show your work — no preamble,
+no "let me…", no bullet fact lists, no word counts, no multiple drafts, no commentary."""
 
 _SHORT_MOODS = {"tense", "triumphant", "somber", "hype"}
 
@@ -225,8 +228,11 @@ any new name, date, number, quote, or claim that is not already in that text. If
 in the long, leave it out. No web search — the long is already verified.
 
 Your VERY FIRST line must be exactly: MOOD: <one of: tense | triumphant | somber | hype>
-(the story's dominant emotional register — drives music and narrator voice). Then the narration
-on the following lines, and nothing else."""
+(the story's dominant emotional register — drives music and narrator voice). Then the
+narration on the following lines.
+
+Output ONLY the final narration after the MOOD line. Do NOT show your work — no preamble,
+no "let me…", no bullet fact lists, no word counts, no multiple drafts, no commentary."""
 
 
 class CompanionTeaseWriter(BaseAgent):

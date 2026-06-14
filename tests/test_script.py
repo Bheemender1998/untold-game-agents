@@ -120,6 +120,15 @@ def test_short_keeps_invalid_mood_first_line_as_narration(monkeypatch):
     assert out["script"].startswith("MOOD: this was the word")  # kept as narration
 
 
+def test_short_prompts_forbid_shown_work():
+    from engine.pipeline import script
+    for p in (script.SHORT_SYSTEM, script.DERIVE_TEASE_SYSTEM):
+        s = p.lower()
+        assert "word count" in s            # explicitly bans the word-count tally
+        assert "draft" in s                 # bans multiple drafts
+        assert "no preamble" in s or "do not show your work" in s
+
+
 def test_parse_short_keeps_final_draft_and_strips_scaffold():
     from engine.pipeline import script
     raw = (
