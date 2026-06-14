@@ -70,6 +70,9 @@ after fix rounds). Specs/plans in `docs/superpowers/{specs,plans}/2026-06-1{3,4}
 - All **8 published shorts** have a reviewed subject photo (6 auto Wikipedia/Pexels + credit, 2 human) and an
   **8/8 generated 1080×1920 cover** (`run_thumbnail --format short`). Senna/Prost cover uses persisted
   `thumbnail_text="RED FLAG\nNO EXPLANATION"`.
+- **8/8 covers PUSHED LIVE** to the Shorts via `youtube.thumbnails().set` (videoId from each idea's
+  `short_youtube_url`; OAuth `client_secrets.json`+`token.json`). Idempotent — re-run to re-push after a cover
+  change. Pattern: see `scripts/fix_live_timestamps_and_thumbs.py` (set-thumbnail loop).
 
 ### Decisions
 - **Thumbnails = REAL photos only, NO AI** (user confirmed; ADR-0005). The reference-grid AI-deepfake style is
@@ -77,8 +80,8 @@ after fix rounds). Specs/plans in `docs/superpowers/{specs,plans}/2026-06-1{3,4}
 - Short-form punch comes from structure/pacing/visuals, **integrity held** (no rounding, no unverified superlatives).
 
 ### Open / next
-1. **Push the 8 covers to the LIVE Shorts** — `run_thumbnail` only writes local `thumbnail.jpg`. Check whether
-   `engine/publish/uploader` can set thumbnails on already-published videos, else set in Studio.
+1. **Long-form thumbnails** — the 5 longs still have their old 16:9 covers; a similar `run_subject` +
+   `run_thumbnail` (long) pass + live push could refresh them (optional).
 2. **Overnight reliability** — PATH fixed, but a full render still needs **AC power** + the scheduled wake aligned
    to the job (`sudo pmset repeat wakeorpoweron MTWRFSU 00:59:00`; user ran a pmset change this session).
 3. **Railway ideate cron is declared (`railway.toml`) but NOT deployed** — no Untold Game Railway project, so
