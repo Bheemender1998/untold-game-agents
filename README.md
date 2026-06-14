@@ -39,6 +39,7 @@ python3 run_pipeline.py                     # same (root shim)
 python3 -m engine.run_pipeline --agent 1    # one agent: 1=history 2=trending 3=gaps 4=evergreen
 python3 -m engine.run_pipeline --review     # review existing queue, no generation
 python3 -m engine.run_pipeline --stats      # queue stats
+python3 -m engine.run_subject --id <id> [--format short]   # auto-source subject.png (Wikipedia lead image → Pexels fallback; human photo wins)
 ```
 
 Ideas are stored in `queue/idea_queue.json` (gitignored). The review dashboard is
