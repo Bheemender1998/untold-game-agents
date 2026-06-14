@@ -419,7 +419,11 @@ to:
       <Sequence from={introF + ms2f(props.narrationMs + (props.endHoldMs ?? 0), fps)} name="EndCTA">
 ```
 
-(The `Background` track already covers the full composition length and freezes on its last frame, so the story shot holds during the breath; the narration `Audio` simply ends, leaving music + held frame.)
+(NOTE — corrected during implementation: Remotion `Sequence`s *unmount* when their duration
+elapses, so the b-roll beats — which `beat_track` caps at `narration_ms` — would leave only the
+gradient during the breath, not the story shot. Fixed in `build_props` by stretching the final
+b-roll beat's `endMs` by `end_hold_ms` so the last clip (which `BeatClip` loops to fill) carries
+the breath. The narration `Audio` simply ends, leaving music + the held story footage.)
 
 - [ ] **Step 9: Add `endHoldMs` to the still-preview defaults**
 
