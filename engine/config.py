@@ -17,6 +17,10 @@ except ImportError:
 MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 8192   # 5 fully-detailed ideas overflow 2048 and truncate the JSON mid-array
 
+# ── API cost tracking ─────────────────────────────────────────────────────────
+COST_LEDGER_PATH = "logs/api-cost.jsonl"  # one priced JSON row per Anthropic call
+COST_ALERT_USD = 10.0                     # per-run budget alert (warn-only, never blocks)
+
 # ── Channel identity (passed to every agent as context) ───────────────────────
 CHANNEL_CONTEXT = """
 Channel: The Untold Game
