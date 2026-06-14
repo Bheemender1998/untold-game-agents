@@ -54,6 +54,35 @@ def test_compose_handles_empty_tension_text(tmp_path):
         assert im.size == (1280, 720)
 
 
+def test_layout_vertical_wraps_and_fits():
+    d = ImageDraw.Draw(Image.new("RGB", (tn.VW, tn.VH)))
+    font, lines, line_h, widths = tn._layout_vertical("BANNED THEN A DYNASTY", d)
+    assert 1 <= len(lines) <= 4
+    assert max(widths) <= tn.MAX_TEXT_W_V
+    assert tn.V_MIN_FONT <= font.size <= tn.V_MAX_FONT
+
+
+def test_compose_vertical_writes_1080x1920_jpeg(tmp_path):
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1500, 2200), (110, 80, 60)).save(subj)
+    out = tmp_path / "cover.jpg"
+    tn.compose_vertical(str(subj), "BANNED THEN A DYNASTY", str(out))
+    assert out.exists()
+    with Image.open(out) as im:
+        assert im.size == (1080, 1920)
+        assert im.format == "JPEG"
+    assert out.stat().st_size < 2_000_000
+
+
+def test_compose_vertical_handles_empty_text(tmp_path):
+    subj = tmp_path / "subject.png"
+    Image.new("RGB", (1080, 1920), (80, 80, 80)).save(subj)
+    out = tmp_path / "cover2.jpg"
+    tn.compose_vertical(str(subj), "", str(out))   # subject + stamp only, no crash
+    with Image.open(out) as im:
+        assert im.size == (1080, 1920)
+
+
 def test_thumbnail_text_uses_human_override(monkeypatch):
     # override present -> used verbatim, no LLM call
     monkeypatch.setattr(tn, "_thumbnail_text_llm", lambda i, s: (_ for _ in ()).throw(AssertionError("LLM should not be called")))

@@ -23,6 +23,12 @@ MARKER_H = 8
 MARKER_MAX_W = 170
 RED = (224, 48, 30)
 
+VW, VH = 1080, 1920
+MAX_TEXT_W_V = int(VW * 0.88)
+V_MAX_FONT, V_MIN_FONT = 170, 56
+V_MAX_LINES = 4
+V_BOTTOM_MARGIN = 150        # px from the frame bottom to the text block's baseline area
+
 
 def _wrap(text, font, draw, max_w):
     """Greedy word-wrap to fit max_w; a single over-wide word stays on its own line."""
@@ -123,6 +129,50 @@ def compose(subject_path: str, tension_text: str, out_path: str) -> None:
     _draw_stamp(draw)
     if text:
         _draw_tension(draw, text)
+    graded.save(out_path, "JPEG", quality=88)
+
+
+def _layout_vertical(text, draw):
+    """Largest Anton font (V_MAX_FONT..V_MIN_FONT) whose wrapped text fits MAX_TEXT_W_V in
+    <= V_MAX_LINES lines. Returns (font, lines, line_h, widths)."""
+    font = ImageFont.truetype(TENSION_FONT, V_MIN_FONT)
+    lines = _wrap(text, font, draw, MAX_TEXT_W_V)
+    for size in range(V_MAX_FONT, V_MIN_FONT - 1, -2):
+        font = ImageFont.truetype(TENSION_FONT, size)
+        lines = _wrap(text, font, draw, MAX_TEXT_W_V)
+        if len(lines) > V_MAX_LINES:
+            continue
+        widths = [draw.textlength(ln, font=font) for ln in lines]
+        if max(widths) <= MAX_TEXT_W_V:
+            break
+    ascent, descent = font.getmetrics()
+    line_h = ascent + descent
+    widths = [draw.textlength(ln, font=font) for ln in lines]
+    return font, lines, line_h, widths
+
+
+def compose_vertical(subject_path: str, tension_text: str, out_path: str) -> None:
+    """Render the 1080×1920 vertical cover (shorts / TikTok / Reels) to out_path (JPEG):
+    real subject photo, cinematic grade, a dark bottom scrim, and giant bottom-stacked Anton
+    text with the LAST line in channel red."""
+    base = ImageOps.fit(Image.open(subject_path).convert("RGB"), (VW, VH), Image.LANCZOS)
+    graded = _grade(base, VW, VH)
+    # bottom-weighted dark scrim so text stays legible on bright photos (top stays clear)
+    scrim = Image.linear_gradient("L").resize((VW, VH)).point(lambda v: int(255 - v * 0.78))
+    graded = ImageChops.multiply(graded, Image.merge("RGB", (scrim, scrim, scrim)))
+    draw = ImageDraw.Draw(graded)
+    _draw_stamp(draw, VW)
+    text = (tension_text or "").strip()
+    if text:
+        font, lines, line_h, widths = _layout_vertical(text, draw)
+        block_h = line_h * len(lines)
+        top = VH - V_BOTTOM_MARGIN - block_h
+        for i, ln in enumerate(lines):
+            x = (VW - widths[i]) // 2
+            y = top + i * line_h
+            fill = RED if i == len(lines) - 1 else (255, 255, 255)   # last line = accent
+            draw.text((x + 4, y + 4), ln, font=font, fill=(0, 0, 0))   # shadow
+            draw.text((x, y), ln, font=font, fill=fill)
     graded.save(out_path, "JPEG", quality=88)
 
 
