@@ -13,6 +13,7 @@ from engine.config import MODEL, MAX_TOKENS, CHANNEL_CONTEXT, VIRAL_RUBRIC
 # Free, open-source web search (DuckDuckGo) — replaces Anthropic's paid
 # server-side web_search add-on. Defined as a client-side tool we execute.
 from engine.ideate.web_search import WEB_SEARCH_TOOL, search as run_web_search
+from engine.usage import logged_create
 
 
 class BaseAgent:
@@ -55,7 +56,7 @@ class BaseAgent:
             if tools:
                 kwargs["tools"] = tools
 
-            response = self.client.messages.create(**kwargs)
+            response = logged_create(self.client, self.name, **kwargs)
 
             # Collect text and tool_use blocks
             text_blocks = []

@@ -24,12 +24,14 @@ from engine import config
 from engine.config import MODEL
 from engine.ideate import wikipedia
 from engine.ideate.web_search import search as web_search
+from engine.usage import logged_create
 
 _client = anthropic.Anthropic(max_retries=5)
 
 
 def _structured(system: str, prompt: str, schema: dict, max_tokens: int = 4096) -> dict:
-    resp = _client.messages.create(
+    resp = logged_create(
+        _client, "fact_check",
         model=MODEL, max_tokens=max_tokens, system=system,
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": schema}},

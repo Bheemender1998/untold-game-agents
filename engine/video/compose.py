@@ -20,6 +20,7 @@ import html as _html
 
 import anthropic
 from engine.config import MODEL
+from engine.usage import logged_create
 from engine.video import captions as _captions
 from engine.video import footage as _footage
 from engine.video import tts as _tts
@@ -64,7 +65,7 @@ def build_storyboard(idea: dict, script_md: str, max_beats: int = 22) -> list[di
         f"Produce {max_beats} or fewer text beats for a ~60-90s text-driven video. "
         f"Open with the channel hook, end on a resonant line."
     )
-    resp = client.messages.create(
+    resp = logged_create(client, "storyboard",
         model=MODEL, max_tokens=4096, system=_STORYBOARD_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": _STORYBOARD_SCHEMA}},
@@ -278,7 +279,7 @@ def build_section_headlines(idea: dict, script_md: str) -> list[dict]:
         f"NARRATION:\n{narration}\n\n"
         f"Return the chapters. Each anchor must be copied verbatim from the narration above."
     )
-    resp = client.messages.create(
+    resp = logged_create(client, "headlines",
         model=MODEL, max_tokens=2048, system=_HEADLINE_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": _HEADLINE_SCHEMA}},
