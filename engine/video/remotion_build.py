@@ -99,6 +99,11 @@ def build_props(idea: dict, script_md: str, video_dir: str, audio_filename: str,
         if clip:
             assets.append(clip)
 
+    # End breath: stretch the final b-roll beat to cover the hold so the story footage
+    # (not the gradient) carries the pause before the subscribe card. No-op when end_hold_ms=0 (long-form).
+    if end_hold_ms and b_beats:
+        b_beats[-1]["endMs"] += end_hold_ms
+
     props = {
         "title": idea["title_variants"][0],
         "kicker": "THE UNTOLD GAME",

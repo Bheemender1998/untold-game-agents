@@ -189,3 +189,35 @@ def test_build_props_end_hold_defaults_to_zero(tmp_path, monkeypatch):
     props, _, _ = remotion_build.build_props(
         idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0)
     assert props["endHoldMs"] == 0
+
+
+def _patch_heavy_with_clips(monkeypatch):
+    """Like _patch_heavy but fetch_clips returns one clip per beat, so b_beats is non-empty."""
+    _patch_heavy(monkeypatch)
+    monkeypatch.setattr(remotion_build._footage, "fetch_clips",
+                        lambda queries, vd, portrait=False, sport=None:
+                            [f"bg_{i:02d}.mp4" for i in range(len(queries))])
+
+
+def test_build_props_extends_final_beat_for_end_hold(tmp_path, monkeypatch):
+    _patch_heavy_with_clips(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0,
+        portrait=True, end_hold_ms=1000)
+    beats = props["bBeats"]
+    assert beats, "expected at least one b-roll beat"
+    # final beat stretched to cover the hold (robust to beat cadence/rounding)
+    assert beats[-1]["endMs"] == props["narrationMs"] + 1000
+
+
+def test_build_props_no_beat_extension_without_end_hold(tmp_path, monkeypatch):
+    _patch_heavy_with_clips(monkeypatch)
+    monkeypatch.setattr(music, "short_music_props", lambda *a, **k: ({}, None, ""))
+    idea = {"id": "i1", "mood": "tense", "title_variants": ["T"]}
+    props, _, _ = remotion_build.build_props(
+        idea, "# s\nbody", str(tmp_path), "narration.wav", None, 10.0, portrait=True)
+    beats = props["bBeats"]
+    # default end_hold_ms=0 → final beat ends at narration end (no extension)
+    assert beats[-1]["endMs"] == props["narrationMs"]
