@@ -141,7 +141,11 @@ def align_to_script(whisper_words: list[dict], narration_text: str) -> list[dict
         nxt = next((out[q]["start"] for q in range(k + 1, n) if out[q]["start"] is not None), None)
         lo = prev if prev is not None else (nxt if nxt is not None else 0.0)
         hi = nxt if nxt is not None else lo
-        run = [q for q in range(k, n) if out[q]["start"] is None]
+        run = []
+        q = k
+        while q < n and out[q]["start"] is None:
+            run.append(q)
+            q += 1
         step = (hi - lo) / (len(run) + 1)
         for m, q in enumerate(run, start=1):
             out[q]["start"] = lo + step * m

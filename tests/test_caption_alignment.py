@@ -34,6 +34,20 @@ def test_distributes_timing_across_multi_word_replace():
     assert out[0]["end"] == out[1]["start"]
 
 
+def test_two_separate_deleted_words_stay_monotonic():
+    # script has "x" (after A) and "y" (after B) that whisper dropped; they must NOT both land
+    # in the A->B gap. Timestamps must be non-decreasing and each near its real neighbours.
+    whisper = [{"word": "A", "start": 0.0, "end": 0.2},
+               {"word": "B", "start": 0.4, "end": 0.6},
+               {"word": "C", "start": 0.8, "end": 1.0}]
+    out = captions.align_to_script(whisper, "A x B y C")
+    assert [w["word"] for w in out] == ["A", "x", "B", "y", "C"]
+    starts = [w["start"] for w in out]
+    assert starts == sorted(starts)                    # strictly monotonic order
+    assert out[1]["start"] < out[2]["start"]           # x before B
+    assert out[3]["start"] > out[2]["start"]           # y AFTER B
+
+
 def test_empty_inputs_fall_back():
     assert captions.align_to_script([], "anything") == []
     w = _ww([("hi", 0.0, 0.3)])

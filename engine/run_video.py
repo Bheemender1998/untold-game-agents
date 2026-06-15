@@ -121,7 +121,7 @@ def main() -> None:
         )
         with open(os.path.join(video_dir, "props.json"), "w") as f:
             json.dump(props, f, indent=2)
-        srt_chunks = (captions.chunk_words_to_captions(words) if words
+        srt_chunks = (captions.chunk_words_to_captions(captions.digitize_number_words(words)) if words
                       else captions.estimate_caption_timings(narration_text, total_dur))
         captions.to_srt(srt_chunks, os.path.join(video_dir, "captions.srt"))
         beats = props.get("bBeats", [])
