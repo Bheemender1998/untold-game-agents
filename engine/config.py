@@ -15,6 +15,9 @@ except ImportError:
 
 # ── Anthropic model ───────────────────────────────────────────────────────────
 MODEL = "claude-sonnet-4-6"
+# Cheaper model for mechanical, low-stakes stages (short_title, short_desc,
+# subject photo-query, companion tease). Sonnet stays everywhere else.
+MODEL_LIGHT = os.environ.get("MODEL_LIGHT", "claude-haiku-4-5")
 MAX_TOKENS = 8192   # 5 fully-detailed ideas overflow 2048 and truncate the JSON mid-array
 
 # ── API cost tracking ─────────────────────────────────────────────────────────
