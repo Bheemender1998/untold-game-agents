@@ -42,3 +42,52 @@ def test_cmd_approve_omits_thumbnail_when_absent(tmp_path, monkeypatch):
     monkeypatch.setattr(run_auto.uploader, "upload", lambda video_path, **kw: captured.update(kw) or "VID123")
     run_auto.cmd_approve("pubid", public=False, dry_run=False)
     assert captured.get("thumbnail_path") is None
+
+
+def _patch_thumb_env(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
+    monkeypatch.setattr(run_auto, "_ROOT", str(tmp_path))
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda _id: {"id": _id})
+
+
+def test_ensure_thumbnail_skips_when_thumbnail_exists(tmp_path, monkeypatch):
+    _patch_thumb_env(tmp_path, monkeypatch)
+    os.makedirs(paths.artifact_dir("pubid", "long"), exist_ok=True)
+    from PIL import Image
+    Image.new("RGB", (1280, 720), (0, 0, 0)).save(paths.thumbnail_path("pubid", "long"))
+    calls = {"source": 0, "gen": 0}
+    monkeypatch.setattr(run_auto.subject, "source_subject",
+                        lambda idea, fmt: calls.__setitem__("source", calls["source"] + 1) or {"source": "x"})
+    monkeypatch.setattr(run_auto.thumbnail, "generate_thumbnail",
+                        lambda idea, fmt: calls.__setitem__("gen", calls["gen"] + 1))
+    run_auto._ensure_thumbnail("pubid", "long")
+    assert calls == {"source": 0, "gen": 0}   # neither called — thumbnail already present
+
+
+def test_ensure_thumbnail_generates_when_missing(tmp_path, monkeypatch):
+    _patch_thumb_env(tmp_path, monkeypatch)
+    calls = {"gen": 0}
+    monkeypatch.setattr(run_auto.subject, "source_subject", lambda idea, fmt: {"source": "wikipedia"})
+    monkeypatch.setattr(run_auto.thumbnail, "generate_thumbnail",
+                        lambda idea, fmt: calls.__setitem__("gen", calls["gen"] + 1))
+    run_auto._ensure_thumbnail("pubid", "long")
+    assert calls["gen"] == 1
+
+
+def test_ensure_thumbnail_self_stubs_when_no_photo(tmp_path, monkeypatch):
+    _patch_thumb_env(tmp_path, monkeypatch)
+    calls = {"gen": 0}
+    monkeypatch.setattr(run_auto.subject, "source_subject", lambda idea, fmt: {"source": None, "path": "p"})
+    monkeypatch.setattr(run_auto.thumbnail, "generate_thumbnail",
+                        lambda idea, fmt: calls.__setitem__("gen", calls["gen"] + 1))
+    run_auto._ensure_thumbnail("pubid", "long")   # must not raise
+    assert calls["gen"] == 0   # no subject → no generation
+
+
+def test_ensure_thumbnail_swallows_exceptions(tmp_path, monkeypatch):
+    _patch_thumb_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(run_auto.subject, "source_subject", lambda idea, fmt: {"source": "pexels"})
+    def boom(idea, fmt):
+        raise RuntimeError("PIL exploded")
+    monkeypatch.setattr(run_auto.thumbnail, "generate_thumbnail", boom)
+    run_auto._ensure_thumbnail("pubid", "long")   # would ERROR if it propagated — no assertion needed

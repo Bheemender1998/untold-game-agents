@@ -17,6 +17,7 @@ from engine import config
 from engine import queue_manager as q
 from engine import paths
 from engine.pipeline import qc
+from engine.pipeline import subject, thumbnail
 from engine.publish import uploader, auth
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -67,6 +68,28 @@ def _render_one(idea_id: str) -> bool:
         q.update_idea(idea_id, status="render_failed", render_note=why)
         return False
     return True
+
+
+def _ensure_thumbnail(idea_id: str, fmt: str) -> None:
+    """Best-effort: ensure produced/<id>/<fmt>/thumbnail.jpg exists after a render.
+
+    Skips if a thumbnail already exists (never clobbers hand-composited work).
+    Self-stubs on any failure — a missing thumbnail must never break render/QC."""
+    try:
+        thumb = paths.thumbnail_path(idea_id, fmt)
+        if os.path.exists(thumb):
+            print(f"· {idea_id}/{fmt}: thumbnail exists — skipping auto-generation")
+            return
+        idea = q.get_by_id(idea_id) or {"id": idea_id}
+        res = subject.source_subject(idea, fmt) or {}  # Wikipedia → Pexels; human subject wins
+        if not res.get("source"):
+            print(f"⚠ {idea_id}/{fmt}: no subject photo found — thumbnail skipped "
+                  f"(hand-source before approving)")
+            return
+        thumbnail.generate_thumbnail(idea, fmt)
+        print(f"✓ {idea_id}/{fmt}: thumbnail composited via {res['source']}")
+    except Exception as e:                              # never break the render/batch
+        print(f"⚠ {idea_id}/{fmt}: thumbnail auto-generation failed — {e}")
 
 
 def _cleared_to_render(idea: dict) -> bool:
