@@ -302,6 +302,27 @@ def test_script_to_narration_text_strips_horizontal_rules_of_any_length():
         assert "-" not in out
 
 
+def test_script_to_narration_text_strips_emphasis_wrapped_cues():
+    # Regression (production defect, idea 9bbd24cd): a trailing meta-marker wrapped in
+    # markdown emphasis — *[END OF SCRIPT — approximate spoken word count: 1,740]* — slipped
+    # past the bracketed-cue stripper because the line starts with '*', not '[', and the
+    # emphasis strip ran only AFTER the cue check. Kokoro spoke it ("End of script,
+    # approximate spoken word count, ..."). Any emphasis-wrapped production cue must be dropped.
+    md = (
+        "# Title\n\n"
+        "The flag was already folded in the wreckage.\n\n"
+        "*[VISUAL: Black screen.]*\n"
+        "_[MUSIC: fades out]_\n\n"
+        "---\n\n"
+        "*[END OF SCRIPT — approximate spoken word count: 1,740]*\n"
+    )
+    out = tts.script_to_narration_text(md)
+    assert out.strip() == "The flag was already folded in the wreckage."
+    assert "end of script" not in out.lower()
+    assert "word count" not in out.lower()
+    assert "VISUAL" not in out and "MUSIC" not in out
+
+
 def test_split_sentences_drops_non_speakable_chunks():
     # Defense in depth: a chunk with no speakable character must never reach kokoro.create.
     assert tts._split_sentences("The payoff lands here. ---") == ["The payoff lands here."]

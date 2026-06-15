@@ -159,6 +159,11 @@ def script_to_narration_text(script_md: str) -> str:
         s = ln.strip()
         if not s or s.startswith("#"):
             continue
+        s = re.sub(r"[*_`]", "", s).strip()  # drop markdown emphasis FIRST so emphasis-wrapped
+                                             # cues (*[VISUAL]*, *[END OF SCRIPT …]*) are exposed
+                                             # to the bracketed-cue / scaffold checks below.
+        if not s:                            # a line of pure emphasis (e.g. '***') is now empty
+            continue
         if re.match(r"^\[[A-Z].*\]$", s):   # bracketed cue lines
             continue
         if re.match(r"(?i)^MOOD:\s*\w+\s*$", s):  # leaked short-script MOOD header
@@ -167,7 +172,6 @@ def script_to_narration_text(script_md: str) -> str:
             continue
         if is_scaffold_line(s):                    # leaked reasoning / word-count / drafts
             continue
-        s = re.sub(r"[*_`]", "", s)          # drop markdown emphasis (spoken, not read)
         s = _spell_grouped_numbers(s)        # '2,003' → 'two thousand three' for clean TTS
         s = _spell_years(s)                  # '1984' → 'nineteen eighty-four' (year form)
         lines.append(s)
