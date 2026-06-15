@@ -5,6 +5,18 @@ import subprocess
 
 import pytest
 
+from engine import config
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_queue_backend(monkeypatch):
+    """Default the queue to the JSON backend in tests, regardless of a developer's
+    local .env DATABASE_URL (Neon provisioning adds one). Tests that exercise Neon
+    set config.DATABASE_URL explicitly and gate on TEST_DATABASE_URL, which runs
+    after this autouse fixture and overrides it."""
+    monkeypatch.setattr(config, "DATABASE_URL", None, raising=False)
+
+
 _HAS_FFMPEG = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
 requires_ffmpeg = pytest.mark.skipif(not _HAS_FFMPEG, reason="ffmpeg/ffprobe not on PATH")
 
