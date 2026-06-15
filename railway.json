@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "/opt/venv/bin/python -m engine.run_cron",
+    "cronSchedule": "0 9 */2 * *",
+    "restartPolicyType": "NEVER"
+  }
+}

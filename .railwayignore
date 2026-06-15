@@ -1,0 +1,15 @@
+# Railway hosts ONLY the lightweight ideate cron (engine.run_cron). The render
+# stack stays local on the M5 — exclude its heavy assets from the deploy upload.
+.git/
+engine/video/
+.venv-video/
+produced/
+voice_samples/
+channel/
+dashboard/
+docs/
+tests/
+logs/
+.factcache.json
+**/__pycache__/
+**/node_modules/
