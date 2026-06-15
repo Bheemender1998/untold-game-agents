@@ -146,3 +146,39 @@ def _fix_overlap(caps: list[dict], fps: int) -> tuple[list[dict], list[dict]]:
 def _detect_oversize(caps: list[dict], max_chars: int) -> list[int]:
     """Rule 11 (warn): a single caption token longer than max_chars is a glued defect."""
     return [i for i, c in enumerate(caps) if len(c["text"]) > max_chars]
+
+
+def _fix_dup_headlines(ch: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Rule 10: merge adjacent chapters with identical (normalized) headline text,
+    extending the surviving span to cover both."""
+    out: list[dict] = []
+    muts: list[dict] = []
+    for c in ch:
+        if out and _norm_headline(c["headline"]) == _norm_headline(out[-1]["headline"]):
+            muts.append({"type": "merge", "reason": "dup_headline",
+                         "from": [out[-1]["headline"], c["headline"]], "into": out[-1]["headline"]})
+            out[-1]["endMs"] = max(out[-1]["endMs"], c["endMs"])
+        else:
+            out.append(dict(c))
+    return out, muts
+
+
+def _fix_headline_overlap(ch: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Rule 8: enforce non-overlapping chapter cards — clamp start to the previous end."""
+    out: list[dict] = []
+    muts: list[dict] = []
+    for c in ch:
+        c = dict(c)
+        if out and c["startMs"] < out[-1]["endMs"]:
+            new_start = out[-1]["endMs"]
+            new_end = max(c["endMs"], new_start)
+            muts.append({"type": "clamp", "token": c["headline"], "reason": "headline_overlap",
+                         "from": [c["startMs"], c["endMs"]], "to": [new_start, new_end]})
+            c["startMs"], c["endMs"] = new_start, new_end
+        out.append(c)
+    return out, muts
+
+
+def _detect_stuck_headlines(ch: list[dict], max_s: float) -> list[int]:
+    """Rule 9 (warn): a chapter card on screen longer than max_s seconds (dead-air ghost)."""
+    return [i for i, c in enumerate(ch) if (c["endMs"] - c["startMs"]) > max_s * 1000]

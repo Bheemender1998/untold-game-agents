@@ -112,3 +112,26 @@ def test_detect_oversize_tokens():
     caps = [{"text": "ok", "startMs": 0, "endMs": 100},
             {"text": "x" * 40, "startMs": 100, "endMs": 200}]
     assert preflight._detect_oversize(caps, max_chars=25) == [1]
+
+
+def test_dedup_adjacent_headlines_merges_spans():
+    ch = [{"headline": "THE FALL", "startMs": 0, "endMs": 1000},
+          {"headline": "the fall", "startMs": 1000, "endMs": 2500},
+          {"headline": "AFTER", "startMs": 2500, "endMs": 4000}]
+    fixed, muts = preflight._fix_dup_headlines(ch)
+    assert [c["headline"] for c in fixed] == ["THE FALL", "AFTER"]
+    assert fixed[0]["endMs"] == 2500
+    assert muts[0]["reason"] == "dup_headline"
+
+
+def test_headline_overlap_clamped():
+    ch = [{"headline": "A", "startMs": 0, "endMs": 5000},
+          {"headline": "B", "startMs": 4000, "endMs": 9000}]
+    fixed, muts = preflight._fix_headline_overlap(ch)
+    assert fixed[1]["startMs"] == 5000
+    assert muts[0]["reason"] == "headline_overlap"
+
+
+def test_detect_stuck_headlines():
+    ch = [{"headline": "A", "startMs": 0, "endMs": 80_000}]   # 80s > 70s default
+    assert preflight._detect_stuck_headlines(ch, max_s=70.0) == [0]
