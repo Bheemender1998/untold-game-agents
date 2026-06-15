@@ -4,6 +4,37 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 19 (2026-06-15) — fact-gate + short-guard fixes · 3 longs+3 shorts reviewed/rendered · long-form caption/headline overhaul
+
+The session that ran **concurrent with Session 18** (worktree `.tease-wt`). Fixed three engine bugs, fact-reviewed + rendered the 3-long/3-short batch, and root-caused + fixed the long-form caption/headline/TTS quality defects. All work via worktrees + `ship-video-change` dual review.
+
+### Shipped to main
+- **#54** — `fix(fact-gate)`: resolve the Wikipedia title on **entity alone**, not `entity+fact`. The fact sentence polluted MediaWiki `srsearch` → wrong (usually current-era) article (1973 NBA claim → "2026 NBA Finals"), failing all overnight produces. Memory: `factgate-coverage-cap` (separate finding: the 25-claim cap means long scripts always read "coverage incomplete" → needs_review).
+- **#56 / #57** — `fix(short-guard)`: `tease_within_long` false-flagged companion shorts on benign name variants. #56 = hyphen/apostrophe components ("Anti-Drug" covers "Anti"); #57 = inflection tolerance (America~American) via capitalized-only + inflectional-suffix whitelist + ≥4-char stem floor. **Owner-accepted residual** (Roma~Roman class is irreducible without NER — documented in `_name_inflection_match` docstring + a pinning test).
+- **#60** — `test(queue)`: `test_queue_migration` queried Neon because `.env DATABASE_URL` routes the dispatcher there; `_seed` now nulls it to force the JSON backend. Red suite → green (358 passed). (Note: S18's `conftest.py` fix is the more general version of this.)
+- **#61** — `fix(video)`: **long-form caption/headline overhaul** (the big one). `align_to_script()` (captions.py) keeps Whisper timing but uses the **script** as caption text via difflib → fixes name mishears ("Iba"→"Eber"), hyphen artifacts, AND headline mis-placement (anchors now always match). `_dedup_and_clamp_headlines()` (compose.py, `HEADLINE_MIN_S=3.0`, **seconds schema**) kills the flashing/overlap/duplicate. `_merge_staccato_runs()` (tts.py) stops Kokoro looping short repeated phrases (render-verified 7.3s→3.6s). 15 tests; subagent-driven; dual review (Codex caught a non-monotonic-interp bug + SRT digit divergence → fixed → 0/0 both).
+- **#62** — `docs`: caption/headline spec + plan (`docs/superpowers/specs|plans/2026-06-15-longform-caption-alignment*`).
+
+### Ops / videos
+- **Yugoslavia `050d8550`**: the "pending" the user saw was a **stuck duplicate** YouTube upload (`B9V0GdUqrOY`, half-uploaded via an old BrokenPipeError) — user deleted it; the real long `QtV7W4P5czE` + short are unlisted and fine.
+- **3 longs fact-reviewed + rendered + QC-passed → `awaiting_approval`**: Len Bias `af86c186`, 1972 Olympics `adfea6c1`, Knicks `e1bbe900`. Real fixes applied (e.g. Knicks: Frazier's 1970 line was misattributed to 1973; Aldridge 19→16 seasons; Dolan→Thomas liability; Mavs "passed on" not "offered"). 1972 + Knicks shorts re-rendered after the #57 inflection fix → all **6 videos (3 long + 3 short) ready to publish**.
+- **`adfea6c1` verification re-render IN PROGRESS** (background, `logs/rerender-adfea6c1-verify-2026-06-15.log`) — confirms the #61 caption/headline/TTS fixes end-to-end in a real render. Check captions read "Iba"/"U.S.", chapters spread (no dup, none <3s), 178–185s loop-free.
+
+### Open / next
+1. **Pre-flight QC lint** (user wants it — spec next session): run on `props.json` + narration **before** the 45-min render to catch the classes we hit (caption-text-not-in-script, headline overlap/dup/sub-floor/cluster, TTS per-segment s/word anomaly, b-roll consecutive-clip). Turns "watch the whole video" into "fail in 2s pre-render." brainstorm→spec→plan.
+2. **Verify the `adfea6c1` re-render** result; if good, optionally re-render Len Bias + Knicks longs with the #61 fix.
+3. **Publish the 6 `awaiting_approval` videos** (`publish-video`).
+4. **Cost-track bug**: ledger logs `$0` for `claude-haiku-4-5-20251001` ("unknown model") — `MODEL_LIGHT` pricing keys on `claude-haiku-4-5` w/o the date suffix. One-line fix in `usage.py`.
+
+### Watch-outs (harness)
+- **Headline schema is `{headline, start, end}` in SECONDS** — `startMs/endMs` exist ONLY in the Remotion-produced `props.json`, not in `assign_headline_times`. (My plan got this wrong; the implementer caught it before a render-crashing KeyError.)
+- **Shared-`.git` is real** — a `git add` in the concurrent session once leaked a file into one of my commits (caught + `git rm --cached`'d). Always worktree parallel work; commit only named files and double-check `git show --stat`.
+
+### Suggested skills next session
+`superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` (pre-flight QC lint); `build-video`/`publish-video` (re-renders + the 6 ready videos).
+
+---
+
 ## Session 18 (2026-06-15) — Neon-backed queue + Railway ideate cron LIVE · cost controls · ops (videos unlisted, thumbs) · tool/repo evals
 
 Big session: stood up the cloud queue + scheduled idea generation, shipped a cost-trim, plus operational + research work. (Note: a **parallel session** ran concurrently in worktree `untold_game_agents.tease-wt` on the fact-gate/tease-guard fixes — #54, #56 etc. merged to main from there; not covered here.)
