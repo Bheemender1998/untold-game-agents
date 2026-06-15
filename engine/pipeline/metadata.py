@@ -11,7 +11,7 @@ import json
 import anthropic
 
 from engine.ideate.base_agent import BaseAgent
-from engine.config import MODEL, MAX_TOKENS
+from engine.config import MODEL, MODEL_LIGHT, MAX_TOKENS
 from engine.usage import logged_create
 from engine.pipeline.script import title_numbers_within
 
@@ -117,7 +117,7 @@ def _short_title_llm(idea: dict, script: str) -> str:
     prompt = (f"SPORT: {idea.get('sport', '')}  PILLAR: {idea.get('pillar', '')}\n\n"
               f"SCRIPT:\n{script}\n\nWrite the Short title.")
     resp = logged_create(client, "short_title",
-        model=MODEL, max_tokens=64, system=_SHORT_TITLE_SYSTEM,
+        model=MODEL_LIGHT, max_tokens=64, system=_SHORT_TITLE_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": _SHORT_TITLE_SCHEMA}},
     )
@@ -163,7 +163,7 @@ def _short_desc_llm(idea: dict, script: str) -> tuple[str, list[str]]:
               f"SPORT: {idea.get('sport', '')}  PILLAR: {idea.get('pillar', '')}\n\n"
               f"SCRIPT:\n{script}\n\nWrite the Short description and tags.")
     resp = logged_create(client, "short_desc",
-        model=MODEL, max_tokens=512, system=_SHORT_DESC_SYSTEM,
+        model=MODEL_LIGHT, max_tokens=512, system=_SHORT_DESC_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": _SHORT_DESC_SCHEMA}},
     )

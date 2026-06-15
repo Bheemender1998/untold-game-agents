@@ -32,6 +32,7 @@ class BaseAgent:
         self.client = anthropic.Anthropic(max_retries=5)
         self.name = "base_agent"
         self.system_prompt = ""
+        self.model = MODEL          # subclasses may override (e.g. MODEL_LIGHT)
 
     # ── Core API call ──────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ class BaseAgent:
         # Agentic loop — keeps going until no more tool_use blocks
         while True:
             kwargs = {
-                "model": MODEL,
+                "model": self.model,
                 "max_tokens": MAX_TOKENS,
                 "system": self.system_prompt,
                 "messages": messages,

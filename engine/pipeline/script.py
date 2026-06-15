@@ -242,6 +242,8 @@ class CompanionTeaseWriter(BaseAgent):
         super().__init__()
         self.name = "companion_tease_writer"
         self.system_prompt = DERIVE_TEASE_SYSTEM
+        from engine.config import MODEL_LIGHT
+        self.model = MODEL_LIGHT     # cheap tease writer; routed via BaseAgent.self.model
 
     def write(self, long_script: str, idea: dict) -> dict:
         title = idea["title_variants"][0]
