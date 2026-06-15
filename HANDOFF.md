@@ -4,6 +4,41 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 18 (2026-06-15) — Neon-backed queue + Railway ideate cron LIVE · cost controls · ops (videos unlisted, thumbs) · tool/repo evals
+
+Big session: stood up the cloud queue + scheduled idea generation, shipped a cost-trim, plus operational + research work. (Note: a **parallel session** ran concurrently in worktree `untold_game_agents.tease-wt` on the fact-gate/tease-guard fixes — #54, #56 etc. merged to main from there; not covered here.)
+
+### Shipped to main
+- **#53** — `feat`: **Neon-backed shared idea queue + Railway ideate cron.** Pluggable queue backend (`engine/queue/`: json|neon, selected by `DATABASE_URL`); Neon schema (`ideas` JSONB-doc + `api_costs`); migration; cost-guarded `engine/run_cron.py` (4 agents sequential, rolling-30d ceiling + per-run cap). Render stays local. ADR-0006. Built via subagent-driven-development; dual review 0/0.
+- **#58** — `feat`: **cost controls.** 4 mechanical produce-side stages → Haiku (`short_title`, `short_desc`, subject-query, companion-tease) via a new `BaseAgent.self.model` hook; Haiku priced in `usage.py`; `run_cost_report --neon` (the only view of the **cron's** spend). Also fixed: subject-query was unmetered (now `logged_create`) + a queue-test hermeticity bug (`tests/conftest.py` defaults the queue to JSON so a local `.env DATABASE_URL` can't break `test_queue_migration`). Dual review: Claude 0/0; Codex found 1C+1I → fixed → 0/0.
+
+### Provisioned (live)
+- **Neon is the source of truth** — `DATABASE_URL` is in local `.env`; 75 ideas migrated; local produce/review now read Neon (fail-loud offline). See memory `neon-queue-railway-cron-live`.
+- **Railway cron LIVE** — project/service `untold-game-agents`, cron `0 9 */2 * *` runs `engine.run_cron`. Build = `nixpacks.toml` venv (the default bare `pip` failed); `.railwayignore` excludes render assets. **Deploy is `railway up` tarball, NOT git-connected** → re-`railway up --detach --service untold-game-agents` after engine changes that should reach the cron. Not yet functionally smoke-tested (built + scheduled).
+
+### Ops
+- **3 stories published unlisted** (long+short = 6): Senna/Imola `9bbd24cd`, Stojković `050d8550`, Dana White `bb8585d1`. Dana White long thumbnail was cutting his face (16:9 center-crop) → reframed + **pushed live**; Stojković kept modern sepia (no free 1990s photo on Commons); Senna clean.
+
+### Decisions / research (banked to memory)
+- **Second channel = "Disasters & Engineering Failures"**, multi-channel profile in THIS repo (not a fork); de-hardcode-sports refactor NOT started. (`second-channel-disasters-multichannel`)
+- **Trending-peg content strategy** — peg an evergreen historical story to a current trending moment. (`trending-peg-content-strategy`)
+- **`last30days` skill installed + evaluated** — trending-discussion sensor; free path = Reddit-heavy; high-risk browser-cookie surface, free path only. (`last30days-research-tool`)
+- Skipped two GitHub repos: `darkzOGx/youtube-automation-agent` (abandoned/simulated slop) and confirmed `mvanhorn/last30days-skill` is the real one.
+
+### Open / next
+1. **Multi-channel refactor** (Disasters) — de-hardcode sports from `config.py` + 4 ideate prompts + idea schema; brainstorm→spec→plan first.
+2. **Smoke-test the Railway cron** (or wait for the first scheduled fire) + remember to `railway up` after engine changes.
+3. Local git tidy (cosmetic): main checkout was on a merged branch because `.tease-wt` held `main`; stray `fix/tease-guard-inflection` litter branch is safe to delete.
+
+### Watch-outs (harness)
+- **A local `.env DATABASE_URL` routes the queue to Neon in tests too** — `tests/conftest.py` now neutralizes it; keep that fixture.
+- **Concurrent sessions share `.git`** — the parallel session correctly used a **worktree** (`.tease-wt`); a subagent here briefly fumbled branches in the main tree. Prefer worktrees for parallel work.
+
+### Suggested skills next session
+`superpowers:brainstorming` → `writing-plans` (multi-channel refactor), `ship-video-change` (engine changes — remember the `railway up` re-deploy), `build-video`/`publish-video` (the 3 unlisted recents).
+
+---
+
 ## Session 17 (2026-06-14) — Growth-playbook audit shipped · second-channel direction set (Disasters, multi-channel)
 
 Strategy session, not engine code. Two decisions reached and recorded; no pipeline changes.
