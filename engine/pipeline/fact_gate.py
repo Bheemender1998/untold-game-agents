@@ -155,7 +155,11 @@ def _get_extract(title: str, cache: dict) -> str:
 
 
 def _mediawiki_evidence(claim: dict, cache: dict) -> dict:
-    title = _resolve_title(f"{claim['entity']} {claim['fact']}", cache)
+    # Resolve the article on the ENTITY alone. Appending the fact sentence pollutes
+    # MediaWiki's full-text search (srsearch) and ranks the wrong article -- usually
+    # the most current/popular one (e.g. "1973 NBA Finals <fact>" -> "2026 NBA Finals").
+    # The fact is still used below by _window() to slice the relevant sentence out.
+    title = _resolve_title(claim["entity"], cache)
     if not title:
         return {"kind": "none", "text": "", "source": ""}
     window = _window(_get_extract(title, cache), claim["fact"])

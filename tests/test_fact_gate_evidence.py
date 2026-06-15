@@ -20,6 +20,29 @@ def test_encyclopedic_uses_mediawiki_no_ddg(monkeypatch):
     assert cache["extracts"]["1998 FIFA World Cup Group F"]["text"]
 
 
+def test_title_resolves_on_entity_not_fact(monkeypatch):
+    # Regression: appending the fact sentence to the search query pollutes MediaWiki's
+    # full-text search and resolves the wrong (often current-era) article. The title must
+    # be resolved on the entity ALONE -- the fact is only for windowing the extract.
+    # The fake reproduces the real failure: a polluted query (entity + fact words) ranks
+    # the wrong current-era article; the bare entity resolves correctly.
+    EXTRACTS = {
+        "1973 NBA Finals": "The New York Knicks defeated the Los Angeles Lakers 4-1.",
+        "2026 NBA Finals": "The 2026 NBA Finals were contested in June 2026.",
+    }
+    def fake_search_title(q):
+        return "2026 NBA Finals" if "five games" in q else "1973 NBA Finals"
+    monkeypatch.setattr(fact_gate.wikipedia, "search_title", fake_search_title)
+    monkeypatch.setattr(fact_gate.wikipedia, "extract", lambda t: EXTRACTS.get(t, ""))
+    monkeypatch.setattr(fact_gate, "web_search", lambda *a, **k: "x")
+    claim = {"text": "Knicks beat Lakers in the 1973 Finals", "entity": "1973 NBA Finals",
+             "fact": "Knicks defeated Lakers in five games", "era": "encyclopedic"}
+    ev = fact_gate.gather_evidence(claim, {"resolutions": {}, "extracts": {}})
+    # entity-only resolution must reach the correct article, not the polluted 2026 one
+    assert ev["source"] == "Wikipedia: 1973 NBA Finals"
+    assert "defeated the Los Angeles Lakers" in ev["text"]
+
+
 def test_encyclopedic_thin_falls_back_to_ddg(monkeypatch):
     monkeypatch.setattr(fact_gate.wikipedia, "search_title", lambda q: "Some Page")
     monkeypatch.setattr(fact_gate.wikipedia, "extract", lambda t: "Unrelated intro text only.")
