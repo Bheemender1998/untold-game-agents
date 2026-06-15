@@ -71,6 +71,17 @@ def record(resp, stage: str) -> None:
             f.write(json.dumps(row) + "\n")
     except Exception as e:  # cost tracking must never crash a run
         print(f"cost-track warning: {e}")
+    # Durable ledger for the unattended cron's monthly cap (Railway fs is ephemeral).
+    try:
+        from engine.config import DATABASE_URL
+        if DATABASE_URL:
+            from engine.queue import neon_backend
+            with neon_backend._conn() as c:
+                c.execute(
+                    "INSERT INTO api_costs (agent, run_id, usd) VALUES (%s,%s,%s)",
+                    (stage, _run_id(), cost_usd(u, model)))
+    except Exception as e:                       # never crash a production run
+        print(f"cost-track warning: neon ledger write failed: {e}")
 
 
 def logged_create(client, stage: str, **kwargs):
