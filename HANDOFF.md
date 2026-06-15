@@ -4,6 +4,46 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 17 (2026-06-14) — Growth-playbook audit shipped · second-channel direction set (Disasters, multi-channel)
+
+Strategy session, not engine code. Two decisions reached and recorded; no pipeline changes.
+
+### Shipped to main
+- **#51** — `docs(growth-playbook-audit)`: audited an external 18-module YouTube-growth playbook (in
+  `~/Downloads`) against the actual engine. Full doc: **`docs/growth-playbook-audit.md`**. TL;DR:
+  engine already ships the good ideas (front-loaded hook, tight cut, one-idea thumbnail, gap-opening
+  titles, keyword-first desc — all code-cited); real buildable wins are a small **packaging+ideation**
+  cluster (scope-reduction + outlier-transfer ideation, retention bridges, ban-the-outro,
+  thumbnail↔title complementarity check); CTR/retention→swap loop = **defer** (Stage-3 gated); a
+  pile of folklore/TOS-risk to **skip** (20s Shorts cap, 1-upload/24h, delete-&-reupload, account
+  warming, secondary-channel self-seeding, "70/80%" thresholds, "the List"). Docs-only, `Review-Skip`.
+
+### Decided (banked in memory `second-channel-disasters-multichannel.md`)
+- **A second channel will be built: "Disasters & Engineering Failures"** (aviation/maritime/
+  structural/space). Chosen over runner-up "Rise & Fall (companies/moguls)" for max engine reuse +
+  least risk: official accident reports (NTSB/CAIB/NBS) make the fact-gate trivial; gov/NASA
+  **public-domain** imagery is best-case for the Commons-first sourcer. Proven via a real
+  `BaseAgent._call` dry test (throwaway in `/tmp`, no queue write) — both niches ~8.8 avg viral;
+  Disasters ideas (Tenerife 9.2, Columbia 9.0) would render today with zero pipeline changes.
+- **Architecture: multi-channel, profile-driven, in THIS repo — not a fork.** Reason: the engine is
+  young/changing fast; a fork would force every fix done twice and drift. `engine/profiles/*.yaml`
+  already signals profile-driven intent. User confirmed: same operator, shared engine.
+
+### Open / next (the actual build, NOT started)
+1. **Multi-channel refactor** — de-hardcode sports from `engine/config.py` (`CHANNEL_CONTEXT`,
+   pillars, `PILLAR_MOOD`) + the 4 ideate agent prompts + the idea JSON schema (`sport` field,
+   pillar enums); select a channel via a `--channel`/env flag that loads a profile. **Touches the
+   LIVE sports channel** → full brainstorm→spec→plan + `ship-video-change` rail with tests. Spec it
+   first (per `always-formal-spec-and-plan`), don't hack.
+2. (Carried from S16) period-correct subjects for the 3 unlisted recents; auto-subject sourcing
+   still unreliable. See Session 16 block.
+
+### Suggested skills next session
+`superpowers:brainstorming` → `superpowers:writing-plans` (spec the multi-channel refactor before any
+code), then `ship-video-change` for the implementation. `run-pipeline` to see live queue if needed.
+
+---
+
 ## Session 16 (2026-06-14) — TTS HR crash fixed · Track B fully deferred · thumbnails fixed + 3 pushed live
 
 Worked the open list end-to-end: a TTS crash bug, the M5 migration + Track B disposition, and the
