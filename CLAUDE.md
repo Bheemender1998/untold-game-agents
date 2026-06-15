@@ -112,5 +112,10 @@ gate**; rely on `pytest tests/` + the QC gate + the still-preview trick.
 **Dashboard/config/docs-only PRs:** plain `gh pr create --base main` (no trailer, no review).
 **Bypass** (docs/renames only): `Review-Skip: <reason>` in the PR body instead of the trailer.
 
-Deploy: the produce/ideate cron can run on Railway from `main`; **render is local** (launchd on
-the M2 — Railway can't do the 45-min Chromium render). Never run a render in a hook or in CI.
+Deploy: the **ideate cron runs on Railway** every 2-3 days (`python3 -m engine.run_cron`),
+writing new ideas to **Neon** (the single source of truth when `DATABASE_URL` is set).
+Local flows — `run_pipeline --review`, `run_produce`, `run_auto` — read the same Neon queue.
+**Render is still local** (launchd on the M5 — Railway can't do the 45-min Chromium render).
+The JSON queue (`queue/idea_queue.json`) is the offline/test fallback when `DATABASE_URL` is unset.
+Required Railway env vars: `DATABASE_URL` (Neon connection string), `ANTHROPIC_API_KEY`,
+`CRON_PER_RUN_CAP_USD`, `CRON_MONTHLY_CAP_USD`. Never run a render in a hook or in CI.
