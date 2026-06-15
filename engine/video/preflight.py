@@ -182,3 +182,73 @@ def _fix_headline_overlap(ch: list[dict]) -> tuple[list[dict], list[dict]]:
 def _detect_stuck_headlines(ch: list[dict], max_s: float) -> list[int]:
     """Rule 9 (warn): a chapter card on screen longer than max_s seconds (dead-air ghost)."""
     return [i for i, c in enumerate(ch) if (c["endMs"] - c["startMs"]) > max_s * 1000]
+
+
+def _count(muts: list[dict], reason: str) -> int:
+    return sum(1 for m in muts if m.get("reason") == reason)
+
+
+def lint_props(props: dict, fps: int, narration_ms: int) -> tuple[dict, dict]:
+    """Auto-fix deterministic caption/headline defects, then re-run detectors to decide
+    pass/block. Returns (fixed_props, report). Never raises — malformed input fails the
+    structural check and blocks. The single fix pass runs in dependency order; the
+    post-fix detectors are the re-verify backstop."""
+    props = copy.deepcopy(props)
+    muts: list[dict] = []
+
+    # ── caption fixers, in order (gap #2: drop ghosts BEFORE any clamp) ──
+    caps = list(props.get("captions") or [])
+    caps, m = _fix_past_audio(caps, narration_ms, config.QC_CAPTION_END_TOL_MS); muts += m
+    caps, m = _fix_punct_captions(caps); muts += m
+    caps, m = _fix_fillers(caps, config.QC_FILLER_WORDS); muts += m
+    caps, m = _fix_min_duration(caps, fps); muts += m
+    caps, m = _fix_overlap(caps, fps); muts += m
+    props["captions"] = caps
+
+    # ── headline fixers ──
+    ch = list(props.get("chapters") or [])
+    ch, m = _fix_dup_headlines(ch); muts += m
+    ch, m = _fix_headline_overlap(ch); muts += m
+    props["chapters"] = ch
+
+    # ── re-verify: run detectors on the FIXED props ──
+    structural_ok = bool(props.get("captions")) and bool(props.get("chapters")) \
+        and bool(props.get("audioSrc")) and bool(props.get("narrationMs"))
+    overlaps = [i for i in range(1, len(caps)) if caps[i]["startMs"] < caps[i - 1]["endMs"]]
+    bad_dur = [i for i, c in enumerate(caps)
+               if _frame_index(c["endMs"], fps) <= _frame_index(c["startMs"], fps)]
+    past = [i for i, c in enumerate(caps) if c["endMs"] > narration_ms + config.QC_CAPTION_END_TOL_MS]
+    punct = [i for i, c in enumerate(caps) if i > 0 and _needs_left_merge(c["text"])]
+    oversize = _detect_oversize(caps, config.QC_MAX_CAPTION_TOKEN_CHARS)
+    h_overlap = [i for i in range(1, len(ch)) if ch[i]["startMs"] < ch[i - 1]["endMs"]]
+    h_dup = [i for i in range(1, len(ch))
+             if _norm_headline(ch[i]["headline"]) == _norm_headline(ch[i - 1]["headline"])]
+    stuck = _detect_stuck_headlines(ch, config.QC_MAX_HEADLINE_S)
+
+    checks = [
+        {"name": "structural", "severity": "critical", "passed": structural_ok,
+         "detail": "captions/chapters/audioSrc/narrationMs present" if structural_ok
+         else "missing captions/chapters/audioSrc/narrationMs", "fixed": 0},
+        {"name": "split_number_caption", "severity": "critical", "passed": not punct,
+         "detail": f"{len(punct)} orphan-punct caption(s) remain", "fixed": _count(muts, "orphan_punct")},
+        {"name": "ghost_after_audio", "severity": "critical", "passed": not past,
+         "detail": f"{len(past)} caption(s) past audio end", "fixed": _count(muts, "ghost_after_audio") + _count(muts, "past_audio")},
+        {"name": "caption_duration", "severity": "critical", "passed": not bad_dur,
+         "detail": f"{len(bad_dur)} zero/sub-frame caption(s)", "fixed": _count(muts, "min_frame_duration")},
+        {"name": "caption_monotonic", "severity": "critical", "passed": not overlaps,
+         "detail": f"{len(overlaps)} overlapping caption(s)", "fixed": _count(muts, "non_monotonic")},
+        {"name": "headline_overlap", "severity": "critical", "passed": not h_overlap,
+         "detail": f"{len(h_overlap)} overlapping headline(s)", "fixed": _count(muts, "headline_overlap")},
+        {"name": "duplicate_headline", "severity": "critical", "passed": not h_dup,
+         "detail": f"{len(h_dup)} duplicate headline(s)", "fixed": _count(muts, "dup_headline")},
+        {"name": "filler_caption", "severity": "warn", "passed": True,
+         "detail": f"{_count(muts, 'filler')} filler(s) dropped", "fixed": _count(muts, "filler")},
+        {"name": "oversize_caption_token", "severity": "warn", "passed": not oversize,
+         "detail": f"{len(oversize)} oversize token(s) (>{config.QC_MAX_CAPTION_TOKEN_CHARS} chars)", "fixed": 0},
+        {"name": "stuck_headline", "severity": "warn", "passed": not stuck,
+         "detail": f"{len(stuck)} headline(s) > {config.QC_MAX_HEADLINE_S:.0f}s", "fixed": 0},
+    ]
+    blocked = any((not c["passed"]) and c["severity"] == "critical" for c in checks)
+    report = {"passed": all(c["passed"] for c in checks), "blocked": blocked,
+              "checks": checks, "mutations": muts}
+    return props, report

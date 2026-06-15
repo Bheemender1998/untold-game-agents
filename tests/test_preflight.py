@@ -135,3 +135,35 @@ def test_headline_overlap_clamped():
 def test_detect_stuck_headlines():
     ch = [{"headline": "A", "startMs": 0, "endMs": 80_000}]   # 80s > 70s default
     assert preflight._detect_stuck_headlines(ch, max_s=70.0) == [0]
+
+
+def _props(caps, ch, narration_ms=200000, fps=30):
+    return {"audioSrc": "narration.wav", "narrationMs": narration_ms, "fps": fps,
+            "captions": caps, "chapters": ch}
+
+
+def test_lint_props_fixes_and_passes():
+    caps = [{"text": "$1", "startMs": 1000, "endMs": 1480},
+            {"text": ",000", "startMs": 1480, "endMs": 2000},
+            {"text": ",000.", "startMs": 2000, "endMs": 2000}]   # split number + zero dur
+    ch = [{"headline": "A", "startMs": 0, "endMs": 5000}]
+    fixed, report = preflight.lint_props(_props(caps, ch), fps=30, narration_ms=200000)
+    assert [c["text"] for c in fixed["captions"]] == ["$1,000,000."]
+    assert report["blocked"] is False
+    assert report["passed"] is True
+    assert any(m["type"] == "merge" for m in report["mutations"])
+
+
+def test_lint_props_blocks_on_unfixable_structural():
+    fixed, report = preflight.lint_props(
+        {"audioSrc": "", "narrationMs": 0, "fps": 30, "captions": [], "chapters": []},
+        fps=30, narration_ms=0)
+    assert report["blocked"] is True
+    assert any(c["name"] == "structural" and not c["passed"] for c in report["checks"])
+
+
+def test_lint_props_does_not_mutate_input():
+    caps = [{"text": ",000", "startMs": 1000, "endMs": 2000}]
+    src = _props(caps, [{"headline": "A", "startMs": 0, "endMs": 5000}])
+    preflight.lint_props(src, fps=30, narration_ms=200000)
+    assert src["captions"][0]["text"] == ",000"   # original untouched (deep-copied)
