@@ -101,3 +101,25 @@ def _fix_past_audio(caps: list[dict], narration_ms: int, tol: int) -> tuple[list
         else:
             out.append(dict(c))
     return out, muts
+
+
+def _frame_index(ms: int, fps: int) -> int:
+    """Which video frame a millisecond timestamp lands on (Remotion rounds ms→frame)."""
+    return int(round(ms * fps / 1000.0))
+
+
+def _fix_min_duration(caps: list[dict], fps: int) -> tuple[list[dict], list[dict]]:
+    """Rules 5+6: every caption must span at least one whole frame. Catches zero/negative
+    duration (Rule 5, critical) and positive-but-sub-frame captions (Rule 6, warn) with the
+    same bump: push endMs to the start of the next frame."""
+    out: list[dict] = []
+    muts: list[dict] = []
+    for c in caps:
+        c = dict(c)
+        if _frame_index(c["endMs"], fps) <= _frame_index(c["startMs"], fps):
+            new_end = int(round((_frame_index(c["startMs"], fps) + 1) * 1000.0 / fps))
+            muts.append({"type": "retime", "token": c["text"], "reason": "min_frame_duration",
+                         "from": [c["startMs"], c["endMs"]], "to": [c["startMs"], new_end]})
+            c["endMs"] = new_end
+        out.append(c)
+    return out, muts

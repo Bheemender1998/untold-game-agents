@@ -70,3 +70,23 @@ def test_clamp_never_creates_negative_duration():
     caps = [{"text": "x", "startMs": 59999, "endMs": 70000}]
     fixed, muts = preflight._fix_past_audio(caps, narration_ms=60000, tol=500)
     assert fixed[0]["endMs"] >= fixed[0]["startMs"]
+
+
+def test_zero_duration_caption_gets_min_one_frame():
+    caps = [{"text": "x", "startMs": 1000, "endMs": 1000}]   # zero duration
+    fixed, muts = preflight._fix_min_duration(caps, fps=30)
+    assert fixed[0]["endMs"] > fixed[0]["startMs"]
+    assert muts[0]["type"] == "retime" and muts[0]["reason"] == "min_frame_duration"
+
+
+def test_subframe_caption_is_extended():
+    caps = [{"text": "x", "startMs": 0, "endMs": 10}]   # <1 frame (33ms) → invisible
+    fixed, _ = preflight._fix_min_duration(caps, fps=30)
+    assert preflight._frame_index(fixed[0]["endMs"], 30) > preflight._frame_index(0, 30)
+
+
+def test_healthy_caption_unchanged_by_min_duration():
+    caps = [{"text": "x", "startMs": 0, "endMs": 500}]
+    fixed, muts = preflight._fix_min_duration(caps, fps=30)
+    assert fixed[0]["endMs"] == 500
+    assert muts == []
