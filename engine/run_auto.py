@@ -304,7 +304,9 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
         if fresh.get("long_youtube_url") or fresh.get("status") == "published":
             sys.exit(f"{idea_id}: already published ({fresh.get('long_youtube_url')}) — refusing duplicate upload")
         thumb = paths.thumbnail_path(idea_id, "long")
-        thumb = thumb if os.path.exists(thumb) else None
+        if not os.path.exists(thumb):
+            print(f"⚠ {idea_id}: no custom thumbnail — uploading with YouTube's default frame")
+            thumb = None
         yt_id = uploader.upload(video_path=video, title=meta["title"],
                                 description=meta.get("description", ""),
                                 tags=meta.get("tags"), privacy=privacy,
@@ -321,7 +323,9 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
                 svideo = os.path.join(_ROOT, idea["short_video_path"])
                 sdesc = f"{smeta.get('description', '')}\n\n▶ Full story on our channel: {long_url}".strip()
                 sthumb = paths.thumbnail_path(idea_id, "short")
-                sthumb = sthumb if os.path.exists(sthumb) else None
+                if not os.path.exists(sthumb):
+                    print(f"⚠ {idea_id}: companion short has no custom thumbnail — uploading with default frame")
+                    sthumb = None
                 short_id = uploader.upload(video_path=svideo, title=smeta["title"],
                                            description=sdesc, tags=smeta.get("tags"), privacy=privacy,
                                            thumbnail_path=sthumb)

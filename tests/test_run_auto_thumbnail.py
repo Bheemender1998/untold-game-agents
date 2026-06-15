@@ -128,3 +128,16 @@ def test_render_and_qc_thumbnails_even_when_qc_fails(monkeypatch):
     monkeypatch.setattr(run_auto, "_ensure_thumbnail", lambda i, fmt: seen.append((i, fmt)))
     run_auto._render_and_qc("pubid")
     assert ("pubid", "long") in seen   # thumbnail generated regardless of QC verdict
+
+
+def test_cmd_approve_warns_when_thumbnail_absent(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(paths, "PRODUCED_DIR", str(tmp_path / "produced"))
+    monkeypatch.setattr(run_auto, "_ROOT", str(tmp_path))
+    idea = _idea(tmp_path)
+    monkeypatch.setattr(run_auto.q, "get_by_id", lambda _id: idea)
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda *a, **k: None)
+    monkeypatch.setattr(run_auto, "_load_metadata", lambda p: {"title": "T", "description": "d", "tags": []})
+    monkeypatch.setattr(run_auto.uploader, "upload", lambda video_path, **kw: "VID123")
+    run_auto.cmd_approve("pubid", public=False, dry_run=False)
+    out = capsys.readouterr().out
+    assert "no custom thumbnail" in out   # warns about default-frame upload
