@@ -17,6 +17,7 @@ from engine import config
 from engine import queue_manager as q
 from engine import paths
 from engine.pipeline import qc
+from engine.pipeline import subject, thumbnail
 from engine.publish import uploader, auth
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -69,6 +70,28 @@ def _render_one(idea_id: str) -> bool:
     return True
 
 
+def _ensure_thumbnail(idea_id: str, fmt: str) -> None:
+    """Best-effort: ensure produced/<id>/<fmt>/thumbnail.jpg exists after a render.
+
+    Skips if a thumbnail already exists (never clobbers hand-composited work).
+    Self-stubs on any failure — a missing thumbnail must never break render/QC."""
+    try:
+        thumb = paths.thumbnail_path(idea_id, fmt)
+        if os.path.exists(thumb):
+            print(f"· {idea_id}/{fmt}: thumbnail exists — skipping auto-generation")
+            return
+        idea = q.get_by_id(idea_id) or {"id": idea_id}
+        res = subject.source_subject(idea, fmt) or {}  # Wikipedia → Pexels; human subject wins
+        if not res.get("source"):
+            print(f"⚠ {idea_id}/{fmt}: no subject photo found — thumbnail skipped "
+                  f"(hand-source before approving)")
+            return
+        thumbnail.generate_thumbnail(idea, fmt)
+        print(f"✓ {idea_id}/{fmt}: thumbnail composited via {res['source']}")
+    except Exception as e:                              # never break the render/batch
+        print(f"⚠ {idea_id}/{fmt}: thumbnail auto-generation failed — {e}")
+
+
 def _cleared_to_render(idea: dict) -> bool:
     return idea.get("status") == "in_production" or idea.get("human_reviewed") is True
 
@@ -78,6 +101,7 @@ def _render_and_qc(idea_id: str) -> None:
     if not _render_one(idea_id):
         print(f"· {idea_id}: render_failed")
         return
+    _ensure_thumbnail(idea_id, _OVERNIGHT_FMT)   # auto-compose thumbnail on render
     # Sync the description's chapter timestamps from the rendered props.json (real per-chapter
     # times) — the produce-time LLM estimate is wrong; this is the authoritative correction.
     from engine.pipeline import chapters
@@ -117,6 +141,7 @@ def _companion_short(idea_id: str) -> None:
             return
         report = qc.qc_video(idea_id, "short")
         if report["passed"]:
+            _ensure_thumbnail(idea_id, "short")   # auto-compose short thumbnail
             q.update_idea(idea_id, short_status="short_awaiting_approval",
                           short_video_path=os.path.relpath(
                               os.path.join(paths.video_dir(idea_id, "short"), "video.mp4"), _ROOT))
@@ -279,7 +304,9 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
         if fresh.get("long_youtube_url") or fresh.get("status") == "published":
             sys.exit(f"{idea_id}: already published ({fresh.get('long_youtube_url')}) — refusing duplicate upload")
         thumb = paths.thumbnail_path(idea_id, "long")
-        thumb = thumb if os.path.exists(thumb) else None
+        if not os.path.exists(thumb):
+            print(f"⚠ {idea_id}: no custom thumbnail — uploading with YouTube's default frame")
+            thumb = None
         yt_id = uploader.upload(video_path=video, title=meta["title"],
                                 description=meta.get("description", ""),
                                 tags=meta.get("tags"), privacy=privacy,
@@ -296,7 +323,9 @@ def cmd_approve(idea_id: str, public: bool, dry_run: bool) -> None:
                 svideo = os.path.join(_ROOT, idea["short_video_path"])
                 sdesc = f"{smeta.get('description', '')}\n\n▶ Full story on our channel: {long_url}".strip()
                 sthumb = paths.thumbnail_path(idea_id, "short")
-                sthumb = sthumb if os.path.exists(sthumb) else None
+                if not os.path.exists(sthumb):
+                    print(f"⚠ {idea_id}: companion short has no custom thumbnail — uploading with default frame")
+                    sthumb = None
                 short_id = uploader.upload(video_path=svideo, title=smeta["title"],
                                            description=sdesc, tags=smeta.get("tags"), privacy=privacy,
                                            thumbnail_path=sthumb)

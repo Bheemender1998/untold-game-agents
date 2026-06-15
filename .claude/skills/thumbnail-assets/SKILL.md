@@ -5,6 +5,12 @@ description: Source the subject photo and composite the thumbnail (and channel b
 
 # Thumbnail assets (subject → thumbnail → banner)
 
+> **Auto-generation note:** Thumbnails now **auto-generate on render** — `run_auto` automatically
+> chains `run_subject` (Wikipedia → Pexels) + `run_thumbnail` after each successful render. A
+> hand-supplied `subject.png` or `thumbnail.jpg` at `produced/<id>/<fmt>/` always wins and is
+> never overwritten. This skill is the **manual override / force-regen** path: delete
+> `produced/<id>/<fmt>/thumbnail.jpg` to force a regen.
+
 Working dir: `/Users/bheemendergurram/untold_game_agents`. Always `python3`.
 Default `--format` is `long`; `short` is the 9:16 vertical variant.
 

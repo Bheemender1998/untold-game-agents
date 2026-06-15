@@ -12,7 +12,7 @@ Railway cron, a review/approve loop, and (Stage 2+) a publish + learning loop.
 | `engine/run_pipeline.py` | CLI: run agents → interactive review dashboard | **LIVE** |
 | `engine/config.py` | Model, channel context, viral rubric, queue path | **LIVE** |
 | `engine/queue_manager.py` | JSON idea queue (pending → approved → rejected) | **LIVE** |
-| `engine/pipeline/` | ideate → script → thumbnail → banner → metadata → schedule (thumbnail subjects can be auto-sourced via `run_subject` (Wikimedia Commons → Pexels), or dropped by hand at `produced/<id>/<fmt>/subject.png`) | ideate/script/metadata/thumbnail/banner LIVE; schedule Stage 2 |
+| `engine/pipeline/` | ideate → script → thumbnail → banner → metadata → schedule (thumbnails are auto-composited on render — `run_auto` chains `run_subject` (Wikipedia → Pexels) + `run_thumbnail` after each render; a human `subject.png`/`thumbnail.jpg` always wins. `run_subject`/`run_thumbnail` remain the manual override / force-regen path.) | ideate/script/metadata/thumbnail/banner LIVE; schedule Stage 2 |
 | `engine/publish/` | YouTube Data API v3 upload + scheduler (OAuth) | Stage 2 |
 | `engine/ingest/` | YouTube Analytics / Trends loaders (learning loop) | Stage 3 |
 | `engine/outcomes/` | Track published-video performance vs predicted score | Stage 3 |
