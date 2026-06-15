@@ -47,8 +47,10 @@ import engine.pipeline.script as _script
 def test_light_stages_reference_model_light():
     # short_title + short_desc both route to MODEL_LIGHT
     assert inspect.getsource(_meta).count("MODEL_LIGHT") >= 2
-    # subject photo-query routes to MODEL_LIGHT
-    assert "MODEL_LIGHT" in inspect.getsource(_subj)
+    # subject photo-query routes to MODEL_LIGHT AND is metered via logged_create
+    _subj_src = inspect.getsource(_subj)
+    assert "MODEL_LIGHT" in _subj_src
+    assert "logged_create(" in _subj_src and "client.messages.create(" not in _subj_src
     # companion tease agent sets self.model = config.MODEL_LIGHT
     assert "MODEL_LIGHT" in inspect.getsource(_script)
 
@@ -69,8 +71,8 @@ def test_summarize_neon_totals_and_by_stage():
     rows = [("fact_check", 0.50), ("fact_check", 0.25), ("short_title", 0.01)]
     out = run_cost_report.summarize_neon(rows)
     assert out["total"] == 0.76
-    assert out["by_stage"]["fact_check"] == 0.75
-    assert out["by_stage"]["short_title"] == 0.01
+    assert out["by_stage"]["fact_check"] == {"usd": 0.75, "count": 2}
+    assert out["by_stage"]["short_title"] == {"usd": 0.01, "count": 1}
 
 def test_summarize_neon_empty():
     out = run_cost_report.summarize_neon([])
