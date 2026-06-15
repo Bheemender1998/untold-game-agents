@@ -95,3 +95,12 @@ def test_update_idea_merges_arbitrary_fields(backend):
     assert backend.update_idea(idea["id"], long_youtube_url="https://youtu.be/x") is True
     got = backend.get_by_id(idea["id"])
     assert got["long_youtube_url"] == "https://youtu.be/x"
+
+
+def test_migrate_loads_ideas_from_json(tmp_path):
+    from engine.db import migrate_queue
+    p = tmp_path / "idea_queue.json"
+    p.write_text(json.dumps([_sample_idea(), _sample_idea()]))
+    loaded = migrate_queue.load_ideas(str(p))
+    assert len(loaded) == 2
+    assert all("id" in i for i in loaded)
