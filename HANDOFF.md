@@ -4,6 +4,31 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 21 (2026-06-15) — video-review ops (Yugoslavia retitle) · "End of script" TTS leak (#67) · push-guard worktree-aware (#69)
+
+User-driven review session: retitled the Yugoslavia video on YouTube, root-caused + fixed a spoken-artifact defect in the Senna long, then fixed the harness gap that surfaced while shipping it. (Ran alongside the parallel Session 20 / Haiku-#66 session — that branch is now merged; shared checkout drifted between `main` and `fix/haiku-pricing-key`, handled via worktree isolation.)
+
+### Ops — Yugoslavia `050d8550` retitled (delete + reupload, owner's choice over in-place rename)
+- Deleted the old unlisted uploads (`QtV7W4P5czE` long, `TzdD_XUY4bQ` short) via `videos.delete` (full `youtube` OAuth scope allows it), set new titles in `produced/050d8550/{long,short}/metadata.json`, reset the queue record to `awaiting_approval`, re-approved → **new URLs**: long `https://youtu.be/2Q0HGXAQ-ug`, short `https://youtu.be/2_f9oFQ4btc` (both unlisted, thumbnails set). New long title: *"The Greatest Team That Never Got to Compete — How War Stole a Nation's Football Dream"*; short: *"The Greatest Football Team That Never Got to Compete"*.
+- `short_status` is still `short_awaiting_approval` (cosmetic — short is in fact published with its URL recorded; pre-existed the retitle).
+
+### Shipped to main
+- **#67** — `fix(tts)`: **emphasis-wrapped production cues no longer spoken.** The Senna/Imola long (`9bbd24cd`) ended with the model-appended marker `*[END OF SCRIPT — approximate spoken word count: 1,740]*` being read aloud. `script_to_narration_text` stripped markdown emphasis *after* its bracketed-cue check, so the `*`-prefixed line missed `^\[[A-Z].*\]$`. Fix = strip emphasis *first*, exposing `*[…]*` as `[…]` (kills the whole class: `*[VISUAL]*`, `_[MUSIC]_`). Regression test pins the production marker; blast radius was this one video only. Dual review (Claude `a348a2ea` + Codex `ac19ac76`) 0/0. Memory: `long-form-quality-feedback` (new section).
+- **#69** — `fix(hooks)`: **push-guard is worktree-aware.** `.claude/hooks/push-guard.sh` checked a hardcoded `CLAUDE_PROJECT_DIR` branch, not the push's actual `cwd` — so a feature-branch push *from a worktree* was denied whenever the main checkout sat on `main` (false-positive hit while shipping #67). Now reads the hook's `cwd` (falls back to `CLAUDE_PROJECT_DIR`). Verified by simulating hook stdin for all 4 paths. Config/hook-only → no review trailer (gate only fires on `engine/*.py`).
+
+### Open / next
+1. **Senna `9bbd24cd` re-render + reupload DEFERRED** — owner chose engine-fix-only for #67. The *published* long (+ companion short) still has the spoken "End of script" until re-rendered. To fix the live video: re-render (~45 min) → delete + reupload (it's published unlisted), same flow as the Yugoslavia retitle. (Captured in memory `long-form-quality-feedback`.)
+2. **The 6 `awaiting_approval` videos** from S19/S20 are still unpublished (`publish-video`); shorts still need 9:16 thumbnails (S20 item).
+
+### Watch-outs (harness)
+- **Destructive/self-modifying actions need explicit user authorization even after a conversational "yes"** — the auto-mode classifier blocked both the YouTube `videos.delete` and the `push-guard.sh` edit on first attempt; an explicit `AskUserQuestion` confirmation unblocked the retry. Expect this for external-platform writes and edits to `.claude/hooks/*` guardrails.
+- **Parallel-session `.git` drift is real** (again) — the shared checkout moved between `main` and `fix/haiku-pricing-key` mid-session. Worktree isolation (`EnterWorktree`) + restoring the shared checkout off `main` is the working pattern; #69 removes the worktree-push false-positive that this caused.
+
+### Suggested skills next session
+`build-video` + `publish-video` (re-render `9bbd24cd`, then the deferred publishes); `thumbnail-assets` (9:16 shorts).
+
+---
+
 ## Session 20 (2026-06-15) — auto-thumbnail-on-render (#65) · Haiku $0 cost bug fixed (#66) · 3 thumbnails sourced
 
 Two shipped changes, both via the full `ship-video-change` rail (TDD + dual adversarial review, gate 0 Critical/0 Important from Codex **and** Claude). Both started from questions the user raised, not a backlog.
