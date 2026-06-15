@@ -1,0 +1,79 @@
+{
+  "audioSrc": "narration.wav",
+  "narrationMs": 546936,
+  "fps": 30,
+  "captions": [
+    {
+      "text": "five",
+      "startMs": 118680,
+      "endMs": 119000
+    },
+    {
+      "text": "-year",
+      "startMs": 119000,
+      "endMs": 119320
+    },
+    {
+      "text": "endorsement",
+      "startMs": 119320,
+      "endMs": 119920
+    },
+    {
+      "text": "deal",
+      "startMs": 119920,
+      "endMs": 120220
+    },
+    {
+      "text": "worth",
+      "startMs": 120220,
+      "endMs": 120540
+    },
+    {
+      "text": "$1",
+      "startMs": 120540,
+      "endMs": 121020
+    },
+    {
+      "text": ",000",
+      "startMs": 121020,
+      "endMs": 121880
+    },
+    {
+      "text": ",000.",
+      "startMs": 121880,
+      "endMs": 121880
+    },
+    {
+      "text": "Six",
+      "startMs": 121880,
+      "endMs": 122120
+    },
+    {
+      "text": "million.",
+      "startMs": 122120,
+      "endMs": 122580
+    },
+    {
+      "text": "The",
+      "startMs": 123220,
+      "endMs": 123340
+    },
+    {
+      "text": "company",
+      "startMs": 123340,
+      "endMs": 123660
+    }
+  ],
+  "chapters": [
+    {
+      "headline": "THE MOST WANTED MAN",
+      "startMs": 0,
+      "endMs": 52480
+    },
+    {
+      "headline": "DRAFT NIGHT GLORY",
+      "startMs": 52480,
+      "endMs": 104960
+    }
+  ]
+}

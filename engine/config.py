@@ -90,6 +90,11 @@ QC_BRIGHTNESS_MAX = 180.0      # above → blown out
 QC_MIN_CAPTION_COVERAGE = 0.85 # captions' last word must reach ≥85% of audio length
 QC_MAX_CAPTION_GAP_S = 8.0     # no silent caption gap longer than this
 QC_DURATION_TOLERANCE = 0.10   # video vs narration-audio duration may differ by ≤10%
+# qc preflight (preflight.py) — pre-render lint of props.json. Pure-stdlib, no ffmpeg.
+QC_MAX_HEADLINE_S = 70.0          # headline on screen longer than this → "stuck" (warn)
+QC_MAX_CAPTION_TOKEN_CHARS = 25   # a single caption token longer than this → glued/defect (warn)
+QC_CAPTION_END_TOL_MS = 500       # captions may end up to this far past narrationMs before flagged
+QC_FILLER_WORDS = ("um", "uh", "ah", "er", "erm")  # speech fillers stripped from captions
 RENDER_TIMEOUT_S = 5400        # 90 min hard cap on one render subprocess
 PRODUCE_TIMEOUT_S = 1800       # 30 min cap on one produce (script + sequential fact-gate)
 

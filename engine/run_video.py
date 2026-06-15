@@ -119,11 +119,33 @@ def main() -> None:
             end_hold_ms=(config.SHORT_END_HOLD_MS if is_short else 0),
             broll_beat_s=(config.SHORT_BROLL_BEAT_S if is_short else config.LONG_BROLL_BEAT_S),
         )
+        # ── Pre-flight QC lint: auto-fix caption/headline defects, gate the render ──
+        from engine.video import preflight
+        props, qc_report = preflight.lint_props(props, props["fps"], props["narrationMs"])
         with open(os.path.join(video_dir, "props.json"), "w") as f:
             json.dump(props, f, indent=2)
-        srt_chunks = (captions.chunk_words_to_captions(captions.digitize_number_words(words)) if words
-                      else captions.estimate_caption_timings(narration_text, total_dur))
+        with open(os.path.join(video_dir, "qc_lint.json"), "w") as f:
+            json.dump(qc_report, f, indent=2)
+        # Regenerate the SRT from the FIXED caption words so SRT and props can't diverge.
+        srt_chunks = captions.chunk_words_to_captions(
+            [{"word": c["text"], "start": c["startMs"] / 1000.0, "end": c["endMs"] / 1000.0}
+             for c in props["captions"]])
         captions.to_srt(srt_chunks, os.path.join(video_dir, "captions.srt"))
+        n_fixed = sum(c["fixed"] for c in qc_report["checks"])
+        n_warn = sum(1 for c in qc_report["checks"] if c["severity"] == "warn" and not c["passed"])
+        if qc_report["blocked"]:
+            failing = [c["name"] for c in qc_report["checks"]
+                       if c["severity"] == "critical" and not c["passed"]]
+            # Match run_produce's status convention: long → status, short → short_status.
+            if args.format == "short":
+                _field, _val = "short_status", "short_needs_review"
+            else:
+                _field, _val = "status", "needs_review"
+            print(f"{RED}✗ pre-flight QC BLOCKED — unfixed: {', '.join(failing)}. "
+                  f"Render skipped; idea → {_val}. See qc_lint.json.{RESET}")
+            q.update_idea(args.id, **{_field: _val})
+            return
+        print(f"{GREEN}✓ pre-flight QC: {n_fixed} auto-fixed, {n_warn} warning(s){RESET}")
         beats = props.get("bBeats", [])
         n_bg = sum(1 for b in beats if b.get("src"))
         print(f"{GREEN}✓ {len(props['chapters'])} chapters · {len(props['captions'])} caption words · "
