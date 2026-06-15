@@ -243,6 +243,95 @@ def test_tease_within_long_still_flags_truly_new_hyphenated_token():
     assert not ok and "Anti" in extra
 
 
+def test_tease_within_long_inflection_variant_passes():
+    from engine.pipeline import script
+    # Regression: long says "American" (never bare "America"); short says "America". Different
+    # surface form, same entity — a ≥4-char shared prefix must count as contained, not flag.
+    long = "American men won every Olympic basketball game since 1936."
+    short = "America had won every game since 1936."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_plural_inflection_passes():
+    from engine.pipeline import script
+    long = "The Soviet team practiced for years before Munich."
+    short = "The Soviets were ready in Munich."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_inflection_matches_whole_tokens_only():
+    from engine.pipeline import script
+    # Don't over-widen: prefix-match only WHOLE long tokens, never hyphen components. A long
+    # "Anti-Drug" must NOT let a short "Antimatter" through via the bare "anti" component.
+    long = "Reagan signed the Anti-Drug Abuse Act."
+    short = "He studied Antimatter physics."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "Antimatter" in extra
+
+
+def test_tease_within_long_short_acronym_stays_strict():
+    from engine.pipeline import script
+    # A 3-char proper noun (NBA) is never an inflection of a longer name → still flags.
+    long = "Abudhabi hosted the race."
+    short = "He changed the NBA forever."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "NBA" in extra
+
+
+def test_tease_within_long_flags_unrelated_prefix_collision():
+    from engine.pipeline import script
+    # 'Mars' and 'Marshall' share a 4-char prefix but are DIFFERENT entities — the length delta
+    # 'hall' is not an inflectional suffix, so the new name must still flag (not smuggle through).
+    long = "General Marshall planned the invasion."
+    short = "He gazed up at Mars."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "Mars" in extra
+
+
+def test_tease_within_long_name_does_not_match_lowercase_word():
+    from engine.pipeline import script
+    # A short proper noun must NOT inflection-match a lowercase common word in the long
+    # ('Mark' off 'market'): inflection matching is restricted to capitalized long tokens.
+    long = "She went to the market on Tuesday."
+    short = "The man was Mark."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "Mark" in extra
+
+
+def test_tease_within_long_flags_short_stem_suffix_collision():
+    from engine.pipeline import script
+    # Short distinct names must NOT pass off a longer name via a 1-char suffix. 'Ira'/'Iran' and
+    # 'Mal'/'Mali' share a 3-char stem — below the ≥4 floor — so the new name still flags.
+    long = "The conflict in Iran reshaped the region; Mali stayed neutral."
+    short = "Ira met Mal at the docks."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "Ira" in extra and "Mal" in extra
+
+
+def test_tease_within_long_four_char_stem_inflection_still_passes():
+    from engine.pipeline import script
+    # The ≥4 floor keeps legitimate 4-char-stem demonyms: Iraq~Iraqi.
+    long = "The Iraqi delegation arrived in Geneva."
+    short = "Iraq sent a delegation to Geneva."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_documents_accepted_inflection_residual():
+    from engine.pipeline import script
+    # ACCEPTED, FAIL-SOFT RESIDUAL (see _name_inflection_match docstring): the 'n' suffix that
+    # carries America→American is string-identical to a coincidental collision between two distinct
+    # ≥4-char names, so 'Roma'~'Roman' passes. This is irreducible without entity resolution and was
+    # reviewed + accepted. This test PINS that behavior so any future tightening is a conscious
+    # choice, not a silent revert. If you intend to flag 'Roma' here, that's a deliberate change.
+    long = "A Roman general crossed the river."
+    short = "Roma fell that winter."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []   # known residual: 'Roma' passes off 'Roman'
+
+
 def test_tease_within_long_flags_new_acronym():
     from engine.pipeline import script
     long = "In 1984 Senna raced at Monaco."
