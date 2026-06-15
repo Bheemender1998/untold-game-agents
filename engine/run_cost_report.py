@@ -74,11 +74,44 @@ def render(agg: dict, run_id: str) -> str:
     return "\n".join(lines)
 
 
+def summarize_neon(rows):
+    """Aggregate Neon api_costs rows. rows: iterable of (agent, usd). Pure (no DB)."""
+    total = 0.0
+    by_stage = {}
+    for agent, usd in rows:
+        usd = float(usd)
+        total += usd
+        by_stage[agent] = by_stage.get(agent, 0.0) + usd
+    return {
+        "total": round(total, 4),
+        "by_stage": {k: round(v, 4) for k, v in
+                     sorted(by_stage.items(), key=lambda kv: -kv[1])},
+    }
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Summarize API cost for an automation run.")
     p.add_argument("--run", default=None,
                    help="run_id to summarize (default: $TUG_RUN_ID or today's adhoc id)")
+    p.add_argument("--neon", action="store_true",
+                   help="summarize the durable Neon api_costs ledger (includes the Railway cron)")
     args = p.parse_args(argv)
+    if args.neon:
+        if not config.DATABASE_URL:
+            print("--neon requires DATABASE_URL to be set")
+            return 1
+        from engine.queue import neon_backend
+        with neon_backend._conn() as c:
+            rows = c.execute("SELECT agent, usd FROM api_costs").fetchall()
+            trailing30 = c.execute(
+                "SELECT COALESCE(sum(usd), 0) FROM api_costs "
+                "WHERE ts > now() - interval '30 days'").fetchone()[0]
+        agg = summarize_neon(rows)
+        print(f"Neon api_costs — total ${agg['total']:.2f} | "
+              f"trailing-30-day ${float(trailing30):.2f}")
+        for stage, usd in agg["by_stage"].items():
+            print(f"  {stage:24} ${usd:.4f}")
+        return 0
     run_id = (args.run or os.environ.get("TUG_RUN_ID")
               or ("adhoc-" + datetime.date.today().isoformat()))
     agg = summarize(_rows(config.COST_LEDGER_PATH), run_id)

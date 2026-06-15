@@ -61,3 +61,17 @@ def test_main_metadata_title_stays_on_sonnet():
     block = src[src.index('logged_create(self.client, "metadata"'):]
     head = block[:200]
     assert "MODEL_LIGHT" not in head
+
+
+from engine import run_cost_report
+
+def test_summarize_neon_totals_and_by_stage():
+    rows = [("fact_check", 0.50), ("fact_check", 0.25), ("short_title", 0.01)]
+    out = run_cost_report.summarize_neon(rows)
+    assert out["total"] == 0.76
+    assert out["by_stage"]["fact_check"] == 0.75
+    assert out["by_stage"]["short_title"] == 0.01
+
+def test_summarize_neon_empty():
+    out = run_cost_report.summarize_neon([])
+    assert out["total"] == 0.0 and out["by_stage"] == {}
