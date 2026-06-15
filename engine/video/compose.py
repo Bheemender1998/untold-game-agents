@@ -229,6 +229,10 @@ SUBSCRIBE_BEAT = {"kicker": "The Untold Game",
                   "text": "Subscribe for more untold stories.",
                   "seconds": 4}
 
+# Floor for how long a single chapter headline may stay on screen; anything shorter is
+# absorbed into a neighbour so a placement miss can't flash many headlines at once.
+HEADLINE_MIN_S = 3.0
+
 
 # ── Narrated mode: section headlines + alignment ─────────────────────────────
 
@@ -311,6 +315,31 @@ def locate_anchor(words: list[dict], anchor: str, start: int = 0) -> int | None:
     return None
 
 
+def _dedup_and_clamp_headlines(headlines: list[dict], total_s: float) -> list[dict]:
+    """Belt-and-suspenders after time assignment: (1) merge consecutive identical headlines into
+    one span; (2) absorb any headline shorter than HEADLINE_MIN_S seconds into the previous one
+    (or the next if it is first), so a placement miss can never flash many headlines at once."""
+    if not headlines:
+        return []
+    merged: list[dict] = []
+    for h in headlines:
+        if merged and h["headline"] == merged[-1]["headline"]:
+            merged[-1]["end"] = h["end"]
+        else:
+            merged.append(dict(h))
+    out: list[dict] = []
+    for h in merged:
+        if out and (h["end"] - h["start"]) < HEADLINE_MIN_S:
+            out[-1]["end"] = h["end"]
+        else:
+            out.append(h)
+    if len(out) >= 2 and (out[0]["end"] - out[0]["start"]) < HEADLINE_MIN_S:
+        out[1]["start"] = out[0]["start"]
+        out.pop(0)
+    out[-1]["end"] = total_s
+    return out
+
+
 def assign_headline_times(sections: list[dict], words: list[dict] | None,
                           total_dur: float, narration: str) -> list[dict]:
     """Map each chapter to a [start, end] time span. With whisper `words`, locate each
@@ -364,7 +393,7 @@ def assign_headline_times(sections: list[dict], words: list[dict] | None,
         end = starts[i + 1] if i + 1 < len(starts) else total_dur
         out.append({"headline": sec["headline"], "start": round(starts[i], 3),
                     "end": round(max(end, starts[i]), 3)})
-    return out
+    return _dedup_and_clamp_headlines(out, total_dur)
 
 
 # ── Hybrid HTML (headline band + synced caption line + audio) ─────────────────

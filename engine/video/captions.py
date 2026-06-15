@@ -10,6 +10,7 @@ still renders). See run_video / compose for the auto-fallback.
 A "caption chunk" anywhere below is {'text': str, 'start': float, 'end': float}.
 """
 from __future__ import annotations
+import difflib
 import json
 import re
 import subprocess
@@ -90,6 +91,66 @@ def chunk_words_to_captions(words: list[dict], max_words: int = 8,
             flush()
     flush()
     return chunks
+
+
+def _norm_tok(s: str) -> str:
+    """Lowercase, strip non-alphanumerics — for MATCHING only (not display)."""
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def align_to_script(whisper_words: list[dict], narration_text: str) -> list[dict]:
+    """Project the SCRIPT's words onto whisper's timings so caption/headline TEXT is the
+    script (correct names, hyphens, abbreviations) while TIMING comes from whisper.
+
+    whisper_words: [{word,start,end}] (seconds). Returns the same shape with script text.
+    - equal/replace: script words take the matched whisper span (split proportionally by
+      char length when counts differ);
+    - delete (script word whisper dropped): timing interpolated between known neighbours;
+    - insert (whisper word not in script): dropped.
+    Falls back to whisper_words unchanged if either side is empty (never crashes a render)."""
+    swords = [w for w in re.split(r"\s+", (narration_text or "").strip()) if w]
+    if not whisper_words or not swords:
+        return whisper_words
+    wnorm = [_norm_tok(w["word"]) for w in whisper_words]
+    snorm = [_norm_tok(w) for w in swords]
+    out: list[dict] = []
+    sm = difflib.SequenceMatcher(a=snorm, b=wnorm, autojunk=False)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "insert":
+            continue
+        sseg = swords[i1:i2]
+        if tag == "delete":
+            for w in sseg:
+                out.append({"word": w, "start": None, "end": None})
+            continue
+        wseg = whisper_words[j1:j2]
+        t0, t1 = wseg[0]["start"], wseg[-1]["end"]
+        span = max(0.0, t1 - t0)
+        lengths = [max(1, len(w)) for w in sseg]
+        total = sum(lengths)
+        cursor = t0
+        for w, ln in zip(sseg, lengths):
+            dur = span * (ln / total) if total else 0.0
+            out.append({"word": w, "start": cursor, "end": cursor + dur})
+            cursor += dur
+    n = len(out)
+    for k in range(n):
+        if out[k]["start"] is not None:
+            continue
+        prev = next((out[p]["end"] for p in range(k - 1, -1, -1) if out[p]["end"] is not None), None)
+        nxt = next((out[q]["start"] for q in range(k + 1, n) if out[q]["start"] is not None), None)
+        lo = prev if prev is not None else (nxt if nxt is not None else 0.0)
+        hi = nxt if nxt is not None else lo
+        run = []
+        q = k
+        while q < n and out[q]["start"] is None:
+            run.append(q)
+            q += 1
+        step = (hi - lo) / (len(run) + 1)
+        for m, q in enumerate(run, start=1):
+            out[q]["start"] = lo + step * m
+            out[q]["end"] = lo + step * (m + 0.5)
+    return out
 
 
 # Spoken-number word → value, for collapsing whisper tokens back to digits in captions.

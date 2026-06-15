@@ -334,6 +334,27 @@ _SENT_START = (r"The|This|That|These|Those|It|He|She|They|We|You|I|But|And|Or|Ye
 _INITIALISM_BREAK = re.compile(rf"(?<=[A-Z]\.)\s+(?=(?:{_SENT_START})\b)")
 
 
+def _merge_staccato_runs(chunks: list[str], min_run: int = 3, max_words: int = 2) -> list[str]:
+    """Kokoro over-pads/loops very short single-word utterances (each ~1.8s vs ~0.5s/word),
+    so a run of staccato sentences ('Possession. Pass. Possession. Pass.') balloons and loops.
+    Merge a RUN of >= min_run consecutive <= max_words-word chunks into ONE chunk so they are
+    spoken as a single flowing phrase. Non-runs are left exactly as-is."""
+    out: list[str] = []
+    i, n = 0, len(chunks)
+    while i < n:
+        if len(chunks[i].split()) <= max_words:
+            j = i
+            while j < n and len(chunks[j].split()) <= max_words:
+                j += 1
+            if j - i >= min_run:
+                out.append(" ".join(chunks[i:j]))
+                i = j
+                continue
+        out.append(chunks[i])
+        i += 1
+    return out
+
+
 def _split_sentences(text: str) -> list[str]:
     """Sentence split for chunked synthesis (keeps terminal punctuation). Dotted initialisms
     (O.J., U.S., D.C., I.R.S.) and common abbreviations (Dr., Mr., No.) are protected so they
@@ -353,4 +374,4 @@ def _split_sentences(text: str) -> list[str]:
         # produces no phonemes and crashes kokoro.create — never emit one.
         out.extend(s.strip() for s in _INITIALISM_BREAK.split(p)
                    if s.strip() and re.search(r"[^\W_]", s))
-    return out
+    return _merge_staccato_runs(out)

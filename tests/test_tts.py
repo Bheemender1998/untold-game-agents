@@ -334,3 +334,30 @@ def test_other_thematic_breaks_yield_no_symbol_only_chunk():
         out = tts.script_to_narration_text(f"Beat one ends.\n\n{rule}\n\nBeat two starts.")
         chunks = tts._split_sentences(out)
         assert chunks == ["Beat one ends.", "Beat two starts."], rule
+
+
+def test_merge_staccato_run_collapses_short_repeats():
+    chunks = ["Possession.", "Pass.", "Possession.", "Pass."]
+    assert tts._merge_staccato_runs(chunks) == ["Possession. Pass. Possession. Pass."]
+
+
+def test_merge_staccato_leaves_normal_chunks():
+    chunks = ["He grinds it out.", "But it works."]
+    assert tts._merge_staccato_runs(chunks) == chunks
+
+
+def test_merge_staccato_below_threshold_untouched():
+    chunks = ["Yes.", "No."]          # only 2 short chunks -> below the run-of-3 floor
+    assert tts._merge_staccato_runs(chunks) == chunks
+
+
+def test_merge_staccato_only_merges_the_run_not_neighbours():
+    chunks = ["A long opening line here.", "Go.", "Now.", "Stop.", "Another long closing line."]
+    assert tts._merge_staccato_runs(chunks) == [
+        "A long opening line here.", "Go. Now. Stop.", "Another long closing line."]
+
+
+def test_split_sentences_applies_the_merge():
+    # end-to-end through the real splitter
+    assert tts._split_sentences("Possession. Pass. Possession. Pass.") == \
+        ["Possession. Pass. Possession. Pass."]
