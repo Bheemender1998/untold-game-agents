@@ -278,39 +278,63 @@ _TEASE_STOP = {"the", "this", "that", "then", "they", "he", "she", "it", "and", 
                "when", "now"}
 
 
-def _name_inflection_match(tok: str, whole_long_tokens: set[str]) -> bool:
-    """Inflection tolerance for the proper-noun guard: a short name counts as contained when it
-    shares a ≥4-char prefix with a WHOLE verified long token, either direction — so America~American,
-    Soviet~Soviets, Russia~Russian pass. The ≥4 floor keeps acronyms/initialisms (NBA, USA) strict;
-    matching only WHOLE long tokens (not hyphen/apostrophe components) avoids spurious passes like
-    short 'Antimatter' against a long 'Anti-Drug'. Digit groups are NEVER inflection-matched — a
-    fabricated number must still flag (the caller checks numbers exactly)."""
-    return any(
-        (lw.startswith(tok) or tok.startswith(lw)) and min(len(lw), len(tok)) >= 4
-        for lw in whole_long_tokens
-    )
+# English nationality/plural inflections — the only suffix deltas that count as "same entity"
+# for the proper-noun guard (America→American, Soviet→Soviets, Olympic→Olympics, Iraq→Iraqi).
+_INFLECTION_SUFFIXES = ("s", "es", "n", "ns", "an", "ans", "ian", "ians", "ish", "ese", "i")
+
+
+def _name_inflection_match(tok: str, caps_long_tokens: set[str]) -> bool:
+    """Inflection tolerance for the proper-noun guard: a short name counts as contained when it is
+    an English inflection of a CAPITALIZED whole long token — one is the other plus a
+    nationality/plural suffix (America~American, Soviet~Soviets, Olympic~Olympics). Deliberately
+    narrow so it does NOT let unrelated names through:
+      - matches only capitalized long tokens, so a short name can't latch onto a lowercase common
+        word ('Mark' must not pass off a long 'market');
+      - requires the length delta to be exactly a known inflectional suffix, so prefix collisions
+        between distinct entities still flag ('Mars'~'Marshall', 'Mali'~'Malik', 'Cars'~'Carson').
+      - requires the stem (shorter token) to be ≥4 chars, so short distinct names can't collide
+        with a longer one via a 1-char suffix ('Ira'~'Iran', 'Mal'~'Mali', 'Eva'~'Evan' all flag;
+        'America'~'American', 'Soviet'~'Soviets', 'Iraq'~'Iraqi' still pass).
+    KNOWN LIMITATION (accepted, fail-soft): because the 'n'/'ian'/'s' suffixes that carry real
+    inflections (America→American) are string-identical to coincidental collisions between two
+    DISTINCT ≥4-char proper nouns ('Roma'→'Roman', 'Norma'→'Norman', 'Cass'→'Cassian'), those rare
+    pairs can pass. Distinguishing them needs entity resolution (a demonym list / NER), out of scope
+    for a deterministic backstop. The exposure is narrow — the short must introduce a NEW name absent
+    from the long that is exactly a verified long name minus an inflectional suffix — and the long is
+    already human-fact-reviewed, so this was reviewed and accepted rather than chased to zero.
+    Digit groups are NEVER inflection-matched — a fabricated number must flag (caller checks exact)."""
+    for lw in caps_long_tokens:
+        if lw == tok:
+            continue
+        shorter, longer = (tok, lw) if len(tok) < len(lw) else (lw, tok)
+        if (len(shorter) >= 4 and longer.startswith(shorter)
+                and longer[len(shorter):] in _INFLECTION_SUFFIXES):
+            return True
+    return False
 
 
 def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[str]]:
     """Deterministic integrity guard (no network): every factual specific in the short —
     capitalized proper-noun tokens and digit groups — must already appear in the long. A short
-    proper noun matches a whole long token, a hyphen/apostrophe-delimited component of one, or a
-    ≥4-char prefix-shared inflection of a whole long token (America~American); digit groups must
-    match exactly (never a substring or prefix). Returns (ok, sorted_new_tokens); a non-empty list
-    means the short introduced something the verified long didn't contain → short_needs_review.
+    proper noun matches a whole long token, a hyphen/apostrophe-delimited component of one, or an
+    inflection of a capitalized whole long token (America~American — see _name_inflection_match);
+    digit groups must match exactly (never a substring or prefix). Returns (ok, sorted_new_tokens);
+    a non-empty list means the short introduced something the long didn't contain → short_needs_review.
     Scope note: this catches capitalized names and digit groups; spelled-out numbers and
     lowercase novel nouns are intentionally not caught — the short is also constrained by the
     derive prompt and the long is already fact-gated, so this is a conservative backstop."""
     # The long tokenizer KEEPS hyphens/apostrophes (e.g. "Anti-Drug", "O'Neill" are single
     # tokens), but _TEASE_NAME_RE below SPLITS proper nouns on those joiners ("Anti", "Neill").
-    # `whole` holds the unsplit tokens (used for inflection prefix-matching); `long_words` adds
-    # the hyphen/apostrophe components too, so a long "Anti-Drug" exact-covers a short "Anti".
-    whole: set[str] = set()
+    # `long_words` adds the components too, so a long "Anti-Drug" exact-covers a short "Anti".
+    # `caps` holds only Capitalized whole tokens (proper nouns) for inflection matching — so a
+    # short name can't inflection-match a lowercase common word.
+    caps: set[str] = set()
     long_words: set[str] = set()
     for w in re.findall(r"\b[\w'\-]+\b", long_script):
         wl = w.lower()
-        whole.add(wl)
         long_words.add(wl)
+        if w[:1].isupper():
+            caps.add(wl)
         parts = re.split(r"[-']", w)
         if len(parts) > 1:
             long_words.update(p.lower() for p in parts if p)
@@ -320,7 +344,7 @@ def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[s
         tl = tok.lower()
         if len(tok) < 3 or tl in _TEASE_STOP:
             continue
-        if tl not in long_words and not _name_inflection_match(tl, whole):
+        if tl not in long_words and not _name_inflection_match(tl, caps):
             new.add(tok)
     for num in _TEASE_NUM_RE.findall(short_script):
         if num not in long_nums:
