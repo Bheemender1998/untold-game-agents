@@ -4,6 +4,32 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 20 (2026-06-15) — auto-thumbnail-on-render (#65) · Haiku $0 cost bug fixed (#66) · 3 thumbnails sourced
+
+Two shipped changes, both via the full `ship-video-change` rail (TDD + dual adversarial review, gate 0 Critical/0 Important from Codex **and** Claude). Both started from questions the user raised, not a backlog.
+
+### Shipped to main
+- **#65** — `feat(thumbnail)`: **auto-chain thumbnail generation into the render pipeline.** New self-stubbing `_ensure_thumbnail(idea_id, fmt)` in `run_auto.py`, called after a successful render — long via `_render_and_qc` (runs regardless of QC verdict), short via `_companion_short` (QC-passed branch). Sources subject (Wikipedia→Pexels) + composites; **skips if a thumbnail already exists** (never clobbers hand-work); self-stubs on failure. Also a non-blocking **approve-time warning** in `cmd_approve` when no thumbnail exists (long + short) — closes the silent-default-frame gap. In-process calls (main env) respect the two-venv split. Full brainstorm→spec→plan→subagent-driven (4 tasks). Spec/plan: `docs/superpowers/specs|plans/2026-06-15-auto-chain-thumbnail-render*`. Memory: `auto-thumbnail-on-render`.
+- **#66** — `fix(cost)`: **Haiku no longer logs $0** (was the S19 open item #4 / bug #58). `PRICING` keyed on the alias `claude-haiku-4-5`, but the API returns the dated id `claude-haiku-4-5-20251001` in `resp.model` → lookup missed → $0. New `_pricing_key()` strips a trailing `-YYYYMMDD` (regex `-\d{8}$`) before the lookup in `cost_usd()` **and** the warning in `record()`; ledger still stores the real id. One change covers JSONL + the Neon `api_costs` insert (both funnel through `cost_usd`). Memory `haiku-pricing-key-bug` flipped to FIXED. Impact was accounting-only — the real bill always charged Haiku's lower rate.
+
+### Ops
+- Ran the new chain (production `_ensure_thumbnail`) on the **3 `awaiting_approval` longs** that lacked thumbnails: `adfea6c1` (Pexels), `af86c186` (Pexels), `e1bbe900` (Wikipedia) — all now have composited `thumbnail.jpg`. Idempotency/never-clobber verified by re-run.
+
+### Open / next
+1. **Publish the 6 `awaiting_approval` videos** (3 long + 3 short from S19) — still pending (`publish-video`). The 3 longs now have auto-sourced thumbnails; shorts still need 9:16 thumbnails (chain only run on `long` this session).
+2. **Auto-sourced framing is imperfect** — `e1bbe900`'s subject is cropped at the forehead. For covers you care about, drop a hand-picked `produced/<id>/<fmt>/subject.png` and re-run; the chain skips if a `thumbnail.jpg` already exists (delete it to force a regen).
+3. Pre-flight QC lint (S19 item #1) already shipped as **#64** before this session — see memory `preflight-qc-lint`.
+
+### Watch-outs (harness)
+- **`gh pr create` gate reads the raw command string** — `--body-file` and `$(cat ...)` don't satisfy the `Adversarial-Reviewed:`/`Docs-Synced:` trailer check; the trailer must be **literal inline** in the `--body "..."` arg.
+- **Force-push is blocked** (not authorized). If an amend rewrites an already-pushed commit, don't `push -f` — `git reset --soft origin/<branch>` and re-commit as a **separate** commit to fast-forward.
+- **`gh pr merge --delete-branch` leaves the shell on an arbitrary local branch** (a parallel session's, once) — `git checkout main` after merging.
+
+### Suggested skills next session
+`publish-video` (the 6 ready videos); `thumbnail-assets` (hand-source shorts / fix `e1bbe900` framing — now the manual override/force-regen path).
+
+---
+
 ## Session 19 (2026-06-15) — fact-gate + short-guard fixes · 3 longs+3 shorts reviewed/rendered · long-form caption/headline overhaul
 
 The session that ran **concurrent with Session 18** (worktree `.tease-wt`). Fixed three engine bugs, fact-reviewed + rendered the 3-long/3-short batch, and root-caused + fixed the long-form caption/headline/TTS quality defects. All work via worktrees + `ship-video-change` dual review.
