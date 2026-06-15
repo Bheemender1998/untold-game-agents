@@ -1,9 +1,14 @@
 import json
+from engine import config
 from engine import queue_manager as q
 from engine.queue import json_backend
 
 
 def _seed(tmp_path, monkeypatch, ideas):
+    # Force the JSON backend: the queue dispatcher (engine/queue/__init__._active) routes to Neon
+    # whenever config.DATABASE_URL is set, and config loads it from .env — so without this these
+    # JSON-fixture tests query Neon and the seeded ideas are invisible (get_by_id → None).
+    monkeypatch.setattr(config, "DATABASE_URL", None, raising=False)
     qf = tmp_path / "idea_queue.json"
     qf.write_text(json.dumps(ideas))
     monkeypatch.setattr(json_backend, "QUEUE_FILE", str(qf))
