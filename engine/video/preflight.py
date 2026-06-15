@@ -23,9 +23,12 @@ def _needs_left_merge(tok: str) -> bool:
     t = (tok or "").strip()
     if not t:
         return True
-    if t[0] in _JOIN_PUNCT:
+    if _PUNCT_ONLY.match(t):
         return True
-    return bool(_PUNCT_ONLY.match(t))
+    # A continuation fragment starts with closing punctuation and carries NO letters
+    # (e.g. ',000', '000.', '.50') — so an opening-quote word like '"No"' or a leading-dash
+    # word is NOT swallowed (that would corrupt legitimate text).
+    return t[0] in _JOIN_PUNCT and not re.search(r"[^\W\d_]", t, re.UNICODE)
 
 
 def _join_space(prev: str, tok: str) -> str:
@@ -55,13 +58,19 @@ def _fix_punct_captions(caps: list[dict]) -> tuple[list[dict], list[dict]]:
     out: list[dict] = []
     muts: list[dict] = []
     for c in caps:
-        if out and _needs_left_merge(c["text"]):
-            prev = out[-1]
-            merged = _join_space(prev["text"], c["text"])
-            muts.append({"type": "merge", "reason": "orphan_punct",
-                         "from": [prev["text"], c["text"]], "into": merged})
-            prev["text"] = merged
-            prev["endMs"] = max(prev["endMs"], c["endMs"])
+        if _needs_left_merge(c["text"]):
+            if out:
+                prev = out[-1]
+                merged = _join_space(prev["text"], c["text"])
+                muts.append({"type": "merge", "reason": "orphan_punct",
+                             "from": [prev["text"], c["text"]], "into": merged})
+                prev["text"] = merged
+                prev["endMs"] = max(prev["endMs"], c["endMs"])
+            else:
+                # Leading orphan-punct has no predecessor to merge into → drop it
+                # (a caption can't begin with a stray ',000' / '.').
+                muts.append({"type": "drop", "token": c["text"], "reason": "orphan_punct",
+                             "at_ms": c["startMs"]})
         else:
             out.append(dict(c))
     return out, muts
@@ -89,15 +98,20 @@ def _fix_past_audio(caps: list[dict], narration_ms: int, tol: int) -> tuple[list
     muts: list[dict] = []
     limit = narration_ms + tol
     for c in caps:
-        if c["startMs"] > limit:
+        # A token whose START is at/after the audio end is a ghost — DROP it. Clamping
+        # would leave a zero/negative-duration token that _fix_min_duration then pushes
+        # back past the boundary (gap #2 / review).
+        if c["startMs"] >= narration_ms:
             muts.append({"type": "drop", "token": c["text"], "reason": "ghost_after_audio",
                          "at_ms": c["startMs"]})
             continue
-        if c["endMs"] > narration_ms:
-            new_end = max(narration_ms, c["startMs"])   # never invert
+        # Starts during the audio but ends well past it (beyond the tolerated overhang)
+        # → straddle, clamp the end back to the audio length. A small overhang within
+        # `tol` is left alone (matches the re-verify detector's threshold).
+        if c["endMs"] > limit:
             muts.append({"type": "clamp", "token": c["text"], "reason": "past_audio",
-                         "from": [c["startMs"], c["endMs"]], "to": [c["startMs"], new_end]})
-            d = dict(c); d["endMs"] = new_end; out.append(d)
+                         "from": [c["startMs"], c["endMs"]], "to": [c["startMs"], narration_ms]})
+            d = dict(c); d["endMs"] = narration_ms; out.append(d)
         else:
             out.append(dict(c))
     return out, muts
@@ -127,15 +141,18 @@ def _fix_min_duration(caps: list[dict], fps: int) -> tuple[list[dict], list[dict
 
 def _fix_overlap(caps: list[dict], fps: int) -> tuple[list[dict], list[dict]]:
     """Rule 4: enforce monotonic non-overlapping captions. Clamp start to the previous
-    end; if that would invert the token, give it one frame so it stays valid."""
-    frame_ms = int(round(1000.0 / fps))
+    end; if that clamp would leave the token shorter than one whole frame, extend the end
+    to the next frame so it stays visible (and so re-verify can't block on it). Runs last,
+    so extending an end only pushes the NEXT token's clamp forward — monotonicity holds."""
     out: list[dict] = []
     muts: list[dict] = []
     for c in caps:
         c = dict(c)
         if out and c["startMs"] < out[-1]["endMs"]:
             new_start = out[-1]["endMs"]
-            new_end = c["endMs"] if c["endMs"] >= new_start else new_start + frame_ms
+            new_end = c["endMs"]
+            if _frame_index(new_end, fps) <= _frame_index(new_start, fps):
+                new_end = int(round((_frame_index(new_start, fps) + 1) * 1000.0 / fps))
             muts.append({"type": "clamp", "token": c["text"], "reason": "non_monotonic",
                          "from": [c["startMs"], c["endMs"]], "to": [new_start, new_end]})
             c["startMs"], c["endMs"] = new_start, new_end
@@ -218,7 +235,7 @@ def lint_props(props: dict, fps: int, narration_ms: int) -> tuple[dict, dict]:
     bad_dur = [i for i, c in enumerate(caps)
                if _frame_index(c["endMs"], fps) <= _frame_index(c["startMs"], fps)]
     past = [i for i, c in enumerate(caps) if c["endMs"] > narration_ms + config.QC_CAPTION_END_TOL_MS]
-    punct = [i for i, c in enumerate(caps) if i > 0 and _needs_left_merge(c["text"])]
+    punct = [i for i, c in enumerate(caps) if _needs_left_merge(c["text"])]
     oversize = _detect_oversize(caps, config.QC_MAX_CAPTION_TOKEN_CHARS)
     h_overlap = [i for i in range(1, len(ch)) if ch[i]["startMs"] < ch[i - 1]["endMs"]]
     h_dup = [i for i in range(1, len(ch))

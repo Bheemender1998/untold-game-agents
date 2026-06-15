@@ -167,3 +167,55 @@ def test_lint_props_does_not_mutate_input():
     src = _props(caps, [{"headline": "A", "startMs": 0, "endMs": 5000}])
     preflight.lint_props(src, fps=30, narration_ms=200000)
     assert src["captions"][0]["text"] == ",000"   # original untouched (deep-copied)
+
+
+# ── Adversarial-review regression tests (Codex findings, 2026-06-15) ──
+
+def test_needs_left_merge_keeps_opening_quote_word():
+    # An opening-quote word must NOT be swallowed (would corrupt 'said' + '"No"' → 'said"No"').
+    assert preflight._needs_left_merge('"No"') is False
+    assert preflight._needs_left_merge("“Yes”") is False
+    assert preflight._needs_left_merge('"') is True       # a bare quote is still a continuation
+    assert preflight._needs_left_merge(".50") is True     # punct + digits, no letters → merge
+
+
+def test_opening_quote_word_not_merged():
+    caps = [{"text": "said", "startMs": 0, "endMs": 300},
+            {"text": '"No"', "startMs": 300, "endMs": 600}]
+    fixed, muts = preflight._fix_punct_captions(caps)
+    assert [c["text"] for c in fixed] == ["said", '"No"']
+    assert muts == []
+
+
+def test_leading_orphan_punct_is_dropped():
+    caps = [{"text": ",000", "startMs": 0, "endMs": 500},
+            {"text": "fans", "startMs": 500, "endMs": 900}]
+    fixed, muts = preflight._fix_punct_captions(caps)
+    assert [c["text"] for c in fixed] == ["fans"]
+    assert muts == [{"type": "drop", "token": ",000", "reason": "orphan_punct", "at_ms": 0}]
+
+
+def test_zero_duration_ghost_in_grace_zone_is_dropped_not_clamped():
+    # Starts after audio (within tol) AND zero-duration: must drop, not clamp-then-bump-past-audio.
+    caps = [{"text": "x", "startMs": 1490, "endMs": 1490}]
+    fixed, muts = preflight._fix_past_audio(caps, narration_ms=1000, tol=500)
+    assert fixed == []
+    assert muts[0]["reason"] == "ghost_after_audio"
+
+
+def test_overlap_clamp_leaves_at_least_one_frame():
+    # Tight overlap whose clamp would land both ends in the same frame must be extended.
+    caps = [{"text": "a", "startMs": 0, "endMs": 117},
+            {"text": "b", "startMs": 90, "endMs": 120}]
+    fixed, _ = preflight._fix_overlap(caps, fps=30)
+    assert preflight._frame_index(fixed[1]["endMs"], 30) > preflight._frame_index(fixed[1]["startMs"], 30)
+
+
+def test_lint_props_ordering_does_not_spuriously_block():
+    # The min-duration → overlap interaction must auto-resolve, not block.
+    caps = [{"text": "a", "startMs": 0, "endMs": 117},
+            {"text": "b", "startMs": 90, "endMs": 120}]
+    ch = [{"headline": "A", "startMs": 0, "endMs": 5000}]
+    props = {"audioSrc": "n.wav", "narrationMs": 200000, "fps": 30, "captions": caps, "chapters": ch}
+    _, report = preflight.lint_props(props, fps=30, narration_ms=200000)
+    assert report["blocked"] is False
