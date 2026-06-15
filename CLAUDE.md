@@ -47,6 +47,7 @@ python3 -m engine.run_pipeline --review   # review the existing queue, no genera
 python3 -m engine.run_pipeline --stats    # queue stats only
 python3 -m engine.run_produce --id <id> [--format short] [--metadata-only]  # script+metadata (—metadata-only = retitle, no re-render)
 python3 -m engine.run_thumbnail --id <id> [--format short]  # composite thumbnail from produced/<id>/<fmt>/subject.png
+python3 -m engine.run_preflight --id <id> [--format short] [--fix]  # pre-flight QC lint of props.json (auto-fix caption/headline defects; --fix rewrites props.json + captions.srt). Runs automatically inside run_video before each render.
 python3 -m engine.run_subject --id <id> [--format short]   # auto-source subject.png (Wikipedia lead image → Pexels fallback; human photo wins)
 python3 -m engine.run_banner              # generate channel/banner.png + description.txt (manual upload to Studio)
 python3 -m engine.run_cost_report [--run <id>]  # per-run API cost summary from logs/api-cost.jsonl (overnight.sh runs this automatically; warns if a run exceeds COST_ALERT_USD=$10)
@@ -67,6 +68,7 @@ re-deriving flags each session:
 | `publish-video` | `run_auto --approve/--render` — publish or re-render |
 | `cost-report` | `run_cost_report` — API spend summary + triage |
 | `fact-review` | human-grade re-check of a `needs_review` script |
+| `preflight-qc` | `run_preflight` — lint props.json before render |
 | `ship-video-change` | the release rail for `engine/*.py` changes |
 | `handoff` | append a session wrap to `HANDOFF.md` |
 
@@ -75,6 +77,12 @@ re-deriving flags each session:
 Stage 1 (idea generation) is proven LIVE. Do **not** build Stage 2 (publishing)
 features speculatively — prove each stage's value before expanding surface. The
 publishing pipeline is justified only once real, approved ideas exist to publish.
+
+A render is **blocked** if the pre-flight QC lint (`engine/video/preflight.py`, auto-run in
+`run_video` before each Remotion render) finds an unfixed CRITICAL caption/headline/timing
+defect — the idea is marked `needs_review`. Deterministic defects (split numbers, zero-duration
+captions, overlaps, duplicate headlines) are auto-corrected once, then re-verified. See
+docs/superpowers/specs/2026-06-15-preflight-qc-lint-design.md.
 
 ## Hard rules (inherited from ConvictionFinder, adapted)
 
