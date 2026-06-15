@@ -59,8 +59,11 @@ PRICING = {
 1. `resp = client.messages.create(**kwargs)` — the API call itself is NOT wrapped in
    try/except; a real API failure must propagate exactly as it does today.
 2. In a `try/except` that swallows all errors (self-stub rule): read `resp.usage`, compute
-   USD via `PRICING[resp.model]` (fall back to a 0-cost row + warning if the model is
-   unknown), append one JSON line to the ledger.
+   USD via `PRICING[_pricing_key(resp.model)]` — the API returns a resolved *dated* id
+   (e.g. `claude-haiku-4-5-20251001`) while `PRICING` is keyed on the alias, so a trailing
+   `-YYYYMMDD` is stripped before the lookup (fall back to a 0-cost row + warning if the
+   model is still unknown). The ledger row stores the raw `resp.model` for fidelity. Append
+   one JSON line to the ledger.
 3. `return resp` — untouched.
 
 **Ledger: `logs/api-cost.jsonl`** — one row per call:
