@@ -11,7 +11,13 @@ def over_run_cap(run_spent: float, cap: float) -> bool:
 
 
 def monthly_spent_usd() -> float:
-    """Sum of api_costs over the trailing 30 days (Neon). 0.0 if no DB."""
+    """Sum of api_costs over a rolling, trailing 30-day window (Neon). 0.0 if no DB.
+
+    Intentionally a rolling 30 days, NOT a calendar month (date_trunc('month')):
+    a rolling window is the stricter guard for an unattended cron — a calendar
+    month would reset the budget to $0 on the 1st, allowing a fresh full spend
+    immediately after a late-month spike. The "monthly" cap is the ~30-day knob.
+    """
     if not DATABASE_URL:
         return 0.0
     from engine.queue import neon_backend

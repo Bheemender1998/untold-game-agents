@@ -16,17 +16,17 @@ def load_ideas(path: str = QUEUE_FILE) -> list:
 
 def main():
     ideas = load_ideas()
-    n = 0
-    for idea in ideas:
-        # bypass the score filter: migrate existing rows verbatim via upsert
-        with neon_backend._conn() as c:
+    # One connection for the whole import (not one per idea). Bypass the score
+    # filter: migrate existing rows verbatim via upsert.
+    with neon_backend._conn() as c:
+        for idea in ideas:
             c.execute(
                 "INSERT INTO ideas (id,status,viral_score,source_agent,created_at,data) "
                 "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO UPDATE SET "
                 "status=EXCLUDED.status, viral_score=EXCLUDED.viral_score, "
                 "source_agent=EXCLUDED.source_agent, data=EXCLUDED.data",
                 neon_backend._promoted(idea))
-        n += 1
+    n = len(ideas)
     print(f"migrated {n} ideas into Neon")
     return n
 
