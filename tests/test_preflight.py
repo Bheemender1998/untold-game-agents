@@ -90,3 +90,25 @@ def test_healthy_caption_unchanged_by_min_duration():
     fixed, muts = preflight._fix_min_duration(caps, fps=30)
     assert fixed[0]["endMs"] == 500
     assert muts == []
+
+
+def test_overlap_clamped_to_previous_end():
+    caps = [{"text": "a", "startMs": 0, "endMs": 500},
+            {"text": "b", "startMs": 300, "endMs": 800}]   # starts before a ends
+    fixed, muts = preflight._fix_overlap(caps, fps=30)
+    assert fixed[1]["startMs"] == 500
+    assert fixed[1]["endMs"] == 800
+    assert muts[0]["type"] == "clamp" and muts[0]["reason"] == "non_monotonic"
+
+
+def test_overlap_clamp_keeps_min_frame_when_inverted():
+    caps = [{"text": "a", "startMs": 0, "endMs": 500},
+            {"text": "b", "startMs": 300, "endMs": 400}]   # clamp start→500 would invert
+    fixed, _ = preflight._fix_overlap(caps, fps=30)
+    assert fixed[1]["endMs"] >= fixed[1]["startMs"]
+
+
+def test_detect_oversize_tokens():
+    caps = [{"text": "ok", "startMs": 0, "endMs": 100},
+            {"text": "x" * 40, "startMs": 100, "endMs": 200}]
+    assert preflight._detect_oversize(caps, max_chars=25) == [1]

@@ -123,3 +123,26 @@ def _fix_min_duration(caps: list[dict], fps: int) -> tuple[list[dict], list[dict
             c["endMs"] = new_end
         out.append(c)
     return out, muts
+
+
+def _fix_overlap(caps: list[dict], fps: int) -> tuple[list[dict], list[dict]]:
+    """Rule 4: enforce monotonic non-overlapping captions. Clamp start to the previous
+    end; if that would invert the token, give it one frame so it stays valid."""
+    frame_ms = int(round(1000.0 / fps))
+    out: list[dict] = []
+    muts: list[dict] = []
+    for c in caps:
+        c = dict(c)
+        if out and c["startMs"] < out[-1]["endMs"]:
+            new_start = out[-1]["endMs"]
+            new_end = c["endMs"] if c["endMs"] >= new_start else new_start + frame_ms
+            muts.append({"type": "clamp", "token": c["text"], "reason": "non_monotonic",
+                         "from": [c["startMs"], c["endMs"]], "to": [new_start, new_end]})
+            c["startMs"], c["endMs"] = new_start, new_end
+        out.append(c)
+    return out, muts
+
+
+def _detect_oversize(caps: list[dict], max_chars: int) -> list[int]:
+    """Rule 11 (warn): a single caption token longer than max_chars is a glued defect."""
+    return [i for i, c in enumerate(caps) if len(c["text"]) > max_chars]
