@@ -243,6 +243,43 @@ def test_tease_within_long_still_flags_truly_new_hyphenated_token():
     assert not ok and "Anti" in extra
 
 
+def test_tease_within_long_inflection_variant_passes():
+    from engine.pipeline import script
+    # Regression: long says "American" (never bare "America"); short says "America". Different
+    # surface form, same entity — a ≥4-char shared prefix must count as contained, not flag.
+    long = "American men won every Olympic basketball game since 1936."
+    short = "America had won every game since 1936."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_plural_inflection_passes():
+    from engine.pipeline import script
+    long = "The Soviet team practiced for years before Munich."
+    short = "The Soviets were ready in Munich."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_inflection_matches_whole_tokens_only():
+    from engine.pipeline import script
+    # Don't over-widen: prefix-match only WHOLE long tokens, never hyphen components. A long
+    # "Anti-Drug" must NOT let a short "Antimatter" through via the bare "anti" component.
+    long = "Reagan signed the Anti-Drug Abuse Act."
+    short = "He studied Antimatter physics."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "Antimatter" in extra
+
+
+def test_tease_within_long_short_acronym_stays_strict():
+    from engine.pipeline import script
+    # The ≥4 floor means a 3-char proper noun can't inflection-match a longer long token.
+    long = "Abudhabi hosted the race."   # 'NBA' must not prefix-match anything here
+    short = "He changed the NBA forever."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "NBA" in extra
+
+
 def test_tease_within_long_flags_new_acronym():
     from engine.pipeline import script
     long = "In 1984 Senna raced at Monaco."

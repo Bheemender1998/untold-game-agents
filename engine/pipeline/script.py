@@ -278,31 +278,49 @@ _TEASE_STOP = {"the", "this", "that", "then", "they", "he", "she", "it", "and", 
                "when", "now"}
 
 
+def _name_inflection_match(tok: str, whole_long_tokens: set[str]) -> bool:
+    """Inflection tolerance for the proper-noun guard: a short name counts as contained when it
+    shares a ≥4-char prefix with a WHOLE verified long token, either direction — so America~American,
+    Soviet~Soviets, Russia~Russian pass. The ≥4 floor keeps acronyms/initialisms (NBA, USA) strict;
+    matching only WHOLE long tokens (not hyphen/apostrophe components) avoids spurious passes like
+    short 'Antimatter' against a long 'Anti-Drug'. Digit groups are NEVER inflection-matched — a
+    fabricated number must still flag (the caller checks numbers exactly)."""
+    return any(
+        (lw.startswith(tok) or tok.startswith(lw)) and min(len(lw), len(tok)) >= 4
+        for lw in whole_long_tokens
+    )
+
+
 def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[str]]:
     """Deterministic integrity guard (no network): every factual specific in the short —
-    capitalized proper-noun tokens and digit groups — must already appear in the long, as a
-    whole token or a hyphen/apostrophe-delimited component of one (never a free substring).
-    Returns (ok, sorted_new_tokens); a non-empty list means the
-    short introduced something the verified long didn't contain → caller flags short_needs_review.
+    capitalized proper-noun tokens and digit groups — must already appear in the long. A short
+    proper noun matches a whole long token, a hyphen/apostrophe-delimited component of one, or a
+    ≥4-char prefix-shared inflection of a whole long token (America~American); digit groups must
+    match exactly (never a substring or prefix). Returns (ok, sorted_new_tokens); a non-empty list
+    means the short introduced something the verified long didn't contain → short_needs_review.
     Scope note: this catches capitalized names and digit groups; spelled-out numbers and
     lowercase novel nouns are intentionally not caught — the short is also constrained by the
     derive prompt and the long is already fact-gated, so this is a conservative backstop."""
     # The long tokenizer KEEPS hyphens/apostrophes (e.g. "Anti-Drug", "O'Neill" are single
     # tokens), but _TEASE_NAME_RE below SPLITS proper nouns on those joiners ("Anti", "Neill").
-    # Add each joined token's components too, so a long "Anti-Drug" covers a short "Anti" instead
-    # of false-flagging it. Splitting only widens coverage of the verified long, never the short.
+    # `whole` holds the unsplit tokens (used for inflection prefix-matching); `long_words` adds
+    # the hyphen/apostrophe components too, so a long "Anti-Drug" exact-covers a short "Anti".
+    whole: set[str] = set()
     long_words: set[str] = set()
     for w in re.findall(r"\b[\w'\-]+\b", long_script):
-        long_words.add(w.lower())
+        wl = w.lower()
+        whole.add(wl)
+        long_words.add(wl)
         parts = re.split(r"[-']", w)
         if len(parts) > 1:
             long_words.update(p.lower() for p in parts if p)
     long_nums = set(_TEASE_NUM_RE.findall(long_script))
     new: set[str] = set()
     for tok in _TEASE_NAME_RE.findall(short_script):
-        if len(tok) < 3 or tok.lower() in _TEASE_STOP:
+        tl = tok.lower()
+        if len(tok) < 3 or tl in _TEASE_STOP:
             continue
-        if tok.lower() not in long_words:
+        if tl not in long_words and not _name_inflection_match(tl, whole):
             new.add(tok)
     for num in _TEASE_NUM_RE.findall(short_script):
         if num not in long_nums:
