@@ -11,8 +11,19 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import re
 
 from engine.config import COST_LEDGER_PATH
+
+# The API echoes a resolved, dated model id (e.g. "claude-haiku-4-5-20251001") while PRICING
+# is keyed on the alias ("claude-haiku-4-5"). Strip a trailing -YYYYMMDD before the lookup so
+# dated ids price correctly instead of logging $0 (bug #58).
+_DATE_SUFFIX = re.compile(r"-\d{8}$")
+
+
+def _pricing_key(model: str) -> str:
+    """Normalize a returned model id to its PRICING alias by dropping a -YYYYMMDD suffix."""
+    return _DATE_SUFFIX.sub("", model or "")
 
 # Per-token USD, from the claude-api reference (2026-06): Sonnet 4.6 is
 # $3/1M input, $15/1M output; cache writes 1.25x input, cache reads 0.10x input.
@@ -34,7 +45,7 @@ PRICING = {
 
 def cost_usd(usage, model: str) -> float:
     """USD for one response's usage. Unknown model -> 0.0 (caller logs a warning)."""
-    rates = PRICING.get(model)
+    rates = PRICING.get(_pricing_key(model))
     if rates is None:
         return 0.0
     return (
@@ -54,7 +65,7 @@ def record(resp, stage: str) -> None:
     try:
         u = resp.usage
         model = getattr(resp, "model", "") or ""
-        if model not in PRICING:
+        if _pricing_key(model) not in PRICING:
             print(f"cost-track warning: unknown model {model!r}; logged $0")
         row = {
             "ts": datetime.datetime.now().isoformat(timespec="seconds"),
