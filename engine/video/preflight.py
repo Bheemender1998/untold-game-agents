@@ -13,7 +13,7 @@ from engine import config
 
 # Closing/joining punctuation: a token STARTING with one of these glues onto its
 # predecessor with no space (',000' → '$1,000'; '.' / ',' / '%').
-_JOIN_PUNCT = set(',.;:%)]\}\'"!?')
+_JOIN_PUNCT = set(",.;:%)]}" "'" '’"”!?')   # straight + curly closing punctuation
 _PUNCT_ONLY = re.compile(r"^[^\w]+$", re.UNICODE)   # token has no letters/digits at all
 
 
