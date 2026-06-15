@@ -13,8 +13,14 @@ from engine import config
 
 # Closing/joining punctuation: a token STARTING with one of these glues onto its
 # predecessor with no space (',000' → '$1,000'; '.' / ',' / '%').
-_JOIN_PUNCT = set(",.;:%)]}" "'" '’"”!?')   # straight + curly closing punctuation
+# Closing/joining punctuation ONLY — a token that LEADS with one of these is a trailing
+# fragment that glues onto the previous word with no space (',000', '.50', '”'). Straight
+# quotes (" ') and opening curly quotes (“ ‘) are deliberately excluded: they are ambiguous
+# openers, so a leading one means a standalone token ('"No"', '"42"'), not a continuation.
+_CONT_PUNCT = set(",.;:%)]}" "’”!?")
 _PUNCT_ONLY = re.compile(r"^[^\w]+$", re.UNICODE)   # token has no letters/digits at all
+# A contraction clitic ('s, 're, 'll, 've, 'd, 'm, 't) always glues left ('it' + ''s' = "it's").
+_CLITIC = re.compile(r"^['’](s|re|ll|ve|d|m|t)\b", re.IGNORECASE)
 
 
 def _needs_left_merge(tok: str) -> bool:
@@ -23,23 +29,19 @@ def _needs_left_merge(tok: str) -> bool:
     t = (tok or "").strip()
     if not t:
         return True
-    if _PUNCT_ONLY.match(t):
+    if _PUNCT_ONLY.match(t):                 # bare punctuation: '.', ',', '"', '."'
         return True
-    # A continuation fragment starts with closing punctuation and carries NO letters
-    # (e.g. ',000', '000.', '.50') — so an opening-quote word like '"No"' or a leading-dash
-    # word is NOT swallowed (that would corrupt legitimate text).
-    return t[0] in _JOIN_PUNCT and not re.search(r"[^\W\d_]", t, re.UNICODE)
+    if t[0] in _CONT_PUNCT:                   # closing-led fragment: ',000', '.50', '”'
+        return True
+    return bool(_CLITIC.match(t))             # contraction clitic: ''s', ''re', …
 
 
 def _join_space(prev: str, tok: str) -> str:
-    """Glue tok onto prev: NO space for a punct/continuation fragment, one space
+    """Glue tok onto prev: NO space for a trailing fragment / clitic, one space
     for a normal word (the gap-#1 'space dilemma' fix)."""
-    t = (tok or "").strip()
-    if not t:
+    if not (tok or "").strip():
         return prev
-    if t[0] in _JOIN_PUNCT or _PUNCT_ONLY.match(t):
-        return prev + t
-    return prev + " " + t
+    return prev + tok.strip() if _needs_left_merge(tok) else prev + " " + tok.strip()
 
 
 def _norm_word(s: str) -> str:

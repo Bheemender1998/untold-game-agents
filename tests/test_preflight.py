@@ -219,3 +219,25 @@ def test_lint_props_ordering_does_not_spuriously_block():
     props = {"audioSrc": "n.wav", "narrationMs": 200000, "fps": 30, "captions": caps, "chapters": ch}
     _, report = preflight.lint_props(props, fps=30, narration_ms=200000)
     assert report["blocked"] is False
+
+
+def test_digit_only_quoted_word_not_merged():
+    # Codex round-2: '"42"' has no letters but is a standalone quoted number, not a
+    # continuation — must NOT be swallowed into the previous word.
+    assert preflight._needs_left_merge('"42"') is False
+    caps = [{"text": "said", "startMs": 0, "endMs": 300},
+            {"text": '"42"', "startMs": 300, "endMs": 600}]
+    fixed, muts = preflight._fix_punct_captions(caps)
+    assert [c["text"] for c in fixed] == ["said", '"42"']
+    assert muts == []
+
+
+def test_contraction_clitic_merges_left():
+    # Codex round-2: a split contraction clitic must glue back with no space.
+    assert preflight._needs_left_merge("'s") is True
+    assert preflight._needs_left_merge("’re") is True
+    assert preflight._join_space("it", "'s") == "it's"
+    caps = [{"text": "it", "startMs": 0, "endMs": 200},
+            {"text": "'s", "startMs": 200, "endMs": 400}]
+    fixed, _ = preflight._fix_punct_captions(caps)
+    assert [c["text"] for c in fixed] == ["it's"]
