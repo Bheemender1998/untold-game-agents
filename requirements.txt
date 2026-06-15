@@ -2,6 +2,7 @@ anthropic>=0.40.0
 Pillow>=10.0
 ddgs>=6.0.0          # free DuckDuckGo web search (open source, no API key)
 python-dotenv>=1.0.0 # load ANTHROPIC_API_KEY from .env
+psycopg[binary]>=3.1 # Neon Postgres queue backend
 
 # Stage 2 — YouTube publishing (Data API v3, OAuth)
 google-api-python-client>=2.100.0

@@ -1,11 +1,12 @@
 import json
 from engine import queue_manager as q
+from engine.queue import json_backend
 
 
 def _seed(tmp_path, monkeypatch, ideas):
     qf = tmp_path / "idea_queue.json"
     qf.write_text(json.dumps(ideas))
-    monkeypatch.setattr(q, "QUEUE_FILE", str(qf))
+    monkeypatch.setattr(json_backend, "QUEUE_FILE", str(qf))
     return qf
 
 

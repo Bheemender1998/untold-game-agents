@@ -147,3 +147,12 @@ _FACT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))  # r
 FACTCACHE_PATH = _os.path.join(_FACT_ROOT, ".factcache.json")
 FACTCACHE_TTL_DAYS = 30          # bounds living-entity staleness (see spec Risks)
 FACT_GATE_SHADOW = True          # ship in shadow: compute verdicts, still route all to human
+
+# ── Shared queue backend (Neon) ───────────────────────────────────────────────
+# When set, the queue uses Neon Postgres as the single source of truth (Railway
+# cron + local). Unset → the local JSON file (offline/test fallback).
+DATABASE_URL = os.environ.get("DATABASE_URL") or None
+
+# ── Ideate cron cost guard (unattended runs only) ─────────────────────────────
+CRON_PER_RUN_CAP_USD = float(os.environ.get("CRON_PER_RUN_CAP_USD", "2.0"))
+CRON_MONTHLY_CAP_USD = float(os.environ.get("CRON_MONTHLY_CAP_USD", "15.0"))
