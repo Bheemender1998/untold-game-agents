@@ -281,12 +281,22 @@ _TEASE_STOP = {"the", "this", "that", "then", "they", "he", "she", "it", "and", 
 def tease_within_long(short_script: str, long_script: str) -> tuple[bool, list[str]]:
     """Deterministic integrity guard (no network): every factual specific in the short —
     capitalized proper-noun tokens and digit groups — must already appear in the long, as a
-    whole token (not a substring). Returns (ok, sorted_new_tokens); a non-empty list means the
+    whole token or a hyphen/apostrophe-delimited component of one (never a free substring).
+    Returns (ok, sorted_new_tokens); a non-empty list means the
     short introduced something the verified long didn't contain → caller flags short_needs_review.
     Scope note: this catches capitalized names and digit groups; spelled-out numbers and
     lowercase novel nouns are intentionally not caught — the short is also constrained by the
     derive prompt and the long is already fact-gated, so this is a conservative backstop."""
-    long_words = {w.lower() for w in re.findall(r"\b[\w'\-]+\b", long_script)}
+    # The long tokenizer KEEPS hyphens/apostrophes (e.g. "Anti-Drug", "O'Neill" are single
+    # tokens), but _TEASE_NAME_RE below SPLITS proper nouns on those joiners ("Anti", "Neill").
+    # Add each joined token's components too, so a long "Anti-Drug" covers a short "Anti" instead
+    # of false-flagging it. Splitting only widens coverage of the verified long, never the short.
+    long_words: set[str] = set()
+    for w in re.findall(r"\b[\w'\-]+\b", long_script):
+        long_words.add(w.lower())
+        parts = re.split(r"[-']", w)
+        if len(parts) > 1:
+            long_words.update(p.lower() for p in parts if p)
     long_nums = set(_TEASE_NUM_RE.findall(long_script))
     new: set[str] = set()
     for tok in _TEASE_NAME_RE.findall(short_script):
