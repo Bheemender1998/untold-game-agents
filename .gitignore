@@ -19,7 +19,8 @@ client_secret*.json
 token.json
 
 # State / generated output (regenerable, can be large)
-queue/
+# Note: engine/queue/ is a Python package (tracked); only the data dir at repo root is ignored
+/queue/
 produced/
 outputs/
 logs/*
