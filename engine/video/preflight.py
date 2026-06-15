@@ -47,3 +47,36 @@ def _norm_word(s: str) -> str:
 def _norm_headline(s: str) -> str:
     """Alphanumeric-only lowercase, for duplicate-headline matching."""
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _fix_punct_captions(caps: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Rules 1+2: swallow orphan-punct / continuation tokens into the previous word.
+    Glue with no space; extend the predecessor's endMs to cover the swallowed token."""
+    out: list[dict] = []
+    muts: list[dict] = []
+    for c in caps:
+        if out and _needs_left_merge(c["text"]):
+            prev = out[-1]
+            merged = _join_space(prev["text"], c["text"])
+            muts.append({"type": "merge", "reason": "orphan_punct",
+                         "from": [prev["text"], c["text"]], "into": merged})
+            prev["text"] = merged
+            prev["endMs"] = max(prev["endMs"], c["endMs"])
+        else:
+            out.append(dict(c))
+    return out, muts
+
+
+def _fix_fillers(caps: list[dict], fillers: tuple[str, ...]) -> tuple[list[dict], list[dict]]:
+    """Rule 3: drop filler tokens (um/uh/...). Each word keeps absolute timing, so a
+    dropped filler leaves a brief un-captioned gap — nothing freezes."""
+    fset = {f.lower() for f in fillers}
+    out: list[dict] = []
+    muts: list[dict] = []
+    for c in caps:
+        if _norm_word(c["text"]) in fset:
+            muts.append({"type": "drop", "token": c["text"], "reason": "filler",
+                         "at_ms": c["startMs"]})
+            continue
+        out.append(dict(c))
+    return out, muts
