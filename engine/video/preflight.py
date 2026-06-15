@@ -80,3 +80,24 @@ def _fix_fillers(caps: list[dict], fillers: tuple[str, ...]) -> tuple[list[dict]
             continue
         out.append(dict(c))
     return out, muts
+
+
+def _fix_past_audio(caps: list[dict], narration_ms: int, tol: int) -> tuple[list[dict], list[dict]]:
+    """Rule 7: a Whisper ghost token wholly after the audio is DROPPED (clamping it
+    would invert it — gap #2); a token straddling the audio end is clamped to narration_ms."""
+    out: list[dict] = []
+    muts: list[dict] = []
+    limit = narration_ms + tol
+    for c in caps:
+        if c["startMs"] > limit:
+            muts.append({"type": "drop", "token": c["text"], "reason": "ghost_after_audio",
+                         "at_ms": c["startMs"]})
+            continue
+        if c["endMs"] > narration_ms:
+            new_end = max(narration_ms, c["startMs"])   # never invert
+            muts.append({"type": "clamp", "token": c["text"], "reason": "past_audio",
+                         "from": [c["startMs"], c["endMs"]], "to": [c["startMs"], new_end]})
+            d = dict(c); d["endMs"] = new_end; out.append(d)
+        else:
+            out.append(dict(c))
+    return out, muts

@@ -47,3 +47,26 @@ def test_drop_fillers_removes_um_and_logs_mutation():
     fixed, muts = preflight._fix_fillers(caps, ("um", "uh"))
     assert [c["text"] for c in fixed] == ["and", "then"]
     assert muts == [{"type": "drop", "token": "um", "reason": "filler", "at_ms": 100}]
+
+
+def test_ghost_token_fully_after_audio_is_dropped():
+    caps = [{"text": "end.", "startMs": 59000, "endMs": 59500},
+            {"text": "the", "startMs": 62000, "endMs": 63000}]   # entirely after audio
+    fixed, muts = preflight._fix_past_audio(caps, narration_ms=60000, tol=500)
+    assert [c["text"] for c in fixed] == ["end."]
+    assert muts == [{"type": "drop", "token": "the", "reason": "ghost_after_audio",
+                     "at_ms": 62000}]
+
+
+def test_straddling_token_is_clamped_not_dropped():
+    caps = [{"text": "finish.", "startMs": 59800, "endMs": 61000}]  # straddles 60000
+    fixed, muts = preflight._fix_past_audio(caps, narration_ms=60000, tol=500)
+    assert fixed[0]["endMs"] == 60000
+    assert fixed[0]["startMs"] == 59800
+    assert muts[0]["type"] == "clamp" and muts[0]["to"] == [59800, 60000]
+
+
+def test_clamp_never_creates_negative_duration():
+    caps = [{"text": "x", "startMs": 59999, "endMs": 70000}]
+    fixed, muts = preflight._fix_past_audio(caps, narration_ms=60000, tol=500)
+    assert fixed[0]["endMs"] >= fixed[0]["startMs"]
