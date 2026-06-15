@@ -90,9 +90,21 @@ def lint_props(props: dict, fps: int, narration_ms: int) -> tuple[dict, dict]:
     "checks": [
       {"name": "split_number_caption", "severity": "critical",
        "passed": true, "detail": "merged 2 orphan-punct tokens", "fixed": 2}
+    ],
+    "mutations": [
+      {"type": "merge", "from": [",000", ",000."], "into": "$1,000,000."},
+      {"type": "drop", "token": "the", "reason": "ghost_after_audio",
+       "at_ms": 62000},
+      {"type": "retime", "token": "basketball", "from": [104960, 104960],
+       "to": [104960, 104993], "reason": "min_frame_duration"}
     ]
   }
   ```
+  The summary `fixed` integer per check is for metrics; the top-level `mutations`
+  array is for **debuggability** — when a creator notices a caption shifted from what
+  they wrote, this is the audit trail of exactly what the linter touched and why. Every
+  fixer appends a structured entry (`merge` / `drop` / `retime` / `clamp` / `snap`)
+  rather than only bumping a counter.
 - Severities:
   - **CRITICAL** — blocks the render if it still fails *after* auto-fix.
   - **WARN** — reported in `qc_lint.json`, never blocks.
@@ -108,9 +120,26 @@ One fix pass, then re-verify (fact-gate parity):
 4. `blocked` = any CRITICAL still failing. Report records `fixed` counts and the
    post-fix pass/fail per check.
 
-Fixers operate on `props["captions"]` and `props["chapters"]` only. The fixed caption
-word list is also used to regenerate `captions.srt` so SRT and props never diverge
-(this divergence has bitten us before).
+Fixers operate on `props["captions"]` and `props["chapters"]` only. **The linter never
+writes files and never imports the SRT pipeline** — it returns the mutated `props` dict
+and lets the orchestrator (`run_video.py`) regenerate `captions.srt` from the fixed
+caption words. This keeps `preflight.py` a pure, side-effect-free, easily-tested
+transform and avoids coupling the linter to the caption-chunking code (see
+Integration → SRT regeneration).
+
+### Token-merge mechanics (the space dilemma)
+
+When Rule 1/Rule 2 swallows a token into its predecessor, the join must **not** insert
+a space for orphan-punctuation fragments, or the Len Bias defect just becomes
+`"$1 ,000 ,000."` — still wrong on screen. The rule:
+
+- If the swallowed token **starts with** closing/joining punctuation (`,` `.` `;` `:`
+  `)` `]` `%` `'` `’` `"` `”` `!` `?`) **or the predecessor ends with an opening token**
+  (e.g. `$`), join with **no space**: `"$1" + ",000" + ",000."` → `"$1,000,000."`.
+- Otherwise (a normal word fragment), join with a **single space**.
+
+`endMs` of the merged result = the swallowed token's `endMs` (extend forward); the
+swallowed entry is removed from the array.
 
 ## Rule catalog
 
@@ -122,12 +151,22 @@ word list is also used to regenerate `captions.srt` so SRT and props never diver
 | 4 | Non-monotonic / overlapping captions (CH2.1) | CRITICAL | `caps[i].startMs < caps[i-1].endMs` | clamp `start = prev.end` |
 | 5 | Zero / negative-duration caption | CRITICAL | `endMs <= startMs` | give min 1-frame duration (`round(1000/fps)`); merge if it is an orphan-punct from #1/#2 |
 | 6 | Off-frame-grid timestamps (CH2.2) | WARN | `startMs`/`endMs` not a multiple of `1000/fps` | snap to nearest frame |
-| 7 | Caption past audio end | CRITICAL | `endMs > narrationMs + tol` | clamp to `narrationMs` |
+| 7 | Caption past audio end (Whisper ghost token) | CRITICAL | `endMs > narrationMs + tol` | **drop** if fully after audio (`startMs > narrationMs + tol`); **clamp** `endMs = narrationMs` only if it straddles the boundary (`startMs <= narrationMs`) |
 | 8 | Headline overlap | CRITICAL | `chapters[i].startMs < chapters[i-1].endMs` | clamp |
 | 9 | Stuck headline ("dead-air ghosting", CH2.3) | WARN | duration > `QC_MAX_HEADLINE_S` | flag only |
 | 10 | Duplicate adjacent headline text | CRITICAL | normalized text equal to previous | merge spans |
 | 11 | Glued / oversize caption token | WARN | token length > `QC_MAX_CAPTION_TOKEN_CHARS` (~25) | flag only |
 | 12 | Structural | CRITICAL | empty `captions`/`chapters`, missing `audioSrc`/`narrationMs` | none — block |
+
+### Fixer ordering
+
+The single fix pass applies fixers in a fixed order so they compose without creating
+new defects: **(7) drop ghost tokens → (1,2) merge orphan-punct → (5) min-duration →
+(4) monotonic clamp → (6) frame-snap** for captions, then **(10) dedup → (8) clamp** for
+headlines. Rationale: dropping fully-after-audio ghost tokens *before* any clamp avoids
+manufacturing a negative-duration token (the exact trap in gap #2); frame-snap runs last
+so its rounding can't re-introduce a sub-millisecond overlap. The re-verify pass is the
+backstop — if any ordering interaction still leaves a CRITICAL defect, it blocks.
 
 ### Boundaries (explicitly NOT pre-flight-linted)
 
@@ -160,12 +199,23 @@ Frame duration is derived from `props["fps"]`, not a constant.
 Between props.json write (line 123) and render (line 140):
 
 1. `fixed, report = preflight.lint_props(props, fps, narration_ms)`.
-2. Write `fixed` back to `props.json`; regenerate `captions.srt` from the fixed caption
-   words; write `report` to `produced/<id>/<fmt>/qc_lint.json`.
+2. Write `fixed` back to `props.json`; write `report` to
+   `produced/<id>/<fmt>/qc_lint.json`.
 3. If `report["blocked"]`: set idea status `needs_review` (`q.update_idea`), print the
    failing CRITICAL checks, and **return without rendering**.
 4. Otherwise: print a one-line summary (`✓ pre-flight QC: N auto-fixed, M warnings`),
    render proceeds with the corrected props.
+
+#### SRT regeneration (orchestrator, not linter)
+
+The linter does **not** touch `captions.srt`. After step 2, `run_video.py` regenerates
+the SRT from `fixed["captions"]` so the two artifacts can't diverge — using the existing
+caption pipeline, not new code in `preflight.py`. Because `props["captions"]` is
+word-level `{text, startMs, endMs}` and the SRT helpers expect `{word, start, end}` (in
+seconds), `run_video.py` applies a tiny adapter, then reuses
+`captions.chunk_words_to_captions(...)` → `captions.to_srt(...)`. This keeps the
+word→line grouping in one place and preserves the "linter is a pure transform"
+constraint.
 
 ### New CLI `python3 -m engine.run_preflight --id <id> [--format long|short] [--fix]`
 
@@ -190,6 +240,13 @@ Pure stdlib → runs under `python3` (main env), no render venv needed.
   (`produced/af86c186/long/video/props.json`, captured as a trimmed test fixture):
   feed it through `lint_props` and assert the `,000`/`,000.` tokens merge into a single
   `$1,000,000` caption word and the zero-duration token is gone.
+- **No-space merge** — `["$1", ",000", ",000."]` → single `"$1,000,000."` token (not
+  `"$1 ,000 ,000."`); a normal-word merge case asserts a space *is* inserted.
+- **Ghost-token drop vs clamp** — a token fully after `narrationMs+tol` is dropped (and
+  does not become negative-duration); a token straddling the boundary is clamped to
+  `narrationMs`.
+- **Mutations log** — assert the report's `mutations` array records the merge with
+  `from`/`into`, the drop with `reason`, and a retime with `from`/`to` ms.
 - Re-verify pass: a synthetic case where the first fix creates a new overlap proves the
   re-verify catches/fixes or blocks correctly.
 - The PostToolUse hook runs `python3 -m pytest tests/ -q` automatically after engine
