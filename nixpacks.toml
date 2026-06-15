@@ -1,5 +1,12 @@
+# Explicit Python build for the Railway ideate cron. The default provider (and the
+# prior bare `pip install`) left pip off PATH; create an explicit venv at /opt/venv
+# and install into it. Runtime uses /opt/venv/bin/python (see railway.json startCommand).
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "gcc"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = [
+  "python3 -m venv /opt/venv",
+  "/opt/venv/bin/pip install --upgrade pip",
+  "/opt/venv/bin/pip install -r requirements.txt",
+]
