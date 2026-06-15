@@ -101,6 +101,7 @@ def _render_and_qc(idea_id: str) -> None:
     if not _render_one(idea_id):
         print(f"· {idea_id}: render_failed")
         return
+    _ensure_thumbnail(idea_id, _OVERNIGHT_FMT)   # auto-compose thumbnail on render
     # Sync the description's chapter timestamps from the rendered props.json (real per-chapter
     # times) — the produce-time LLM estimate is wrong; this is the authoritative correction.
     from engine.pipeline import chapters
@@ -140,6 +141,7 @@ def _companion_short(idea_id: str) -> None:
             return
         report = qc.qc_video(idea_id, "short")
         if report["passed"]:
+            _ensure_thumbnail(idea_id, "short")   # auto-compose short thumbnail
             q.update_idea(idea_id, short_status="short_awaiting_approval",
                           short_video_path=os.path.relpath(
                               os.path.join(paths.video_dir(idea_id, "short"), "video.mp4"), _ROOT))

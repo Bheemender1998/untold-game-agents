@@ -91,3 +91,40 @@ def test_ensure_thumbnail_swallows_exceptions(tmp_path, monkeypatch):
         raise RuntimeError("PIL exploded")
     monkeypatch.setattr(run_auto.thumbnail, "generate_thumbnail", boom)
     run_auto._ensure_thumbnail("pubid", "long")   # would ERROR if it propagated — no assertion needed
+
+
+def test_render_and_qc_calls_ensure_thumbnail(monkeypatch):
+    monkeypatch.setattr(run_auto, "_render_one", lambda i: True)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": True, "checks": []})
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda *a, **k: None)
+    from engine.pipeline import chapters
+    monkeypatch.setattr(chapters, "sync_from_render", lambda i, fmt: False)
+    monkeypatch.setattr(run_auto, "_companion_short", lambda i: None)
+    seen = []
+    monkeypatch.setattr(run_auto, "_ensure_thumbnail", lambda i, fmt: seen.append((i, fmt)))
+    run_auto._render_and_qc("pubid")
+    assert ("pubid", "long") in seen
+
+
+def test_companion_short_calls_ensure_thumbnail(monkeypatch):
+    monkeypatch.setattr(run_auto, "_produce_companion", lambda i: {"within_long": True})
+    monkeypatch.setattr(run_auto, "_run", lambda *a, **k: 0)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="short": {"passed": True, "checks": []})
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda *a, **k: None)
+    seen = []
+    monkeypatch.setattr(run_auto, "_ensure_thumbnail", lambda i, fmt: seen.append((i, fmt)))
+    run_auto._companion_short("pubid")
+    assert ("pubid", "short") in seen
+
+
+def test_render_and_qc_thumbnails_even_when_qc_fails(monkeypatch):
+    # Thumbnail is independent of QC — it must fire even on a qc_failed long.
+    monkeypatch.setattr(run_auto, "_render_one", lambda i: True)
+    monkeypatch.setattr(run_auto.qc, "qc_video", lambda i, fmt="long": {"passed": False, "checks": []})
+    monkeypatch.setattr(run_auto.q, "update_idea", lambda *a, **k: None)
+    from engine.pipeline import chapters
+    monkeypatch.setattr(chapters, "sync_from_render", lambda i, fmt: False)
+    seen = []
+    monkeypatch.setattr(run_auto, "_ensure_thumbnail", lambda i, fmt: seen.append((i, fmt)))
+    run_auto._render_and_qc("pubid")
+    assert ("pubid", "long") in seen   # thumbnail generated regardless of QC verdict
