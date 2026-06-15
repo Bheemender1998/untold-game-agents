@@ -95,9 +95,12 @@ def main() -> None:
             audio_ref = "narration.wav"
 
         total_dur = captions.audio_duration(audio_path)
-        glossary = captions.proper_nouns(tts.script_to_narration_text(script_md))
+        narration_text = tts.script_to_narration_text(script_md)
+        glossary = captions.proper_nouns(narration_text)
         tx = captions.transcribe(audio_path, initial_prompt=glossary)   # {words, segments} | None
-        words = tx["words"] if tx else None           # downstream wants the word list (raw — kept for anchor matching)
+        # Project the SCRIPT's words onto whisper's timestamps so caption/headline TEXT
+        # is script-true (fixes ASR mishears) while timing stays from whisper (ADR-0005 lineage).
+        words = captions.align_to_script(tx["words"], narration_text) if tx else None
         synced = "word-synced (whisper)" if words else "estimated timing (no faster-whisper)"
         print(f"{GREEN}✓ narration {total_dur:.0f}s — captions: {synced}{RESET}")
 
@@ -118,9 +121,8 @@ def main() -> None:
         )
         with open(os.path.join(video_dir, "props.json"), "w") as f:
             json.dump(props, f, indent=2)
-        srt_chunks = (captions.chunk_words_to_captions(captions.digitize_number_words(words)) if words
-                      else captions.estimate_caption_timings(
-                          tts.script_to_narration_text(script_md), total_dur))
+        srt_chunks = (captions.chunk_words_to_captions(words) if words
+                      else captions.estimate_caption_timings(narration_text, total_dur))
         captions.to_srt(srt_chunks, os.path.join(video_dir, "captions.srt"))
         beats = props.get("bBeats", [])
         n_bg = sum(1 for b in beats if b.get("src"))
