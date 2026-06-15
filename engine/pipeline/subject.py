@@ -8,7 +8,7 @@ import shutil
 import urllib.request
 
 import anthropic
-from engine.config import MODEL
+from engine.config import MODEL, MODEL_LIGHT
 from engine import paths
 from engine.ideate import wikipedia
 from engine.video import footage
@@ -31,7 +31,7 @@ def _subject_query(idea: dict, script: str) -> tuple[str, str]:
         client = anthropic.Anthropic(max_retries=5)
         title = (idea.get("title_variants") or [idea.get("title", "")])[0]
         resp = client.messages.create(
-            model=MODEL, max_tokens=64, system=_SUBJECT_SYSTEM,
+            model=MODEL_LIGHT, max_tokens=64, system=_SUBJECT_SYSTEM,
             messages=[{"role": "user",
                        "content": f"TITLE: {title}\n\nSCRIPT:\n{script[:4000]}\n\nIdentify the subject."}],
             output_config={"format": {"type": "json_schema", "schema": _SUBJECT_SCHEMA}})

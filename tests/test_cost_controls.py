@@ -37,3 +37,27 @@ def test_call_uses_self_model(monkeypatch):
     a.model = "custom-model-x"
     a._call("hi", use_search=False)
     assert captured["model"] == "custom-model-x"
+
+
+import inspect
+import engine.pipeline.metadata as _meta
+import engine.pipeline.subject as _subj
+import engine.pipeline.script as _script
+
+def test_light_stages_reference_model_light():
+    # short_title + short_desc both route to MODEL_LIGHT
+    assert inspect.getsource(_meta).count("MODEL_LIGHT") >= 2
+    # subject photo-query routes to MODEL_LIGHT
+    assert "MODEL_LIGHT" in inspect.getsource(_subj)
+    # companion tease agent sets self.model = config.MODEL_LIGHT
+    assert "MODEL_LIGHT" in inspect.getsource(_script)
+
+def test_main_metadata_title_stays_on_sonnet():
+    # the main metadata (title/description/tags) call must NOT be downgraded
+    src = inspect.getsource(_meta)
+    assert 'logged_create(self.client, "metadata"' in src
+    # the metadata stage line still uses MODEL (Sonnet), not MODEL_LIGHT
+    import re
+    block = src[src.index('logged_create(self.client, "metadata"'):]
+    head = block[:200]
+    assert "MODEL_LIGHT" not in head
