@@ -204,6 +204,45 @@ def test_derive_short_tease_parses_mood_and_includes_long(monkeypatch):
     assert captured["use_search"] is False
 
 
+def test_tease_within_long_hyphenated_name_not_false_flagged():
+    from engine.pipeline import script
+    # Regression: long keeps "Anti-Drug" as one token; the short's name regex splits it into
+    # "Anti"/"Drug". "Anti" only appears hyphenated in the long, so it used to false-flag.
+    long = "President Reagan signed the Anti-Drug Abuse Act of 1986."
+    short = "Reagan signs the Anti-Drug Abuse Act."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_apostrophe_name_not_false_flagged():
+    from engine.pipeline import script
+    # Same bug class with apostrophes: long "O'Neill" is one token; short regex yields "Neill".
+    long = "Tip O'Neill was the Speaker of the House from Cambridge."
+    short = "O'Neill needed a bill before the elections."
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_bare_component_of_compound_passes():
+    from engine.pipeline import script
+    # Deliberate widening: a short MAY reference a bare component of a verified compound, because
+    # that morpheme provably appears in the fact-reviewed long. Documents intent so a future
+    # "tighten" doesn't silently revert the fix.
+    long = "Reagan signed the Anti-Drug Abuse Act."
+    short = "It was a Drug law."   # "Drug" only appears as part of "Anti-Drug" in the long
+    ok, extra = script.tease_within_long(short, long)
+    assert ok and extra == []
+
+
+def test_tease_within_long_still_flags_truly_new_hyphenated_token():
+    from engine.pipeline import script
+    # Don't over-widen: a component that appears NOWHERE in the long must still flag.
+    long = "Reagan signed a drug bill in 1986."
+    short = "He invoked the Anti-Communist crusade of the era."
+    ok, extra = script.tease_within_long(short, long)
+    assert not ok and "Anti" in extra
+
+
 def test_tease_within_long_flags_new_acronym():
     from engine.pipeline import script
     long = "In 1984 Senna raced at Monaco."
