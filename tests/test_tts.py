@@ -20,14 +20,14 @@ def test_narration_speed_is_calmer_than_default():
 
 
 def test_resolve_voice_maps_mood():
-    assert tts.resolve_voice("tense") == "bm_george"
+    # Single narrator voice now: every mood resolves to af_sarah (bm_george retired).
+    assert tts.resolve_voice("tense") == "af_sarah"
     assert tts.resolve_voice("somber") == "af_sarah"
 
 
-def test_only_sarah_and_george_in_rotation():
-    """Narration uses exactly two Kokoro voices: af_sarah and bm_george."""
-    allowed = {"af_sarah", "bm_george"}
-    assert set(config.NARRATION_VOICE_BY_MOOD.values()) | {config.NARRATION_VOICE_DEFAULT} == allowed
+def test_single_voice_in_rotation():
+    """Narration uses exactly one Kokoro voice across all moods: af_sarah."""
+    assert set(config.NARRATION_VOICE_BY_MOOD.values()) | {config.NARRATION_VOICE_DEFAULT} == {"af_sarah"}
 
 
 def test_resolve_voice_defaults_on_unknown_or_empty():
@@ -42,10 +42,12 @@ def test_mood_for_pillar():
     assert tts.mood_for_pillar(None) == ""
 
 
-def test_narration_voice_prefers_explicit_mood_then_pillar():
+def test_narration_voice_resolves_single_voice_for_mood_and_pillar():
+    # Single voice now — mood/pillar inputs all resolve to af_sarah. (Mood precedence
+    # still matters for b-roll/music selection; see test_mood_for_pillar.)
     assert tts.narration_voice({"mood": "somber"}) == "af_sarah"
-    assert tts.narration_voice({"pillar": "what_if"}) == "bm_george"
-    assert tts.narration_voice({"mood": "tense", "pillar": "what_if"}) == "bm_george"
+    assert tts.narration_voice({"pillar": "what_if"}) == "af_sarah"
+    assert tts.narration_voice({"mood": "tense", "pillar": "what_if"}) == "af_sarah"
 
 
 def test_narration_voice_override_wins():

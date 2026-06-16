@@ -26,6 +26,26 @@ def test_drops_whisper_words_not_in_script():
     assert [w["word"] for w in out] == ["The", "end"]
 
 
+def test_multiword_equal_block_keeps_per_word_whisper_timing():
+    # The common case: whisper transcribes a run of words correctly, so SequenceMatcher
+    # returns ONE big "equal" block. Each script word must keep its OWN whisper start/end —
+    # NOT a char-length spread across the block span — so real pacing and the inter-word
+    # silences (dramatic pauses) survive. (Regression: the block was flattened to a
+    # contiguous char-weighted spread ≈ estimate_word_timings, desyncing every caption.)
+    whisper = _ww([
+        ("They", 0.00, 0.25),
+        ("won.", 0.30, 0.70),     # small gap before
+        ("Every", 1.50, 1.80),    # 0.80s dramatic pause before
+        ("game", 1.82, 2.00),
+    ])
+    out = captions.align_to_script(whisper, "They won. Every game")
+    assert [w["word"] for w in out] == ["They", "won.", "Every", "game"]
+    for o, (s, e) in zip(out, [(0.00, 0.25), (0.30, 0.70), (1.50, 1.80), (1.82, 2.00)]):
+        assert abs(o["start"] - s) < 1e-6 and abs(o["end"] - e) < 1e-6, o
+    # the 0.80s pause before "Every" must survive (was collapsed to ~0 by the bug)
+    assert out[2]["start"] - out[1]["end"] > 0.5
+
+
 def test_distributes_timing_across_multi_word_replace():
     whisper = _ww([("USA", 0.0, 1.0)])
     out = captions.align_to_script(whisper, "U.S. A")

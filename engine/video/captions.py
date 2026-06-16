@@ -103,8 +103,10 @@ def align_to_script(whisper_words: list[dict], narration_text: str) -> list[dict
     script (correct names, hyphens, abbreviations) while TIMING comes from whisper.
 
     whisper_words: [{word,start,end}] (seconds). Returns the same shape with script text.
-    - equal/replace: script words take the matched whisper span (split proportionally by
-      char length when counts differ);
+    - equal / same-count replace: each script word takes its matched whisper word's OWN
+      start/end (real per-word timing — preserves pacing and inter-word silences);
+    - multi↔one replace (counts differ): the matched whisper span is split proportionally
+      by char length;
     - delete (script word whisper dropped): timing interpolated between known neighbours;
     - insert (whisper word not in script): dropped.
     Falls back to whisper_words unchanged if either side is empty (never crashes a render)."""
@@ -124,6 +126,17 @@ def align_to_script(whisper_words: list[dict], narration_text: str) -> list[dict
                 out.append({"word": w, "start": None, "end": None})
             continue
         wseg = whisper_words[j1:j2]
+        if len(sseg) == len(wseg):
+            # 1:1 correspondence — always true for "equal" blocks, and the common case
+            # for "replace" (a single misheard word). Take each whisper word's OWN
+            # start/end so real per-word pacing AND the inter-word silences (dramatic
+            # pauses) survive. Re-spreading by char length here flattens the timing into
+            # a contiguous char-weighted estimate and desyncs every caption.
+            for w, ww in zip(sseg, wseg):
+                out.append({"word": w, "start": ww["start"], "end": ww["end"]})
+            continue
+        # counts differ (a multi↔one "replace") — split the matched whisper span
+        # proportionally by char length, the best we can do without a 1:1 mapping.
         t0, t1 = wseg[0]["start"], wseg[-1]["end"]
         span = max(0.0, t1 - t0)
         lengths = [max(1, len(w)) for w in sseg]
