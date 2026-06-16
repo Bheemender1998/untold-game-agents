@@ -4,6 +4,34 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 23 (2026-06-16) — voice-upgrade evaluation (ElevenLabs vs local TTS) · failed local bake-off · NO code shipped
+
+Pure research/eval session triggered by the user's question "is it worth bringing in ElevenLabs?" Explored paid vs. local TTS upgrades over Kokoro, then attempted a 3-way local audio bake-off that **failed on tooling**. No engine/`.venv-video` changes, no PR — all throwaway artifacts removed at the end.
+
+### Findings — the recommendation (not yet acted on)
+- **ElevenLabs** (`elevenlabs-python` SDK + `elevenlabs/skills` repo — 9 agent skills: TTS/STT/SFX/music/voice-changer/etc.): API-only, **no offline mode**, paid. Economics gate: rendering ~90 videos/mo would need the ~$330/mo Scale tier; voicing only **published** videos fits Creator/Pro ($22–99). ⇒ Correct scope = **publish-time swap, flag-gated at `run_auto --approve`, Kokoro stays the render default** (never voice the overnight pipeline). The `sound-effects`/`music` skills map onto the deferred **SFX = short-form Slice 2** and music wishlist.
+- **Local options:** Qwen3-Omni = **ruled out** (30B, 68–144 GB VRAM, NVIDIA-only — re-confirms the `m5-pro-local-stack-revival` defer). **voicebox** (jamiepine, MIT, 30k★, MLX, bundles 7 engines incl. Kokoro/Qwen3-TTS/Chatterbox) = best **free local A/B booth**, but it's a GUI. OmniVoice-Studio (AGPL-3.0, 7k★) = secondary.
+- **Strategic reframe:** the cheapest win is likely **swapping Kokoro → a better *local* engine (Chatterbox/Qwen3-TTS), $0/render** — not ElevenLabs. But **gate first**: prove voice (not thumbnail/title/hook) is the retention lever. User confirmed this is *curiosity, no specific failure* — so spending is premature.
+
+### Attempted — 3-way bake-off on the Senna short, and why it failed
+- Goal: compare **Kokoro vs Chatterbox vs Qwen3-TTS** on `9bbd24cd`'s short narration (770 chars of spoken text via `script_to_narration_text`; baseline `narration.wav` already existed, 46.6s). Isolated env `.venv-tts-bake` (uv, py3.12) — `.venv-video` untouched.
+- `mlx-audio` natively supports both: `mlx-community/chatterbox-fp16` (has default-voice `conds.safetensors`; the `Chatterbox-TTS-fp16` variant is weights-only and errors without `--ref_audio`) and `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16`.
+- **FAILED:** Chatterbox MLX **deadlocked** — 0% CPU for 3+ hours after model load, empty output, no audio. Qwen model downloaded but never synthesized (was queued behind Chatterbox). Headless mlx-audio path abandoned.
+
+### Open / next (only if voice is later prioritized)
+1. **Don't repeat the headless mlx-audio Chatterbox path** — it hangs on this box. Use the **voicebox GUI** (handles all 3 engines + MLX on the M5) for the A/B, or debug the mlx hang separately.
+2. **Integration design when justified:** publish-time premium-voice swap, flag-gated in the `run_auto --approve`/publish path, ~1 day, kept out of the overnight pipeline. Don't build speculatively (gate discipline).
+3. Carried over from S22: Senna `9bbd24cd` re-render still deferred; 6 unlisted videos await public flip; shorts need 9:16 thumbnails.
+
+### Watch-outs (harness/tooling)
+- **`mlx-audio` Chatterbox deadlocks headless** on this hardware (M5, macOS 26, py3.12) — 0% CPU, no output, ~3 hrs wasted. Treat MLX TTS as GUI-only (voicebox) until root-caused.
+- **macOS has no `timeout`** — use `gtimeout` (coreutils) or the Bash-tool timeout to cap potentially-hanging subprocesses. Always cap unproven TTS/model calls.
+
+### Suggested skills next session
+None for this thread (eval only). If voice gets prioritized: brainstorming → a spec before any engine change. Unrelated carry-over: `build-video` (Senna re-render), `publish-video` (flip to public), `thumbnail-assets` (9:16 shorts).
+
+---
+
 ## Session 22 (2026-06-16) — first 3-long/3-short batch PUBLISHED (unlisted)
 
 Pure ops: published the 3 QC-passed longs (each auto-publishing its companion short) from the S19/S20 backlog. All **unlisted** (user confirmed privacy; public is the deferred next step). Uploads serialized (max 2 concurrent, then 1) to avoid the bandwidth-collision that caused the earlier half-uploaded duplicate.
