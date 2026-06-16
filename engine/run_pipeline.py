@@ -23,7 +23,7 @@ from engine.ideate.trending_topics_agent import TrendingTopicsAgent
 from engine.ideate.competitor_gap_agent import CompetitorGapAgent
 from engine.ideate.evergreen_agent import EvergreenAgent
 from engine.queue_manager import get_pending, approve, reject, stats
-from engine.config import MIN_VIRAL_SCORE
+from engine.config import MIN_VIRAL_SCORE, IDEATE_TOPUP_MIN
 
 
 # ── ANSI colours (gracefully degrades on Windows) ────────────────────────────
@@ -34,6 +34,11 @@ CYAN   = "\033[96m"
 GRAY   = "\033[90m"
 RESET  = "\033[0m"
 BOLD   = "\033[1m"
+
+
+def _topup_needed(pending_count: int, floor: int) -> bool:
+    """Generate ideas only when the queue is below the floor (>= floor → skip)."""
+    return pending_count < floor
 
 
 def header():
@@ -186,6 +191,10 @@ def main():
                         help="Run agents sequentially instead of in parallel")
     parser.add_argument("--no-review", action="store_true",
                         help="Skip the interactive review prompt (use for headless/cron runs)")
+    parser.add_argument("--ensure-min", nargs="?", type=int, const=IDEATE_TOPUP_MIN,
+                        default=None,
+                        help="only generate if fewer than N ideas are pending (bare flag "
+                             "uses config.IDEATE_TOPUP_MIN); otherwise skip ideation")
     args = parser.parse_args()
 
     header()
@@ -197,6 +206,15 @@ def main():
     if args.review:
         review_dashboard()
         return
+
+    if args.ensure_min is not None:
+        pending = len(get_pending())
+        if not _topup_needed(pending, args.ensure_min):
+            print(f"{GRAY}Queue has {pending} pending ≥ floor {args.ensure_min} — "
+                  f"skipping ideation.{RESET}")
+            return
+        print(f"{GRAY}Queue has {pending} pending < floor {args.ensure_min} — "
+              f"topping up.{RESET}")
 
     if args.agent:
         run_single_agent(args.agent)
