@@ -4,6 +4,28 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 24 (2026-06-15→16) — pre-flight QC lint (#64) + conditional ideation top-up (#71) · ran CONCURRENTLY with S22/S23
+
+Ran alongside the S22 (publishing) and S23 (voice eval) sessions on the same clone. Two features shipped to `main`; both via brainstorm→spec→plan→TDD→dual adversarial review (Claude code-reviewer + Codex)→squash-merge.
+
+### Shipped
+- **Pre-flight QC lint — PR #64** (`67183a1`). Lints `props.json` (captions/chapters) before the 45-min render; auto-fixes split-number/orphan-punct, ghost-after-audio, zero/sub-frame duration, monotonic, headline dedup/overlap; blocks render → `needs_review` on unfixed CRITICAL. `engine/video/preflight.py` + gate in `run_video.py` + CLI `run_preflight.py` + skill `preflight-qc`. Specs/plan: `docs/superpowers/specs|plans/2026-06-15-preflight-qc-lint*`. Memory: `preflight-qc-lint`. (Already referenced in S22 wrap; full detail here.) Codex ran 3 rounds — caught real ordering/quote/clitic bugs, all fixed.
+- **Conditional ideation top-up — PR #71** (`14fe90a`, **undocumented until now**). Local overnight (`overnight.sh`, daily 01:00) generates ideas only when pending < `IDEATE_TOPUP_MIN` (config, default 12) via `run_pipeline --ensure-min`; else skips to produce→render→QC. **Fails open** on queue-read error. Railway cron UNAFFECTED (uses `run_single_agent`, not `main()`). Specs/plan: `docs/superpowers/specs|plans/2026-06-15-conditional-ideation-topup*`. Memory: `neon-queue-railway-cron-live` (updated). Why: queue was ~77 deep yet nightly ideation was ~$1.95 uncapped — over-supplying a 25+-night backlog.
+
+### Verified automation facts (end-to-end, from configs)
+- **Local overnight** = launchd `com.untoldgame.overnight`, **daily 01:00**: ideate (now conditional) → `run_auto --count 3` (produce→render→QC) → cost report. Stops at `awaiting_approval` — **no auto-publish** (publish is manual `run_auto --approve`).
+- **Railway cron** = `0 9 */2 * *` (~every 2 days): `run_cron` → 4 agents sequentially → Neon, cost-capped, never renders.
+- **Produce selection** = top-N pending by `viral_score DESC` (`run_auto._select`→`get_pending()`); unchanged by #71.
+
+### Watch-outs (harness — NEW, beyond S21's note)
+- **`push-guard` hook (#69 "worktree-aware") still false-positives from a worktree.** The Bash harness resets cwd to the main clone every call, so the hook reads the main-clone branch (`main`) not the worktree's feature branch → blocks legit feature-branch pushes. Workaround: `git -C <worktree> push`. Needs a real fix (hook can't rely on cwd here). Memory: `parallel-agents-use-worktrees`.
+- **Concurrent sessions on one clone still cross-contaminate** despite worktrees if the *primary* work isn't itself in a worktree: a parallel checkout flipped this session's branch mid-work, landing a commit on `main` (rescued, never pushed). Each concurrent session should do ALL its work in its own worktree from the start.
+
+### Suggested skills next session
+`ship-video-change` (engine work); `build-video`/`publish-video` (awaiting_approval backlog incl. flipping the 6 unlisted to public); `fact-review` (needs_review scripts). Deferred from #64: hyphen-compound split lint + CH5 post-render audio QC — each needs its own brainstorm→spec.
+
+---
+
 ## Session 23 (2026-06-16) — voice-upgrade evaluation (ElevenLabs vs local TTS) · failed local bake-off · NO code shipped
 
 Pure research/eval session triggered by the user's question "is it worth bringing in ElevenLabs?" Explored paid vs. local TTS upgrades over Kokoro, then attempted a 3-way local audio bake-off that **failed on tooling**. No engine/`.venv-video` changes, no PR — all throwaway artifacts removed at the end.
