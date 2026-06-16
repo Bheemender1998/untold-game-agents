@@ -4,6 +4,32 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 22 (2026-06-16) — first 3-long/3-short batch PUBLISHED (unlisted)
+
+Pure ops: published the 3 QC-passed longs (each auto-publishing its companion short) from the S19/S20 backlog. All **unlisted** (user confirmed privacy; public is the deferred next step). Uploads serialized (max 2 concurrent, then 1) to avoid the bandwidth-collision that caused the earlier half-uploaded duplicate.
+
+### Published (queue records updated with URLs)
+| Idea | Long | Short |
+|------|------|-------|
+| Len Bias `af86c186` | `fSDGJkkVsVg` | `L7QErIDjOks` |
+| Knicks `e1bbe900` | `ON9HMOeytNM` | `p6A09OMtyD8` |
+| 1972 Olympics `adfea6c1` | `1qLScf2yIr8` | `pijR3KtZJp0` |
+
+### Gotcha fixed mid-flight — `adfea6c1` long had NO metadata.json
+The 1972 Olympics long was rendered + QC-passed but its `produced/adfea6c1/long/metadata.json` never existed (queue `metadata_path` was null) — `--approve` crashed with a `TypeError` in `_load_metadata(None)`. Likely cause: the S19 verification re-render regenerated the video but not the metadata. Fix: `run_produce --id adfea6c1 --metadata-only` (regenerates metadata from the existing script, **skips the fact-gate + no re-render** — confirmed in `produce()` at the `if not metadata_only` guards). That flips status to `in_production` (metadata-only ⇒ no fact_result ⇒ effective_pass=True), so I manually restored `status=awaiting_approval` (render+QC already done). Then dry-run → approve. The regenerated long **title is fresh**: *"They Made Him Shoot Free Throws, Celebrated Twice — Then Reset the Clock Again"* (not the old `title_variants[0]`); editable in place since unlisted.
+
+### Open / next
+1. **Flip to public** when ready — `run_auto --approve <id> --public` re-run, or edit privacy in Studio. All 6 are unlisted for review first.
+2. **Companion shorts have NO custom 9:16 thumbnail** (all 3 uploaded with YouTube's default frame — the auto-thumbnail chain only runs on `long`). Fix via `thumbnail-assets` + set the thumbnail on the live video (no re-upload needed).
+3. **`adfea6c1` long title** — confirm the regenerated title or change it (in-place, no re-upload).
+4. **Senna `9bbd24cd` re-render still deferred** (S21 item) — published long/short still speak "End of script" until re-rendered; engine fix #67 is in main so a fresh render is clean.
+5. **Possible pipeline gap to investigate:** why was `adfea6c1`'s long metadata missing after a render? Check whether the re-render path (`run_auto --render`) regenerates metadata; if not, other re-rendered ideas may have stale/missing metadata.
+
+### Suggested skills next session
+`thumbnail-assets` (shorts 9:16 covers); `publish-video` (flip to public); `build-video` (re-render `9bbd24cd`).
+
+---
+
 ## Session 21 (2026-06-15) — video-review ops (Yugoslavia retitle) · "End of script" TTS leak (#67) · push-guard worktree-aware (#69)
 
 User-driven review session: retitled the Yugoslavia video on YouTube, root-caused + fixed a spoken-artifact defect in the Senna long, then fixed the harness gap that surfaced while shipping it. (Ran alongside the parallel Session 20 / Haiku-#66 session — that branch is now merged; shared checkout drifted between `main` and `fix/haiku-pricing-key`, handled via worktree isolation.)
