@@ -4,6 +4,29 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 25 (2026-06-16) — caption-sync bug FIXED (#75) + single voice (af_sarah) · 05499ca8 fact-reviewed + corrected re-render · Railway cron STOPPED
+
+Triggered by the overnight run leaving 3 longs in `needs_review` and the user reviewing the one previously-rendered long. Shipped a real caption-sync fix + voice consolidation, fact-reviewed and re-rendered one long, and paused the Railway cron. **Worktrees off `main` throughout** — the main clone stayed on the concurrent manhwa session's `docs/manhwa-motion-spec`, never disturbed.
+
+### Shipped
+- **Caption-sync fix + single voice — PR #75** (`e565e89`). `align_to_script` (engine/video/captions.py) split each SequenceMatcher equal/replace span by **character length**, discarding each whisper word's own start/end → for the common large "equal" blocks it degraded to ≈`estimate_word_timings` (contiguous ~344 ms words, every inter-word silence collapsed to 0). **That was the long-form caption desync.** Fix: 1:1 segments (all "equal"; single-word "replace") take each whisper word's own start/end; proportional split only on count-mismatch. Regression test added. Also retired `bm_george` → single voice **`af_sarah`** for all moods (config.py `NARRATION_VOICE_*`; test_tts updated). Dual-reviewed (Codex + Claude, 0 Crit/0 Imp). Validated end-to-end on real af_sarah narration (194 inter-word gaps >50 ms, max 0.92 s; **0** before). This is a SECOND bug in the same `align_to_script` PR #61 added. Memory: `long-form-quality-feedback`.
+
+### Done (no code)
+- **05499ca8 ("They Won the Super Bowl…", 1987 NFL "scab" strike) fact-reviewed + corrected re-render.** One real error fixed (strike ended ~Oct 15, **before** the Oct 19 Cowboys MNF game — script had it backwards) + softened unverified "gym teacher" detail; ~6 gate flags were DDG false-positives (incl. the wrong-person fetch Tony Robinson → "Sir Anthony Robinson the actor"). Cleared (`human_reviewed`) → re-rendered corrected (af_sarah + synced captions) → now at `produced/05499ca8/long/video/video.mp4` (802M; QC auto-fixed **23** defects vs 47 buggy). Skill: `fact-review`.
+- **Triaged the other 2 overnight-flagged longs — DO NOT blind-render:** `abb5e8fb` (Iran-USA WC) back half is unverifiable **LIVE 2026 geopolitics** (post-cutoff war/ceasefire/visa denials) + real error (2026 WC host = US/Canada/Mexico, not US); 1998 half is clean → cut Acts III-IV or hold. `b9a64eb2` (Knicks "53 years") real error (Brunson 33rd not 29th pick) + **likely DUPLICATE** of already-published `adfea6c1`.
+- **Railway cron STOPPED** (user request, "until I say activate"). Cleared `serviceInstance.cronSchedule` via GraphQL API; was already null + **zero cron-triggered deployments since Jun 15** (not actually firing). **FOOTGUN:** schedule lives in BOTH `railway.toml` (`0 11 * * *`, run_pipeline — STALE) and `railway.json` (`0 9 */2 * *`, run_cron — current); a `railway up` **re-arms** it. Railway cron only does ideation (run_cron), never renders → the #75 render fix does not need deploying there.
+
+### Open / next
+1. **05499ca8 publish-ready EXCEPT thumbnail** — needs `run_subject 05499ca8` (no subject photo) → `run_auto --approve`. Companion short un-rendered.
+2. **EDITORIAL (user flag, undecided):** 05499ca8 withholds WHO "they" is for ~90 s — title + cold open + thumbnail are all a vague "they" with no anchor. User: "how would viewers know?" Proposed (not done): retitle to name the "scab"/replacement team (cheap, `run_produce --metadata-only`) and/or establish "1987 replacement players" in the first ~10-30 s. Title-only vs title+cold-open-rewrite (latter needs re-render). See `packaging-feedback-slices` memory.
+3. **Worktree-render recipe** (when main clone is busy): worktree off main + symlink `.venv-video`, `.env`, `engine/video/models`, `engine/video/remotion/node_modules` (none in git) + copy `produced/<id>/long/{script.md,metadata.json}`. `build_section_headlines` needs the Anthropic API (credits were exhausted mid-session, user topped up).
+4. Other overnight `needs_review` longs remain unrendered.
+
+### Suggested skills next session
+`thumbnail-assets` (05499ca8 subject) → `publish-video` (approve). `fact-review` (abb5e8fb rework / b9a64eb2 dup check). `ship-video-change` for engine work.
+
+---
+
 ## Session 24 (2026-06-15→16) — pre-flight QC lint (#64) + conditional ideation top-up (#71) · ran CONCURRENTLY with S22/S23
 
 Ran alongside the S22 (publishing) and S23 (voice eval) sessions on the same clone. Two features shipped to `main`; both via brainstorm→spec→plan→TDD→dual adversarial review (Claude code-reviewer + Codex)→squash-merge.
