@@ -208,7 +208,13 @@ def main():
         return
 
     if args.ensure_min is not None:
-        pending = len(get_pending())
+        try:
+            pending = len(get_pending())
+        except Exception as e:
+            # Fail OPEN: a transient queue-read error must never silently suppress
+            # ideation (self-stub convention). Top up rather than skip.
+            print(f"{GRAY}ensure-min: could not read queue ({e}) — topping up anyway.{RESET}")
+            pending = 0
         if not _topup_needed(pending, args.ensure_min):
             print(f"{GRAY}Queue has {pending} pending ≥ floor {args.ensure_min} — "
                   f"skipping ideation.{RESET}")

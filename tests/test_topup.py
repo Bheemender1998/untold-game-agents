@@ -61,3 +61,19 @@ def test_no_flag_always_generates(monkeypatch):
     # Today's behaviour preserved: no --ensure-min → generate regardless of depth.
     calls = _run_main(monkeypatch, ["--no-review"], pending_count=999)
     assert calls["all"] == 1
+
+
+def test_ensure_min_fails_open_on_queue_read_error(monkeypatch):
+    # A transient queue-read error must NOT silently skip ideation — fail open (generate).
+    calls = {"all": 0}
+    monkeypatch.setattr(sys, "argv", ["run_pipeline", "--no-review", "--ensure-min"])
+
+    def boom(*a, **k):
+        raise RuntimeError("neon down")
+
+    monkeypatch.setattr(run_pipeline, "get_pending", boom)
+    monkeypatch.setattr(run_pipeline, "run_all_agents",
+                        lambda *a, **k: calls.__setitem__("all", calls["all"] + 1))
+    monkeypatch.setattr(run_pipeline, "print_stats", lambda *a, **k: None)
+    run_pipeline.main()
+    assert calls["all"] == 1
