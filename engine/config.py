@@ -110,14 +110,14 @@ SHORT_NARRATION_SPEED = 1.05     # brisk but no longer breathless (was 1.12; vs 
 SHORT_NARRATION_GAP_S = 0.20     # short pauses, room to breathe (was 0.12; vs 0.5 long-form)
 SHORT_END_GAP_S = 0.6            # longer silence BEFORE the final (payoff) sentence so it lands apart from the facts
 SHORT_END_HOLD_MS = 1000         # hold the last story shot + music this long before the subscribe card (the "end breath")
-# Only two voices in rotation: af_sarah (warm, well-proportioned) carries the
-# emotional/somber stories; bm_george (authoritative British male) anchors the rest.
-NARRATION_VOICE_DEFAULT = "bm_george"
+# Single narrator voice across the channel: af_sarah (warm, well-proportioned).
+# bm_george (British male) was retired so every video carries one consistent voice.
+NARRATION_VOICE_DEFAULT = "af_sarah"
 NARRATION_VOICE_BY_MOOD = {
-    "triumphant": "bm_george",  # authoritative for the payoff
-    "hype":       "bm_george",  # drives energy
-    "tense":      "bm_george",  # measured, investigative
-    "somber":     "af_sarah",   # warm, gentle for loss
+    "triumphant": "af_sarah",
+    "hype":       "af_sarah",
+    "tense":      "af_sarah",
+    "somber":     "af_sarah",
 }
 # Map the 6 content pillars → a mood, so long-form narration picks a voice too.
 PILLAR_MOOD = {
