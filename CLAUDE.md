@@ -124,6 +124,9 @@ gate**; rely on `pytest tests/` + the QC gate + the still-preview trick.
 Deploy: the **ideate cron runs on Railway** every 2-3 days (`python3 -m engine.run_cron`),
 writing new ideas to **Neon** (the single source of truth when `DATABASE_URL` is set).
 Local flows — `run_pipeline --review`, `run_produce`, `run_auto` — read the same Neon queue.
+The **local overnight** (launchd, daily 01:00) tops up ideas only when the queue is below
+`IDEATE_TOPUP_MIN` (default 12) — otherwise it skips ideation and goes straight to
+produce→render→QC; the Railway cron stays the primary generator.
 **Render is still local** (launchd on the M5 — Railway can't do the 45-min Chromium render).
 The JSON queue (`queue/idea_queue.json`) is the offline/test fallback when `DATABASE_URL` is unset.
 Required Railway env vars: `DATABASE_URL` (Neon connection string), `ANTHROPIC_API_KEY`,

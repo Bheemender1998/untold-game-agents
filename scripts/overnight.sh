@@ -33,8 +33,8 @@ LOG="logs/overnight-$(date +%Y-%m-%d).log"
 
 {
   echo "=== overnight run $(date) ==="
-  echo "-- ideate: top up the queue (headless) --"
-  python3 -m engine.run_pipeline --no-review || echo "(ideate failed — non-fatal, continuing)"
+  echo "-- ideate: top up the queue only if below IDEATE_TOPUP_MIN (headless) --"
+  python3 -m engine.run_pipeline --no-review --ensure-min || echo "(ideate failed — non-fatal, continuing)"
   echo "-- produce + render + QC (count=3) --"
   python3 -m engine.run_auto --count 3 || echo "(run_auto exited $? — see above)"
   echo "-- API cost summary for this run --"

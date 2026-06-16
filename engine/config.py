@@ -164,3 +164,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL") or None
 # ── Ideate cron cost guard (unattended runs only) ─────────────────────────────
 CRON_PER_RUN_CAP_USD = float(os.environ.get("CRON_PER_RUN_CAP_USD", "2.0"))
 CRON_MONTHLY_CAP_USD = float(os.environ.get("CRON_MONTHLY_CAP_USD", "15.0"))
+
+# Local overnight (overnight.sh) tops up the idea queue ONLY when fewer than this many
+# ideas are pending; otherwise it skips ideation and goes straight to produce→render→QC.
+# The Railway cron remains the primary generator (~every 2 days). Env-overridable.
+IDEATE_TOPUP_MIN = int(os.environ.get("IDEATE_TOPUP_MIN", "12"))
