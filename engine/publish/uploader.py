@@ -11,10 +11,24 @@ Until then it's the ready-to-use publishing infra. CLI for manual testing:
         --publish-at 2026-07-01T16:00:00Z
 """
 from __future__ import annotations
+import http.client
 import os
+import socket
+import ssl
+import time
 
 # YouTube videoCategoryId 17 = "Sports".
 DEFAULT_CATEGORY_ID = "17"
+
+# Transient connection failures that should resume a resumable upload, not abort it.
+# BrokenPipeError/ConnectionReset* are subclasses of ConnectionError; large multi-GB
+# uploads regularly hit one of these mid-stream on a flaky link.
+_RETRYABLE_UPLOAD_ERRORS = (
+    ConnectionError, TimeoutError, ssl.SSLError, socket.timeout,
+    http.client.IncompleteRead, http.client.RemoteDisconnected,
+    http.client.BadStatusLine,
+)
+_MAX_UPLOAD_RESUMES = 12
 
 
 def _safe_tags(tags: list[str] | None) -> list[str]:
@@ -73,16 +87,32 @@ def upload(
 
     youtube = get_service()
     # Chunked (not -1/single-shot) so next_chunk() reports progress — a single-shot upload
-    # prints nothing for minutes and looks dead, which invites a duplicate re-run. 50 MiB is
-    # a multiple of the required 256 KiB. Also more resumable on a flaky connection.
-    media = MediaFileUpload(video_path, chunksize=50 * 1024 * 1024, resumable=True)
+    # prints nothing for minutes and looks dead, which invites a duplicate re-run. 10 MiB is
+    # a multiple of the required 256 KiB and keeps each chunk's exposure to a mid-stream
+    # reset small, so a resume re-sends little.
+    media = MediaFileUpload(video_path, chunksize=10 * 1024 * 1024, resumable=True)
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
+    # Resumable upload: next_chunk(num_retries=...) retries transient HTTP/socket errors
+    # per chunk with backoff. The outer loop catches connection resets that escape that
+    # (e.g. BrokenPipeError) and resumes the SAME request from the last committed byte —
+    # without it, one mid-stream reset aborts a multi-GB upload from zero.
     response = None
+    resumes = 0
     while response is None:
-        progress, response = request.next_chunk()
-        if progress:
-            print(f"  upload {int(progress.progress() * 100)}%")
+        try:
+            progress, response = request.next_chunk(num_retries=5)
+            if progress:
+                print(f"  upload {int(progress.progress() * 100)}%")
+            resumes = 0  # a chunk landed — reset the failure streak
+        except _RETRYABLE_UPLOAD_ERRORS as e:
+            resumes += 1
+            if resumes > _MAX_UPLOAD_RESUMES:
+                raise
+            backoff = min(2 ** resumes, 60)
+            print(f"  ⚠ upload interrupted ({type(e).__name__}: {e}) — "
+                  f"resume {resumes}/{_MAX_UPLOAD_RESUMES} in {backoff}s")
+            time.sleep(backoff)
 
     video_id = response["id"]
     print(f"  ✓ uploaded: https://youtu.be/{video_id}")
