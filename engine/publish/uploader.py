@@ -11,10 +11,31 @@ Until then it's the ready-to-use publishing infra. CLI for manual testing:
         --publish-at 2026-07-01T16:00:00Z
 """
 from __future__ import annotations
+import http.client
 import os
+import socket
+import ssl
+import time
 
 # YouTube videoCategoryId 17 = "Sports".
 DEFAULT_CATEGORY_ID = "17"
+
+# Transient connection failures that should resume a resumable upload, not abort it.
+# BrokenPipeError/ConnectionReset* are subclasses of ConnectionError (and the OSError
+# errno cases EPIPE/ECONNRESET auto-promote to those subclasses), so they're covered
+# here; large multi-GB uploads regularly hit one of these mid-stream on a flaky link.
+# httplib2.ServerNotFoundError (a transient DNS blip) is added at call time — it isn't
+# an OSError subclass, so it would otherwise escape this set and abort the upload.
+_RETRYABLE_UPLOAD_ERRORS = (
+    ConnectionError, TimeoutError, ssl.SSLError, socket.timeout,
+    http.client.IncompleteRead, http.client.RemoteDisconnected,
+    http.client.BadStatusLine,
+)
+# Cap consecutive failures (a genuinely stuck upload) AND total resumes across the whole
+# upload (a connection that flaps once per chunk would never trip the consecutive cap,
+# since each landed chunk resets the streak — so bound the aggregate too).
+_MAX_UPLOAD_RESUMES = 12
+_MAX_TOTAL_RESUMES = 40
 
 
 def _safe_tags(tags: list[str] | None) -> list[str]:
@@ -50,8 +71,13 @@ def upload(
     If `publish_at` is set, privacy is forced to 'private' and YouTube releases
     the video automatically at that time (scheduled publish).
     """
+    import httplib2
     from googleapiclient.http import MediaFileUpload
     from engine.publish.auth import get_service
+
+    # ServerNotFoundError lives in httplib2 (a google-api-python-client dep), imported
+    # lazily here so this module stays importable without the google stack installed.
+    retryable_errors = _RETRYABLE_UPLOAD_ERRORS + (httplib2.ServerNotFoundError,)
 
     if not os.path.exists(video_path):
         raise FileNotFoundError(video_path)
@@ -73,16 +99,35 @@ def upload(
 
     youtube = get_service()
     # Chunked (not -1/single-shot) so next_chunk() reports progress — a single-shot upload
-    # prints nothing for minutes and looks dead, which invites a duplicate re-run. 50 MiB is
-    # a multiple of the required 256 KiB. Also more resumable on a flaky connection.
-    media = MediaFileUpload(video_path, chunksize=50 * 1024 * 1024, resumable=True)
+    # prints nothing for minutes and looks dead, which invites a duplicate re-run. 10 MiB is
+    # a multiple of the required 256 KiB and keeps each chunk's exposure to a mid-stream
+    # reset small, so a resume re-sends little.
+    media = MediaFileUpload(video_path, chunksize=10 * 1024 * 1024, resumable=True)
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
+    # Resumable upload: next_chunk(num_retries=...) retries transient HTTP/socket errors
+    # per chunk with backoff. The outer loop catches connection resets that escape that
+    # (e.g. BrokenPipeError) and resumes the SAME request from the last committed byte —
+    # without it, one mid-stream reset aborts a multi-GB upload from zero.
     response = None
+    resumes = 0          # consecutive failures since the last landed chunk
+    total_resumes = 0    # aggregate failures across the whole upload
     while response is None:
-        progress, response = request.next_chunk()
-        if progress:
-            print(f"  upload {int(progress.progress() * 100)}%")
+        try:
+            progress, response = request.next_chunk(num_retries=5)
+            if progress:
+                print(f"  upload {int(progress.progress() * 100)}%")
+            resumes = 0  # a chunk landed — reset the consecutive streak
+        except retryable_errors as e:
+            resumes += 1
+            total_resumes += 1
+            if resumes > _MAX_UPLOAD_RESUMES or total_resumes > _MAX_TOTAL_RESUMES:
+                raise
+            backoff = min(2 ** resumes, 60)
+            print(f"  ⚠ upload interrupted ({type(e).__name__}: {e}) — "
+                  f"resume {resumes}/{_MAX_UPLOAD_RESUMES} "
+                  f"(total {total_resumes}/{_MAX_TOTAL_RESUMES}) in {backoff}s")
+            time.sleep(backoff)
 
     video_id = response["id"]
     print(f"  ✓ uploaded: https://youtu.be/{video_id}")

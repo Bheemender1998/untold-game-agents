@@ -4,6 +4,31 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 26 (2026-06-16→17) — finished the 3 overnight longs + shorts (fact-reviewed, rendered, QC-clean) · publish BLOCKED by network · uploader resume-retry fix on branch (unmerged)
+
+User: "pause tonight's overnight automation and finish yesterday's ones." Did that, then "approved" publishing all 3 — which exposed a real uploader bug. **Nothing published yet** (flaky network to YouTube). All work on `main` except the engine fix (branch).
+
+### Done (no merge needed — content only; `produced/` is gitignored)
+- **Paused tonight's overnight** — `launchctl bootout gui/$(id -u)/com.untoldgame.overnight`. ⚠️ This pauses **all** future runs, not just tonight. Resume: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.untoldgame.overnight.plist`.
+- **`abb5e8fb` (Iran-USA WC) — fact-reviewed, corrected, rendered + companion short, QC-clean → `awaiting_approval`.** Reversed S25's "cut Acts III-IV / hold" call: the 2026 back-half is **real and now verified** vs live sources (ESPN/Sky/Al Jazeera/NPR/CBS/Wikipedia). 4 real errors fixed: ceasefire timeline (war started Feb 28 2026; conditional ceasefire ~Apr 8; **no** Jun-14 ceasefire — script had invented one), match date Jun 15 (not 16), named the denied official Pres. **Mehdi Taj** (dropped unverified "VP Mehdi Mohammed Nabi"), host = co-hosted US/Can/Mex. Referee Omar Artan denied at Miami, Tijuana camp + 5-hr trip, ordered-out-immediately all CONFIRMED true.
+- **`b9a64eb2` (Knicks "53 years") — fact-reviewed, corrected, rendered + companion short, QC-clean → `awaiting_approval`.** 2 real errors fixed: Eddy Curry trade = **two** first-round picks (script said 1st + two 2nds), Brunson **33rd** pick (not 29th). The 2026 Finals beats are all real & verified (Game 5 Jun 13, San Antonio, Knicks 94-90, series 3-1, Brunson 45 / Finals MVP, first title since 1973). ⚠️ **S25's DUPLICATE concern vs already-published `adfea6c1` was NOT resolved — verify before publishing b9a64eb2.**
+- **`05499ca8` (1987 NFL "scab" strike) companion short — produced fresh + fact-reviewed + rendered, QC-clean.** Long already existed from S25. Short facts verified (3-0 replacements, beat Giants 38-12, Cowboys 13-7 MNF, SB XXII 42-10, rings 2018). Repaired the queue record: producing the short had **clobbered the long's `metadata_path`/`video_path` and left `short_metadata_path` null** — all four paths restored. ⚠️ `05499ca8` **long still has no custom thumbnail** (subject autosource found nothing) — `thumbnail-assets`/`run_subject` then it'll upload custom instead of YouTube's default frame.
+
+### Shipped to a branch (NOT merged — needs `ship-video-change` rail)
+- **`fix/uploader-resume-retries` (`1130d56`)** — `engine/publish/uploader.py`: `next_chunk()` had no retry, so one mid-stream `BrokenPipeError` aborted a multi-GB `videos.insert` from zero — **every** publish attempt this session died on the first chunk. Fix: `next_chunk(num_retries=5)` inside an outer resume loop catching `ConnectionError`/SSL/socket resets (resumes same request, exp backoff, cap 12); chunksize 50→10 MiB. 422 tests pass. **Not yet proven to fully succeed** — the in-flight upload was still grinding (genuinely bad link) when the session wrapped.
+
+### Open / next (priority order)
+1. **Resolve `b9a64eb2` vs `adfea6c1` duplicate** (S25 flag) BEFORE publishing it.
+2. **Finish publishing the 3** (unlisted) once the network is stable: `run_auto --approve <id>` for `05499ca8`, `abb5e8fb`, `b9a64eb2`. None published yet — all `awaiting_approval`, no URLs, no dup risk. A stray background upload (`05499ca8`) may still be running — check `get_by_id` URLs first.
+3. **Merge the uploader fix** via `ship-video-change` (dual adversarial review + PR + trailer).
+4. **`05499ca8` long thumbnail** (item above) before its approve.
+5. **Reload the overnight launchd job** when ready to resume nightly automation.
+
+### Suggested skills next session
+`ship-video-change` (merge the uploader fix). `publish-video` (approve the 3). `thumbnail-assets` (05499ca8 long subject). `fact-review` only if the b9a64eb2/adfea6c1 dup turns out to need a rework.
+
+---
+
 ## Session 25 (2026-06-16) — caption-sync bug FIXED (#75) + single voice (af_sarah) · 05499ca8 fact-reviewed + corrected re-render · Railway cron STOPPED
 
 Triggered by the overnight run leaving 3 longs in `needs_review` and the user reviewing the one previously-rendered long. Shipped a real caption-sync fix + voice consolidation, fact-reviewed and re-rendered one long, and paused the Railway cron. **Worktrees off `main` throughout** — the main clone stayed on the concurrent manhwa session's `docs/manhwa-motion-spec`, never disturbed.
