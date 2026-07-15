@@ -4,6 +4,26 @@ Session wrap log. Newest first. Use the `handoff` skill to append a new entry.
 
 ---
 
+## Session 27 (2026-07-15) - overnight automation permanently disarmed (plist parked) · launchd had silently re-armed and burned $0.54 · API credits EXHAUSTED
+
+User asked "did we stop all overnight runs?" Answer was no: the 2026-07-12 `launchctl bootout` was not durable - the plist stayed in `~/Library/LaunchAgents`, a reboot re-loaded it, and the job **ran again 2026-07-15 01:00** (also 07-10/11/12; nothing on 07-13/14). No engine code changed this session.
+
+### Done
+- **Permanent disarm:** booted out `com.untoldgame.overnight` AND moved the plist to `scripts/com.untoldgame.overnight.plist.disabled` (committed this PR) so a reboot can no longer re-load it. Resume (only when the user asks): `mv scripts/com.untoldgame.overnight.plist.disabled ~/Library/LaunchAgents/com.untoldgame.overnight.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.untoldgame.overnight.plist`. **Lesson (bit us twice, Jun 17 + Jul 12): `bootout` alone is never a durable stop.**
+- **Railway ideate cron verified quiet:** no deploy logs in 7+ days, last deployment 2026-06-15. Still true that a `railway up` would re-arm it (S25 footgun).
+- **Cleaned up the Jul-15 run's damage:** the run skipped ideation (queue 70 ≥ floor 12), wrote a script for `d84b3e24` (NBA referee - failed fact-gate, 9 unresolved → `needs_review`, legitimate), then **died mid-run on "credit balance too low"** after $0.54, stranding `97fb7133` (Ali draft) and `e3ce363a` (13-yr footballer) in `producing`. Both reset to `approved` (user ran the reset; permission classifier blocked the agent doing it). Verified via `get_by_id`.
+- Memory `automation-fully-paused` updated with the final state + the bootout-isn't-durable lesson.
+
+### Open / next
+1. **API credits are EXHAUSTED** - nothing (manual or automated) can produce until the Anthropic account is topped up. This is what killed the Jul-15 run.
+2. `d84b3e24` sits in `needs_review` (fact-gate, 9 unresolved + coverage cap) - `fact-review` before any production use.
+3. All of S26's open items still stand (b9a64eb2/adfea6c1 dup, publishing the 3 unlisted, 05499ca8 long thumbnail) - nothing in HANDOFF was progressed between S26 and S27; sessions in between (voice eval, uploader fix #77, cron stop #76) are in the git log, not here.
+
+### Suggested skills next session
+`fact-review` (d84b3e24). `publish-video` / `thumbnail-assets` if resuming S26's publish queue. Do NOT re-arm any automation without an explicit user ask (`automation-fully-paused` memory).
+
+---
+
 ## Session 26 (2026-06-16→17) — finished the 3 overnight longs + shorts (fact-reviewed, rendered, QC-clean) · publish BLOCKED by network · uploader resume-retry fix on branch (unmerged)
 
 User: "pause tonight's overnight automation and finish yesterday's ones." Did that, then "approved" publishing all 3 — which exposed a real uploader bug. **Nothing published yet** (flaky network to YouTube). All work on `main` except the engine fix (branch).
